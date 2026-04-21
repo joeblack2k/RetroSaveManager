@@ -543,6 +543,28 @@ code {
   background: #282c37;
 }
 
+.saves-delete-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 5rem;
+  min-height: 2.4rem;
+  border-radius: 0.5rem;
+  border: 1px solid #5b4652;
+  background: #2a2028;
+  color: #ffd4e4;
+  font-size: 1.02rem;
+  cursor: pointer;
+}
+
+.saves-delete-btn:hover:not(:disabled) {
+  background: #372731;
+}
+
+.saves-delete-btn:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

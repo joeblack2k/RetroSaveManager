@@ -2,7 +2,7 @@ import { ChangeEvent, useCallback, useMemo, useState } from "react";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { apiDownloadURL } from "../../services/apiClient";
-import { getCurrentUser, listSaves } from "../../services/retrosaveApi";
+import { deleteManySaves, getCurrentUser, listSaves } from "../../services/retrosaveApi";
 import { formatBytes, formatRelativeDate } from "../../utils/format";
 
 type SystemOption = {
@@ -15,6 +15,7 @@ type SaveRow = {
   gameName: string;
   systemName: string;
   systemSlug: string;
+  saveIDs: string[];
   saveCount: number;
   totalBytes: number;
   latestCreatedAt: string;
@@ -27,13 +28,15 @@ const DEFAULT_LIMIT_BYTES = 200 * 1024 * 1024;
 
 export function MyGamesPage(): JSX.Element {
   const [systemFilter, setSystemFilter] = useState("all");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingKeys, setDeletingKeys] = useState<string[]>([]);
 
   const loader = useCallback(async () => {
     const [user, saves] = await Promise.all([getCurrentUser(), listSaves()]);
     return { user, saves };
   }, []);
 
-  const { loading, error, data } = useAsyncData(loader, []);
+  const { loading, error, data, reload } = useAsyncData(loader, []);
 
   const systemOptions = useMemo<SystemOption[]>(() => {
     if (!data) {
@@ -111,6 +114,7 @@ export function MyGamesPage(): JSX.Element {
       gameName: row.gameName,
       systemName: row.systemName,
       systemSlug: row.systemSlug,
+      saveIDs: row.saveIDs,
       saveCount: row.saveCount,
       totalBytes: row.totalBytes,
       latestCreatedAt: row.latestCreatedAt,
@@ -131,6 +135,25 @@ export function MyGamesPage(): JSX.Element {
 
   function handleSystemFilterChange(event: ChangeEvent<HTMLSelectElement>): void {
     setSystemFilter(event.target.value);
+  }
+
+  async function handleDeleteRow(row: SaveRow): Promise<void> {
+    const saveLabel = row.saveCount === 1 ? "save" : "saves";
+    const confirmed = window.confirm(`Are you sure?\n\nThis will permanently delete ${row.saveCount} ${saveLabel} for "${row.gameName}".`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteError(null);
+    setDeletingKeys((current) => (current.includes(row.key) ? current : [...current, row.key]));
+    try {
+      await deleteManySaves(row.saveIDs);
+      reload();
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "Delete mislukt");
+    } finally {
+      setDeletingKeys((current) => current.filter((key) => key !== row.key));
+    }
   }
 
   if (loading) {
@@ -174,6 +197,7 @@ export function MyGamesPage(): JSX.Element {
           </button>
         </div>
       </header>
+      {deleteError ? <p className="error-state">{deleteError}</p> : null}
 
       <div className="saves-table-wrap">
         <table className="saves-table">
@@ -187,36 +211,51 @@ export function MyGamesPage(): JSX.Element {
               <th>Size</th>
               <th>Date</th>
               <th>Download</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <td className="saves-table__check">
-                  <input type="checkbox" aria-label={`Select ${row.gameName}`} name={`select-${row.key}`} />
-                </td>
-                <td>
-                  <div className="saves-game-cell">
-                    <img src={row.coverUrl} alt={`${row.gameName} cover`} className="saves-cover" loading="lazy" />
-                    <div>
-                      <strong>{row.gameName}</strong>
-                      <p>
-                        {row.systemName} · v{row.latestVersion}
-                      </p>
+            {rows.map((row) => {
+              const isDeleting = deletingKeys.includes(row.key);
+              return (
+                <tr key={row.key}>
+                  <td className="saves-table__check">
+                    <input type="checkbox" aria-label={`Select ${row.gameName}`} name={`select-${row.key}`} />
+                  </td>
+                  <td>
+                    <div className="saves-game-cell">
+                      <img src={row.coverUrl} alt={`${row.gameName} cover`} className="saves-cover" loading="lazy" />
+                      <div>
+                        <strong>{row.gameName}</strong>
+                        <p>
+                          {row.systemName} · v{row.latestVersion}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td>{row.saveCount}</td>
-                <td>{formatBytes(row.totalBytes)}</td>
-                <td>{formatRelativeDate(row.latestCreatedAt)}</td>
-                <td>
-                  <a className="saves-download-btn" href={row.downloadUrl}>
-                    <span aria-hidden="true">⇩</span>
-                    <span className="sr-only">Download {row.gameName}</span>
-                  </a>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>{row.saveCount}</td>
+                  <td>{formatBytes(row.totalBytes)}</td>
+                  <td>{formatRelativeDate(row.latestCreatedAt)}</td>
+                  <td>
+                    <a className="saves-download-btn" href={row.downloadUrl}>
+                      <span aria-hidden="true">⇩</span>
+                      <span className="sr-only">Download {row.gameName}</span>
+                    </a>
+                  </td>
+                  <td>
+                    <button
+                      className="saves-delete-btn"
+                      type="button"
+                      onClick={() => void handleDeleteRow(row)}
+                      disabled={isDeleting}
+                      aria-label={`Delete ${row.gameName} saves`}
+                    >
+                      {isDeleting ? "..." : "Delete"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

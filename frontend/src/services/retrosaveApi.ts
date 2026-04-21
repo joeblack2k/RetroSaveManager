@@ -61,6 +61,22 @@ export async function listSaves(): Promise<SaveSummary[]> {
   return response.saves;
 }
 
+export function deleteSave(id: string): Promise<{ success: boolean; remainingVersions: number }> {
+  return apiFetchJSON(`/save?id=${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export function deleteManySaves(ids: string[]): Promise<{ success: boolean; remainingVersions: number }> {
+  const cleaned = ids.map((id) => id.trim()).filter((id) => id.length > 0);
+  if (cleaned.length === 1) {
+    return deleteSave(cleaned[0]);
+  }
+  return apiFetchJSON(`/saves?ids=${encodeURIComponent(cleaned.join(","))}`, {
+    method: "DELETE"
+  });
+}
+
 export async function listCatalog(): Promise<CatalogItem[]> {
   const response = await apiFetchJSON<{ items: CatalogItem[] }>("/catalog");
   return response.items;
