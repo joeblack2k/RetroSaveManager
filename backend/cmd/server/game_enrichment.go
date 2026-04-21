@@ -38,11 +38,7 @@ type gameEnricher struct {
 }
 
 func newGameEnricherFromEnv() *gameEnricher {
-	stateRoot := strings.TrimSpace(os.Getenv("STATE_ROOT"))
-	if stateRoot == "" {
-		stateRoot = "./data/state"
-	}
-	_ = os.MkdirAll(stateRoot, 0o755)
+	stateRoot := stateRootDirFromEnv()
 
 	e := &gameEnricher{
 		cache:     map[string]enrichmentEntry{},

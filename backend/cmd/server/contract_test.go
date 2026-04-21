@@ -113,8 +113,10 @@ func TestContractSaveLatestMissingAndSuccessShape(t *testing.T) {
 
 func TestContractSavesMultipartSuccessAndMissingFileFailure(t *testing.T) {
 	h := newContractHarness(t)
+	helperKey := createHelperAppPassword(t, h, "", "contract-helper")
 
 	okBody := uploadSave(t, h, "/saves", map[string]string{
+		"app_password": helperKey,
 		"rom_sha1":    "upload-rom",
 		"device_type": "web",
 		"fingerprint": "abcdef12",
@@ -132,6 +134,26 @@ func TestContractSavesMultipartSuccessAndMissingFileFailure(t *testing.T) {
 	missingBody := decodeJSONMap(t, missing.Body)
 	if mustString(t, missingBody["message"], "message") != "File is required" {
 		t.Fatalf("unexpected missing-file message: %s", prettyJSON(missingBody))
+	}
+}
+
+func TestContractSavesMultipartRejectsUnknownSystemNoise(t *testing.T) {
+	h := newContractHarness(t)
+	helperKey := createHelperAppPassword(t, h, "", "noise-helper")
+
+	rejected := h.multipart("/saves", map[string]string{
+		"app_password": helperKey,
+		"rom_sha1":    "noise-rom",
+		"device_type": "linux-x86",
+		"fingerprint": "noise-device",
+	}, "notes.txt", []byte("this is plain text and not a valid save"))
+	assertStatus(t, rejected, http.StatusUnprocessableEntity)
+	assertJSONContentType(t, rejected)
+
+	body := decodeJSONMap(t, rejected.Body)
+	message := mustString(t, body["message"], "message")
+	if !strings.Contains(strings.ToLower(message), "known consoles") {
+		t.Fatalf("expected unsupported-format message, got %q", message)
 	}
 }
 

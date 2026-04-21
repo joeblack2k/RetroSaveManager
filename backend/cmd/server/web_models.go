@@ -9,11 +9,18 @@ type trustedDevice struct {
 }
 
 type appPassword struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	LastFour  string     `json:"lastFour"`
-	CreatedAt time.Time  `json:"createdAt"`
-	LastUsed  *time.Time `json:"lastUsedAt,omitempty"`
+	ID                 string     `json:"id"`
+	Name               string     `json:"name"`
+	LastFour           string     `json:"lastFour"`
+	CreatedAt          time.Time  `json:"createdAt"`
+	LastUsed           *time.Time `json:"lastUsedAt,omitempty"`
+	BoundDeviceID      *int       `json:"boundDeviceId,omitempty"`
+	SyncAll            bool       `json:"syncAll"`
+	AllowedSystemSlugs []string   `json:"allowedSystemSlugs,omitempty"`
+	KeySalt            string     `json:"-"`
+	KeyHash            string     `json:"-"`
+	BoundDeviceType    string     `json:"-"`
+	BoundFingerprint   string     `json:"-"`
 }
 
 type catalogGame struct {

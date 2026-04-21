@@ -36,6 +36,8 @@ type authStateSnapshot struct {
 
 type app struct {
 	mu                    sync.Mutex
+	securityStateFile     string
+	autoAppPasswordEnabledUntil *time.Time
 	nextDeviceID          int
 	nextAppPasswordID     int
 	nextLibraryID         int
@@ -58,6 +60,8 @@ type app struct {
 
 func newApp() *app {
 	now := time.Now().UTC()
+	seedCompact := "ASDK9P"
+	seedSalt := randomHex(16)
 	catalog := map[string]catalogGame{
 		"cat-1": {
 			ID:          "cat-1",
@@ -84,15 +88,18 @@ func newApp() *app {
 		nextAppPasswordID: 2,
 		nextLibraryID:     2,
 		nextSuggestionID:  2,
+		securityStateFile: securityDeviceStateFilePathFromEnv(),
 		devices: map[int]device{
 			1: {
-				ID:           1,
-				DeviceType:   "internal",
-				Fingerprint:  "seed0001",
-				Alias:        nil,
-				DisplayName:  "internal seed0001",
-				LastSyncedAt: now,
-				CreatedAt:    now,
+				ID:                 1,
+				DeviceType:         "internal",
+				Fingerprint:        "seed0001",
+				Alias:              nil,
+				DisplayName:        "internal seed0001",
+				SyncAll:            true,
+				AllowedSystemSlugs: nil,
+				LastSyncedAt:       now,
+				CreatedAt:          now,
 			},
 		},
 		trustedDevices: map[string]trustedDevice{
@@ -104,10 +111,14 @@ func newApp() *app {
 		},
 		appPasswords: map[string]appPassword{
 			"app-password-1": {
-				ID:        "app-password-1",
-				Name:      "default",
-				LastFour:  "4e2a",
-				CreatedAt: now,
+				ID:                 "app-password-1",
+				Name:               "default",
+				LastFour:           seedCompact[len(seedCompact)-4:],
+				CreatedAt:          now,
+				SyncAll:            true,
+				AllowedSystemSlugs: nil,
+				KeySalt:            seedSalt,
+				KeyHash:            hashAppPasswordCompact(seedSalt, seedCompact),
 			},
 		},
 		catalog: catalog,
@@ -140,6 +151,9 @@ func newApp() *app {
 		enricher:           newGameEnricherFromEnv(),
 		conflicts:          map[string]conflictRecord{},
 		eventSubscribers:   map[int]chan sseEvent{},
+	}
+	if err := a.loadSecurityDeviceState(); err != nil {
+		// Keep in-memory defaults when persisted state is unavailable.
 	}
 	return a
 }
@@ -193,6 +207,9 @@ func (a *app) createSave(input saveCreateInput) (saveRecord, error) {
 	}
 
 	normalizedInput := a.normalizeSaveInput(input)
+	if !isSupportedSystemSlug(normalizedInput.SystemSlug) {
+		return saveRecord{}, fmt.Errorf("%w", errUnsupportedSaveFormat)
+	}
 	record, err := store.create(normalizedInput)
 	if err != nil {
 		return saveRecord{}, err
@@ -238,26 +255,8 @@ func (a *app) upsertDevice(deviceType, fingerprint string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	now := time.Now().UTC()
-	for id, d := range a.devices {
-		if d.DeviceType == deviceType && d.Fingerprint == fingerprint {
-			d.LastSyncedAt = now
-			a.devices[id] = d
-			return
-		}
-	}
-
-	id := a.nextDeviceID
-	a.nextDeviceID++
-	a.devices[id] = device{
-		ID:           id,
-		DeviceType:   deviceType,
-		Fingerprint:  fingerprint,
-		Alias:        nil,
-		DisplayName:  fmt.Sprintf("%s %s", deviceType, fingerprint),
-		LastSyncedAt: now,
-		CreatedAt:    now,
-	}
+	_ = a.upsertDeviceLocked(deviceType, fingerprint)
+	_ = a.persistSecurityDeviceStateLocked()
 }
 
 func conflictKey(romSHA1, slotName string) string {

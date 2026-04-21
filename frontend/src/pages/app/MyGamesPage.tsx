@@ -353,6 +353,10 @@ function cleanGameTitle(raw: string): string {
     }
     title = title.slice(0, match.index).trim();
   }
+  const trailingCounterPattern = /(?:[_.-]+|\s+(?:slot|save)\s+)#?\d{1,3}$/i;
+  while (trailingCounterPattern.test(title)) {
+    title = title.replace(trailingCounterPattern, "").trim();
+  }
   if (!title) {
     return "Unknown game";
   }
@@ -433,7 +437,11 @@ function mergeLanguageCodes(...sources: Array<string[] | undefined>): string[] {
 function detectConsoleForSave(save: SaveSummary): { slug: string; name: string } {
   const knownSystem = save.game.system?.name?.trim() || "";
   const knownSlug = save.game.system?.slug?.trim().toLowerCase() || "";
+  const summarySlug = (save.systemSlug || "").trim().toLowerCase();
 
+  if (summarySlug !== "" && !isUnknownSystemLabel(summarySlug)) {
+    return normalizeConsoleLabel(summarySlug, knownSystem || summarySlug);
+  }
   if (knownSlug !== "" && !isUnknownSystemLabel(knownSlug)) {
     return normalizeConsoleLabel(knownSlug, knownSystem);
   }
@@ -449,25 +457,64 @@ function detectConsoleForSave(save: SaveSummary): { slug: string; name: string }
   if (["mcr", "mcd", "gme", "mc"].includes(ext) || format.includes("mcr") || title.includes("memory card")) {
     return { slug: "psx", name: "PlayStation" };
   }
+  if (["dsv"].includes(ext)) {
+    return { slug: "nds", name: "Nintendo DS" };
+  }
   if (["eep", "fla", "mpk", "sra"].includes(ext)) {
     return { slug: "n64", name: "Nintendo 64" };
   }
+  if (["ps2"].includes(ext)) {
+    return { slug: "ps2", name: "PlayStation 2" };
+  }
+  if (["nv", "nvram", "hi", "eeprom"].includes(ext) || isArcadeHint(`${filename} ${title}`)) {
+    return { slug: "arcade", name: "Arcade" };
+  }
   if (["srm", "smc", "sfc"].includes(ext)) {
     return { slug: "snes", name: "Super Nintendo" };
+  }
+  if (["ram"].includes(ext) && isArcadeHint(`${filename} ${title}`)) {
+    return { slug: "arcade", name: "Arcade" };
   }
   return { slug: "other", name: "Other" };
 }
 
 function normalizeConsoleLabel(slug: string, name: string): { slug: string; name: string } {
   const combined = `${slug} ${name}`.toLowerCase();
+  if (combined.includes("arcade") || combined.includes("mame") || combined.includes("fbneo") || combined.includes("finalburn")) {
+    return { slug: "arcade", name: "Arcade" };
+  }
+  if (combined.includes("nds") || combined.includes("nintendo ds")) {
+    return { slug: "nds", name: "Nintendo DS" };
+  }
+  if (combined.includes("nes") || combined.includes("famicom")) {
+    return { slug: "nes", name: "Nintendo Entertainment System" };
+  }
   if (combined.includes("snes") || combined.includes("super nintendo")) {
     return { slug: "snes", name: "Super Nintendo" };
   }
   if (combined.includes("n64") || combined.includes("nintendo 64")) {
     return { slug: "n64", name: "Nintendo 64" };
   }
+  if (combined.includes("neogeo") || combined.includes("neo geo")) {
+    return { slug: "neogeo", name: "Neo Geo" };
+  }
+  if (combined.includes("ps2") || combined.includes("playstation 2")) {
+    return { slug: "ps2", name: "PlayStation 2" };
+  }
+  if (combined.includes("psp") || combined.includes("playstation portable")) {
+    return { slug: "psp", name: "PlayStation Portable" };
+  }
+  if (combined.includes("psvita") || combined.includes("ps vita")) {
+    return { slug: "psvita", name: "PlayStation Vita" };
+  }
   if (combined.includes("playstation") || combined.includes("psx") || combined.includes("ps1")) {
     return { slug: "psx", name: "PlayStation" };
+  }
+  if (combined.includes("master system") || combined.includes("sms")) {
+    return { slug: "master-system", name: "Master System" };
+  }
+  if (combined.includes("game gear")) {
+    return { slug: "game-gear", name: "Game Gear" };
   }
   if (combined.includes("game boy") || combined.includes("gameboy")) {
     return { slug: "gameboy", name: "Nintendo Game Boy" };
@@ -487,6 +534,11 @@ function normalizeConsoleLabel(slug: string, name: string): { slug: string; name
     slug: slug.trim() !== "" ? slug.trim().toLowerCase() : cleaned.toLowerCase().replace(/\s+/g, "-"),
     name: cleaned
   };
+}
+
+function isArcadeHint(raw: string): boolean {
+  const value = raw.toLowerCase();
+  return ["arcade", "mame", "fbneo", "finalburn", "model2", "naomi", "daytona", "ghost house"].some((hint) => value.includes(hint));
 }
 
 function isUnknownSystemLabel(value: string): boolean {

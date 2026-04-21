@@ -18,6 +18,7 @@ export type SaveSystem = {
   id: number;
   name: string;
   slug?: string;
+  manufacturer?: string;
 };
 
 export type SaveGame = {
@@ -51,6 +52,7 @@ export type SaveSummary = {
   id: string;
   game: SaveGame;
   displayTitle?: string;
+  systemSlug?: string;
   regionCode?: "US" | "EU" | "JP" | "UNKNOWN" | string;
   regionFlag?: string;
   languageCodes?: string[];
@@ -96,8 +98,30 @@ export type Device = {
   fingerprint: string;
   alias: string | null;
   displayName: string;
+  syncAll: boolean;
+  allowedSystemSlugs?: string[];
+  boundAppPasswordId?: string | null;
+  boundAppPasswordName?: string;
+  boundAppPasswordLastFour?: string;
   lastSyncedAt: string;
   createdAt: string;
+};
+
+export type AppPassword = {
+  id: string;
+  name: string;
+  lastFour: string;
+  createdAt: string;
+  lastUsedAt?: string;
+  boundDeviceId?: number | null;
+  syncAll: boolean;
+  allowedSystemSlugs?: string[];
+};
+
+export type AppPasswordAutoEnrollStatus = {
+  success?: boolean;
+  active: boolean;
+  enabledUntil?: string | null;
 };
 
 export type Conflict = {

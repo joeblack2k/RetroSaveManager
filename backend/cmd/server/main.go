@@ -12,6 +12,12 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "rescan-saves" {
+		if err := runSaveRescan(os.Args[2:]); err != nil {
+			log.Fatalf("save rescan failed: %v", err)
+		}
+		return
+	}
 
 	app := newApp()
 	if err := app.initSaveStore(); err != nil {

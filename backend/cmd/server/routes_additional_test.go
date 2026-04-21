@@ -34,6 +34,8 @@ func TestContractAdditionalAuthAndWebRoutes(t *testing.T) {
 		{method: http.MethodGet, path: "/auth/app-passwords", status: http.StatusOK},
 		{method: http.MethodPost, path: "/auth/app-passwords", status: http.StatusOK, body: `{"name":"ci"}`},
 		{method: http.MethodDelete, path: "/auth/app-passwords/app-password-1", status: http.StatusOK},
+		{method: http.MethodGet, path: "/auth/app-passwords/auto-enroll", status: http.StatusOK},
+		{method: http.MethodPost, path: "/auth/app-passwords/auto-enroll", status: http.StatusOK, body: `{"minutes":15}`},
 		{method: http.MethodGet, path: "/referral", status: http.StatusOK},
 		{method: http.MethodPost, path: "/dev/signup", status: http.StatusOK, body: `{}`},
 		{method: http.MethodGet, path: "/parser/wasm?game_id=281", status: http.StatusOK},

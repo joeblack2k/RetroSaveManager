@@ -28,6 +28,19 @@ func TestCleanupDisplayTitleRegionAndLanguages(t *testing.T) {
 	}
 }
 
+func TestCleanupDisplayTitleRegionAndLanguagesStripsTrailingCounterNoise(t *testing.T) {
+	title, region, languages := cleanupDisplayTitleRegionAndLanguages("The Legend of Zelda - A Link to the Past (USA)_1")
+	if title != "The Legend of Zelda - A Link to the Past" {
+		t.Fatalf("unexpected title: %q", title)
+	}
+	if region != regionUS {
+		t.Fatalf("unexpected region: %q", region)
+	}
+	if len(languages) != 0 {
+		t.Fatalf("expected no language codes, got %#v", languages)
+	}
+}
+
 func TestParsePlayStationMemoryCard(t *testing.T) {
 	payload := make([]byte, psMemoryCardBlockSize*2)
 	dirOffset := psDirectoryEntrySize // slot 1
@@ -115,5 +128,28 @@ func TestNormalizeSaveInputDetectsLanguageAndRegionFromPayload(t *testing.T) {
 	}
 	if len(input.LanguageCodes) != 2 || input.LanguageCodes[0] != "EN" || input.LanguageCodes[1] != "JA" {
 		t.Fatalf("unexpected language codes: %#v", input.LanguageCodes)
+	}
+}
+
+func TestDetectSaveSystemArcadeExamples(t *testing.T) {
+	daytona := detectSaveSystem(saveSystemDetectionInput{
+		Filename:     "daytona.ram",
+		DisplayTitle: "Daytona USA",
+		Payload:      []byte{0x01, 0x02, 0x03, 0x04, 0x05},
+	})
+	if daytona.Slug != "arcade" {
+		t.Fatalf("expected arcade for daytona.ram, got %q", daytona.Slug)
+	}
+	if daytona.System == nil || daytona.System.Slug != "arcade" {
+		t.Fatalf("expected arcade system details, got %#v", daytona.System)
+	}
+
+	ghostHouse := detectSaveSystem(saveSystemDetectionInput{
+		Filename:     "Ghost House.sav",
+		DisplayTitle: "Ghost House",
+		Payload:      []byte{0x12, 0x99, 0x44, 0x88},
+	})
+	if ghostHouse.Slug != "arcade" {
+		t.Fatalf("expected arcade for Ghost House.sav, got %q", ghostHouse.Slug)
 	}
 }

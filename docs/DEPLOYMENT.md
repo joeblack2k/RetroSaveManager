@@ -28,8 +28,11 @@ Switch `direct` to `tls` or `macvlan` when needed.
 
 ## Persistence
 
-- Save data volume: `SAVE_ROOT_HOST_PATH` (back up this root)
-- App state volume: `STATE_ROOT_HOST_PATH`
+- App state/config volume: `CONFIG_HOST_PATH` (maps to container `/config`)
+- Save data volume: `SAVES_HOST_PATH` (maps to container `/saves`)
+- Recommended host paths:
+  - `CONFIG_HOST_PATH=/config/retrosavemanager/config`
+  - `SAVES_HOST_PATH=/config/retrosavemanager/saves`
 
 ## Save Layout Migration
 
@@ -37,13 +40,28 @@ After upgrading, migrate older slug folders to display folders:
 
 ```bash
 ./scripts/migrate-save-layout.sh --dry-run
-./scripts/migrate-save-layout.sh --manifest ./deploy/data/state/save-layout-manifest.json
+./scripts/migrate-save-layout.sh --manifest ./deploy/data/config/save-layout-manifest.json
 ```
 
 Rollback if needed:
 
 ```bash
-./scripts/migrate-save-layout.sh --rollback --manifest ./deploy/data/state/save-layout-manifest.json
+./scripts/migrate-save-layout.sh --rollback --manifest ./deploy/data/config/save-layout-manifest.json
+```
+
+## Save Rescan And Noise Prune
+
+After deploy, run a deep rescan to improve system detection and prune unsupported/noise saves:
+
+```bash
+./scripts/rescan-saves.sh --dry-run
+./scripts/rescan-saves.sh --prune-unsupported=true
+```
+
+Docker deploy (without local Go toolchain):
+
+```bash
+docker compose exec backend /usr/local/bin/retrosave-api rescan-saves --prune-unsupported=true
 ```
 
 ## Optional Metadata Enrichment

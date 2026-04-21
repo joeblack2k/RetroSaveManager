@@ -41,5 +41,7 @@ type saveBatchUploadRequest struct {
 }
 
 type devicePatchRequest struct {
-	Alias *string `json:"alias"`
+	Alias              *string   `json:"alias"`
+	SyncAll            *bool     `json:"syncAll"`
+	AllowedSystemSlugs *[]string `json:"allowedSystemSlugs"`
 }

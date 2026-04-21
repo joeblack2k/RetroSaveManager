@@ -3,19 +3,25 @@ package main
 import "time"
 
 type device struct {
-	ID           int       `json:"id"`
-	DeviceType   string    `json:"deviceType"`
-	Fingerprint  string    `json:"fingerprint"`
-	Alias        *string   `json:"alias"`
-	DisplayName  string    `json:"displayName"`
-	LastSyncedAt time.Time `json:"lastSyncedAt"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID                  int       `json:"id"`
+	DeviceType          string    `json:"deviceType"`
+	Fingerprint         string    `json:"fingerprint"`
+	Alias               *string   `json:"alias"`
+	DisplayName         string    `json:"displayName"`
+	SyncAll             bool      `json:"syncAll"`
+	AllowedSystemSlugs  []string  `json:"allowedSystemSlugs,omitempty"`
+	BoundAppPasswordID  *string   `json:"boundAppPasswordId,omitempty"`
+	BoundAppPasswordName string `json:"boundAppPasswordName,omitempty"`
+	BoundAppPasswordLastFour string `json:"boundAppPasswordLastFour,omitempty"`
+	LastSyncedAt        time.Time `json:"lastSyncedAt"`
+	CreatedAt           time.Time `json:"createdAt"`
 }
 
 type system struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-	Slug string `json:"slug,omitempty"`
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	Slug         string `json:"slug,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
 }
 
 type game struct {
@@ -49,6 +55,7 @@ type saveSummary struct {
 	ID              string             `json:"id"`
 	Game            game               `json:"game"`
 	DisplayTitle    string             `json:"displayTitle,omitempty"`
+	SystemSlug      string             `json:"systemSlug,omitempty"`
 	RegionCode      string             `json:"regionCode,omitempty"`
 	RegionFlag      string             `json:"regionFlag,omitempty"`
 	LanguageCodes   []string           `json:"languageCodes,omitempty"`

@@ -1,32 +1,26 @@
-import { FormEvent, useCallback, useState } from "react";
+import { useCallback } from "react";
+import { Link } from "react-router-dom";
 import { SectionCard } from "../../components/SectionCard";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { deleteDevice, listDevices, renameDevice } from "../../services/retrosaveApi";
+import { deleteDevice, listDevices } from "../../services/retrosaveApi";
 import { formatDate } from "../../utils/format";
 
 export function DevicesPage(): JSX.Element {
   const loader = useCallback(() => listDevices(), []);
   const { loading, error, data, reload } = useAsyncData(loader, []);
-  const [aliasDrafts, setAliasDrafts] = useState<Record<number, string>>({});
-
-  async function onRename(event: FormEvent, id: number): Promise<void> {
-    event.preventDefault();
-    const alias = (aliasDrafts[id] ?? "").trim();
-    if (!alias) {
-      return;
-    }
-    await renameDevice(id, alias);
-    reload();
-  }
 
   async function onDelete(id: number): Promise<void> {
+    const confirmed = window.confirm("Device verwijderen?");
+    if (!confirmed) {
+      return;
+    }
     await deleteDevice(id);
     reload();
   }
 
   return (
-    <SectionCard title="Devices" subtitle="Beheer trusted apparaten die syncen met de service.">
+    <SectionCard title="Devices" subtitle="Beheer gekoppelde helper-devices en sync policies per console.">
       {loading ? <LoadingState label="Devices laden..." /> : null}
       {error ? <ErrorState message={error} /> : null}
       {data ? (
@@ -35,27 +29,28 @@ export function DevicesPage(): JSX.Element {
             <li key={device.id} className="list-row">
               <div>
                 <strong>{device.displayName}</strong>
-                <p>{device.deviceType}</p>
+                <p>
+                  {device.deviceType} · {device.fingerprint}
+                </p>
+                <p>
+                  App password:{" "}
+                  {device.boundAppPasswordName
+                    ? `${device.boundAppPasswordName} (${device.boundAppPasswordLastFour ?? "----"})`
+                    : "none"}
+                </p>
+                <p>
+                  Console sync: {device.syncAll ? "All" : (device.allowedSystemSlugs ?? []).join(", ") || "None"}
+                </p>
                 <small>Last synced: {formatDate(device.lastSyncedAt)}</small>
               </div>
-              <form className="inline-actions" onSubmit={(event) => void onRename(event, device.id)}>
-                <input
-                  value={aliasDrafts[device.id] ?? ""}
-                  onChange={(event) =>
-                    setAliasDrafts((prev) => ({
-                      ...prev,
-                      [device.id]: event.target.value
-                    }))
-                  }
-                  placeholder="Alias"
-                />
-                <button className="btn btn-ghost" type="submit">
-                  Rename
-                </button>
+              <div className="inline-actions">
+                <Link className="btn btn-ghost" to={`/app/devices/${device.id}/manage`}>
+                  Manage
+                </Link>
                 <button className="btn btn-ghost" type="button" onClick={() => void onDelete(device.id)}>
                   Delete
                 </button>
-              </form>
+              </div>
             </li>
           ))}
         </ul>

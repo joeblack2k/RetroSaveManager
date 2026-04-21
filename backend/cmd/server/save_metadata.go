@@ -24,6 +24,7 @@ const (
 
 var (
 	trailingTagPattern = regexp.MustCompile(`\s*\(([^)]*)\)\s*$`)
+	trailingCounterPattern = regexp.MustCompile(`(?i)(?:[_\.-]+|\s+(?:slot|save)\s+)#?([0-9]{1,3})$`)
 	cardNumberPattern  = regexp.MustCompile(`(?i)(memory[\s_-]*card|card)[\s_-]*([0-9]{1,2})`)
 	spacePattern       = regexp.MustCompile(`\s+`)
 	productCodePattern = regexp.MustCompile(`\b([A-Z]{4}[-_][0-9]{3}\.[0-9]{2}|[A-Z]{4}[0-9]{5})\b`)
@@ -56,7 +57,7 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string) normal
 	}
 	languageCodes = normalizeLanguageCodes(append(languageCodes, filenameLanguages...))
 
-	sys := normalizeSystemForSave(input.Game.System, input.SystemSlug, filename, input.Format)
+	sys := normalizeSystemForSave(input.Game.System, input.SystemSlug, filename, input.Format, input.Payload, originalTitle)
 	regionCode = normalizeRegionCode(regionCode)
 	if input.RegionCode != "" {
 		regionCode = normalizeRegionCode(input.RegionCode)
@@ -135,6 +136,14 @@ func cleanupDisplayTitleRegionAndLanguages(raw string) (string, string, []string
 		title = strings.TrimSpace(title[:match[0]])
 	}
 
+	title = strings.TrimSpace(strings.Trim(title, "-_"))
+	for {
+		match := trailingCounterPattern.FindStringSubmatchIndex(title)
+		if match == nil {
+			break
+		}
+		title = strings.TrimSpace(title[:match[0]])
+	}
 	title = strings.TrimSpace(strings.Trim(title, "-_"))
 	if title == "" {
 		title = "Unknown Game"
@@ -296,75 +305,29 @@ func regionFlagFromCode(code string) string {
 	}
 }
 
-func normalizeSystemForSave(existing *system, fallbackSlug, filename, format string) *system {
-	type systemCandidate struct {
-		Name string
-		Slug string
-		ID   int
-	}
-	known := map[string]systemCandidate{
-		"snes":          {Name: "Super Nintendo", Slug: "snes", ID: 26},
-		"supernintendo": {Name: "Super Nintendo", Slug: "snes", ID: 26},
-		"n64":           {Name: "Nintendo 64", Slug: "n64", ID: 64},
-		"nintendo64":    {Name: "Nintendo 64", Slug: "n64", ID: 64},
-		"psx":           {Name: "PlayStation", Slug: "psx", ID: 27},
-		"ps1":           {Name: "PlayStation", Slug: "psx", ID: 27},
-		"playstation":   {Name: "PlayStation", Slug: "psx", ID: 27},
-		"gameboy":       {Name: "Nintendo Game Boy", Slug: "gameboy", ID: 19},
-		"gb":            {Name: "Nintendo Game Boy", Slug: "gameboy", ID: 19},
-		"gba":           {Name: "Game Boy Advance", Slug: "gba", ID: 24},
-	}
-
-	normalizeLookup := func(value string) string {
-		value = strings.ToLower(strings.TrimSpace(value))
-		value = strings.ReplaceAll(value, "-", "")
-		value = strings.ReplaceAll(value, "_", "")
-		value = strings.ReplaceAll(value, " ", "")
-		return value
-	}
-
-	candidates := []string{
-		"",
-		fallbackSlug,
-	}
-	if existing != nil {
-		candidates = append(candidates, existing.Slug, existing.Name)
-	}
-
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
-	if isPlayStationExt(ext) {
-		candidates = append(candidates, "psx")
-	}
-	if ext == "srm" {
-		candidates = append(candidates, "snes")
-	}
-	if ext == "eep" || ext == "fla" || ext == "mpk" {
-		candidates = append(candidates, "n64")
-	}
-
-	for _, candidate := range candidates {
-		key := normalizeLookup(candidate)
-		if key == "" {
-			continue
-		}
-		if found, ok := known[key]; ok {
-			return &system{ID: found.ID, Name: found.Name, Slug: found.Slug}
-		}
+func normalizeSystemForSave(existing *system, fallbackSlug, filename, format string, payload []byte, displayTitle string) *system {
+	detection := detectSaveSystem(saveSystemDetectionInput{
+		Filename:           filename,
+		DisplayTitle:       displayTitle,
+		Payload:            payload,
+		DeclaredSystemSlug: fallbackSlug,
+		DeclaredSystem:     existing,
+	})
+	if detection.System != nil {
+		return detection.System
 	}
 
 	if existing != nil && strings.TrimSpace(existing.Name) != "" {
-		slug := strings.TrimSpace(existing.Slug)
-		if slug == "" {
-			slug = canonicalSegment(existing.Name, "unknown-system")
-		}
-		id := existing.ID
-		if id == 0 {
-			id = deterministicSystemID(existing.Name)
+		existingSlug := canonicalSegment(firstNonEmpty(existing.Slug, existing.Name), "unknown-system")
+		existingID := existing.ID
+		if existingID == 0 {
+			existingID = deterministicSystemID(existing.Name)
 		}
 		return &system{
-			ID:   id,
-			Name: strings.TrimSpace(existing.Name),
-			Slug: slug,
+			ID:           existingID,
+			Name:         strings.TrimSpace(existing.Name),
+			Slug:         existingSlug,
+			Manufacturer: manufacturerForSystem(existingSlug, existing.Name),
 		}
 	}
 
@@ -372,10 +335,12 @@ func normalizeSystemForSave(existing *system, fallbackSlug, filename, format str
 	if display == "" {
 		display = "Unknown System"
 	}
+	slug := canonicalSegment(display, "unknown-system")
 	return &system{
-		ID:   deterministicSystemID(display),
-		Name: toDisplayWords(display),
-		Slug: canonicalSegment(display, "unknown-system"),
+		ID:           deterministicSystemID(display),
+		Name:         toDisplayWords(display),
+		Slug:         slug,
+		Manufacturer: manufacturerForSystem(slug, display),
 	}
 }
 

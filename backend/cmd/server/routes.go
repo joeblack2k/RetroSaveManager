@@ -43,7 +43,7 @@ func mountCompatRoutes(r chi.Router, app *app) {
 	r.Post("/auth/signup", app.handleAuthSignup)
 	r.Post("/auth/logout", app.handleAuthLogout)
 	r.Post("/auth/token", app.handleAuthToken)
-	r.Post("/auth/token/app-password", app.handleAuthToken)
+	r.Post("/auth/token/app-password", app.handleAuthTokenAppPassword)
 	r.Get("/auth/me", app.handleAuthMe)
 	r.Post("/auth/resend-verification", app.handleAuthMessage)
 	r.Post("/auth/verify-email", app.handleAuthMessage)
@@ -66,6 +66,8 @@ func mountCompatRoutes(r chi.Router, app *app) {
 	r.Get("/auth/app-passwords", app.handleAuthAppPasswordsList)
 	r.Post("/auth/app-passwords", app.handleAuthAppPasswordsCreate)
 	r.Delete("/auth/app-passwords/{id}", app.handleAuthAppPasswordsDelete)
+	r.Get("/auth/app-passwords/auto-enroll", app.handleAuthAppPasswordsAutoStatus)
+	r.Post("/auth/app-passwords/auto-enroll", app.handleAuthAppPasswordsAutoEnable)
 	r.Get("/referral", app.handleReferral)
 	r.Post("/dev/signup", app.handleDevSignup)
 
@@ -106,6 +108,7 @@ func mountCompatRoutes(r chi.Router, app *app) {
 	r.Get("/parser/wasm", app.handleParserWASM)
 
 	r.Get("/devices", app.handleDevicesList)
+	r.Get("/devices/{id}", app.handleDevicesGet)
 	r.Patch("/devices/{id}", app.handleDevicesPatch)
 	r.Delete("/devices/{id}", app.handleDevicesDelete)
 

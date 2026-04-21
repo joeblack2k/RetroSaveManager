@@ -271,6 +271,7 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 			ID:              id,
 			Game:            input.Game,
 			DisplayTitle:    displayTitle,
+			SystemSlug:      systemSlug,
 			RegionCode:      regionCode,
 			RegionFlag:      regionFlag,
 			LanguageCodes:   languageCodes,
@@ -414,6 +415,18 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 			record.SystemSlug = "unknown-system"
 		}
 	}
+	summary.SystemSlug = record.SystemSlug
+	if summary.Game.System == nil && isSupportedSystemSlug(summary.SystemSlug) {
+		summary.Game.System = supportedSystemFromSlug(summary.SystemSlug)
+	}
+	if summary.Game.System != nil {
+		if strings.TrimSpace(summary.Game.System.Slug) == "" {
+			summary.Game.System.Slug = summary.SystemSlug
+		}
+		if strings.TrimSpace(summary.Game.System.Manufacturer) == "" {
+			summary.Game.System.Manufacturer = manufacturerForSystem(summary.Game.System.Slug, summary.Game.System.Name)
+		}
+	}
 	if strings.TrimSpace(record.GameSlug) == "" {
 		record.GameSlug = canonicalSegment(summary.DisplayTitle, "unknown-game")
 	}
@@ -489,6 +502,11 @@ func fallbackGameFromFilename(filename string) game {
 		name = "Unknown Game"
 	}
 	displayTitle, regionCode, languageCodes := cleanupDisplayTitleRegionAndLanguages(name)
+	detectedSystem := detectSaveSystem(saveSystemDetectionInput{
+		Filename:     filename,
+		DisplayTitle: displayTitle,
+		Payload:      nil,
+	})
 	if strings.EqualFold(name, "Wario Land II") {
 		return gameForID(281)
 	}
@@ -502,7 +520,7 @@ func fallbackGameFromFilename(filename string) game {
 		Boxart:        nil,
 		BoxartThumb:   nil,
 		HasParser:     false,
-		System:        nil,
+		System:        detectedSystem.System,
 	}
 }
 

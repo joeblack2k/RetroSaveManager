@@ -32,13 +32,28 @@ Migrate existing slug-based paths to the display layout:
 
 ```bash
 ./scripts/migrate-save-layout.sh --dry-run
-./scripts/migrate-save-layout.sh --manifest ./deploy/data/state/save-layout-manifest.json
+./scripts/migrate-save-layout.sh --manifest ./deploy/data/config/save-layout-manifest.json
 ```
 
 Rollback with the same manifest:
 
 ```bash
-./scripts/migrate-save-layout.sh --rollback --manifest ./deploy/data/state/save-layout-manifest.json
+./scripts/migrate-save-layout.sh --rollback --manifest ./deploy/data/config/save-layout-manifest.json
+```
+
+### Save Rescan And Noise Prune
+
+Run a deep rescan to normalize console detection, clean title noise, and optionally remove unsupported/unknown save entries:
+
+```bash
+./scripts/rescan-saves.sh --dry-run
+./scripts/rescan-saves.sh --prune-unsupported=true
+```
+
+Docker-only deploys can run the built-in command directly:
+
+```bash
+docker compose exec backend /usr/local/bin/retrosave-api rescan-saves --prune-unsupported=true
 ```
 
 ## Quick Start (Docker)

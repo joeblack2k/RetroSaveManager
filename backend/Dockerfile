@@ -18,8 +18,8 @@ COPY --from=build /out/retrosave-healthcheck /usr/local/bin/retrosave-healthchec
 
 ENV PORT=3001
 ENV AUTH_MODE=disabled
-ENV SAVE_ROOT=/var/lib/retrosavemanager/saves
-ENV STATE_ROOT=/var/lib/retrosavemanager/state
+ENV SAVE_ROOT=/saves
+ENV STATE_ROOT=/config
 
 EXPOSE 3001
 

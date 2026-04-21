@@ -27,7 +27,9 @@ func newContractHarness(t *testing.T) *contractHarness {
 	t.Helper()
 
 	saveRoot := filepath.Join(t.TempDir(), "saves")
+	stateRoot := filepath.Join(t.TempDir(), "state")
 	t.Setenv("SAVE_ROOT", saveRoot)
+	t.Setenv("STATE_ROOT", stateRoot)
 
 	app := newApp()
 	if err := app.initSaveStore(); err != nil {
@@ -205,6 +207,36 @@ func uploadSave(t *testing.T, h *contractHarness, path string, fields map[string
 		t.Fatalf("expected non-empty save sha256")
 	}
 	return body
+}
+
+func createHelperAppPassword(t *testing.T, h *contractHarness, prefix string, name string) string {
+	t.Helper()
+	path := strings.TrimRight(prefix, "/") + "/auth/app-passwords"
+	rr := h.json(http.MethodPost, path, strings.NewReader(`{"name":"`+name+`"}`))
+	assertStatus(t, rr, http.StatusOK)
+	assertJSONContentType(t, rr)
+	body := decodeJSONMap(t, rr.Body)
+	key := mustString(t, body["plainTextKey"], "plainTextKey")
+	if _, _, ok := normalizeAppPasswordInput(key); !ok {
+		t.Fatalf("expected plainTextKey format XXX-XXX, got %q", key)
+	}
+	return key
+}
+
+func createHelperAppPasswordRecord(t *testing.T, h *contractHarness, prefix string, name string) (id string, key string) {
+	t.Helper()
+	path := strings.TrimRight(prefix, "/") + "/auth/app-passwords"
+	rr := h.json(http.MethodPost, path, strings.NewReader(`{"name":"`+name+`"}`))
+	assertStatus(t, rr, http.StatusOK)
+	assertJSONContentType(t, rr)
+	body := decodeJSONMap(t, rr.Body)
+	appPassword := mustObject(t, body["appPassword"], "appPassword")
+	id = mustString(t, appPassword["id"], "appPassword.id")
+	key = mustString(t, body["plainTextKey"], "plainTextKey")
+	if _, _, ok := normalizeAppPasswordInput(key); !ok {
+		t.Fatalf("expected plainTextKey format XXX-XXX, got %q", key)
+	}
+	return id, key
 }
 
 func normalizeForGolden(value any) any {

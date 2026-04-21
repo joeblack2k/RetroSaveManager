@@ -165,7 +165,9 @@ func buildCompatRequest(t *testing.T, h *contractHarness, prefix string, route c
 		if route.Method == http.MethodGet {
 			req.Path += "?limit=5&offset=0"
 		} else if route.Method == http.MethodPost {
+			helperKey := createHelperAppPassword(t, h, prefix, "matrix-helper")
 			body, contentType := multipartBody(t, map[string]string{
+				"app_password": helperKey,
 				"rom_sha1":    "compat-rom",
 				"slotName":    "default",
 				"device_type": "retroarch",

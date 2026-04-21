@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 func (a *app) normalizeSaveInput(input saveCreateInput) saveCreateInput {
 	input.Filename = safeFilename(input.Filename)
@@ -28,6 +31,21 @@ func (a *app) normalizeSaveInput(input saveCreateInput) saveCreateInput {
 	}
 	if strings.TrimSpace(input.SystemSlug) == "" {
 		input.SystemSlug = canonicalSegment(normalized.SystemPath, "unknown-system")
+	}
+	if !isSupportedSystemSlug(input.SystemSlug) && input.Game.System != nil {
+		if derived := supportedSystemSlugFromLabel(firstNonEmpty(input.Game.System.Slug, input.Game.System.Name)); derived != "" {
+			input.SystemSlug = derived
+		}
+	}
+	if isSupportedSystemSlug(input.SystemSlug) {
+		if input.Game.System == nil {
+			input.Game.System = supportedSystemFromSlug(input.SystemSlug)
+		} else {
+			input.Game.System.Slug = input.SystemSlug
+			if strings.TrimSpace(input.Game.System.Manufacturer) == "" {
+				input.Game.System.Manufacturer = manufacturerForSystem(input.SystemSlug, input.Game.System.Name)
+			}
+		}
 	}
 
 	if normalized.IsPSMemoryCard {
@@ -90,6 +108,13 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 		return
 	}
 
+	var payload []byte
+	if strings.TrimSpace(record.payloadPath) != "" {
+		if data, err := os.ReadFile(record.payloadPath); err == nil {
+			payload = data
+		}
+	}
+
 	cleanTitle, regionFromTitle, languageCodesFromTitle := cleanupDisplayTitleRegionAndLanguages(record.Summary.DisplayTitle)
 	if cleanTitle == "" || cleanTitle == "Unknown Game" {
 		cleanTitle, regionFromTitle, languageCodesFromTitle = cleanupDisplayTitleRegionAndLanguages(record.Summary.Game.DisplayTitle)
@@ -129,6 +154,30 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 	record.Summary.Game.RegionCode = record.Summary.RegionCode
 	record.Summary.Game.RegionFlag = record.Summary.RegionFlag
 	record.Summary.Game.LanguageCodes = record.Summary.LanguageCodes
+
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:           record.Summary.Filename,
+		DisplayTitle:       record.Summary.DisplayTitle,
+		Payload:            payload,
+		DeclaredSystemSlug: firstNonEmpty(record.SystemSlug, record.Summary.SystemSlug),
+		DeclaredSystem:     record.Summary.Game.System,
+	})
+	if detected.System != nil {
+		record.SystemSlug = detected.Slug
+		record.Summary.SystemSlug = detected.Slug
+		record.Summary.Game.System = detected.System
+	} else {
+		if strings.TrimSpace(record.SystemSlug) == "" && record.Summary.Game.System != nil {
+			record.SystemSlug = canonicalSegment(firstNonEmpty(record.Summary.Game.System.Slug, record.Summary.Game.System.Name), "unknown-system")
+		}
+		if strings.TrimSpace(record.SystemSlug) == "" {
+			record.SystemSlug = "unknown-system"
+		}
+		record.Summary.SystemSlug = record.SystemSlug
+		if record.Summary.Game.System == nil && isSupportedSystemSlug(record.SystemSlug) {
+			record.Summary.Game.System = supportedSystemFromSlug(record.SystemSlug)
+		}
+	}
 
 	if a == nil || a.enricher == nil {
 		return

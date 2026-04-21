@@ -1,5 +1,7 @@
 import { apiFetchJSON } from "./apiClient";
 import type {
+  AppPassword,
+  AppPasswordAutoEnrollStatus,
   AuthUser,
   CatalogItem,
   Conflict,
@@ -8,6 +10,7 @@ import type {
   ReferralInfo,
   RoadmapItem,
   RoadmapSuggestion,
+  SaveSystem,
   SaveHistoryResponse,
   SaveSummary
 } from "./types";
@@ -141,16 +144,68 @@ export async function listDevices(): Promise<Device[]> {
   return response.devices;
 }
 
-export function renameDevice(id: number, alias: string): Promise<{ success: boolean; device: Device }> {
+export async function getDevice(id: number): Promise<Device> {
+  const response = await apiFetchJSON<{ device: Device }>(`/devices/${id}`);
+  return response.device;
+}
+
+export function updateDevice(
+  id: number,
+  payload: { alias?: string; syncAll?: boolean; allowedSystemSlugs?: string[] }
+): Promise<{ success: boolean; device: Device }> {
   return apiFetchJSON(`/devices/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ alias })
+    body: JSON.stringify(payload)
   });
+}
+
+export function renameDevice(id: number, alias: string): Promise<{ success: boolean; device: Device }> {
+  return updateDevice(id, { alias });
 }
 
 export function deleteDevice(id: number): Promise<{ success: boolean }> {
   return apiFetchJSON(`/devices/${id}`, { method: "DELETE" });
+}
+
+export async function listSaveSystems(): Promise<SaveSystem[]> {
+  return apiFetchJSON<SaveSystem[]>("/saves/systems");
+}
+
+export async function listAppPasswords(): Promise<AppPassword[]> {
+  const response = await apiFetchJSON<{ appPasswords: AppPassword[] }>("/auth/app-passwords");
+  return response.appPasswords;
+}
+
+export function createAppPassword(name?: string): Promise<{
+  success: boolean;
+  appPassword: AppPassword;
+  plainTextKey: string;
+  plainTextToken: string;
+}> {
+  return apiFetchJSON("/auth/app-passwords", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name })
+  });
+}
+
+export function revokeAppPassword(id: string): Promise<{ success: boolean }> {
+  return apiFetchJSON(`/auth/app-passwords/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
+export function getAutoAppPasswordEnrollmentStatus(): Promise<AppPasswordAutoEnrollStatus> {
+  return apiFetchJSON<AppPasswordAutoEnrollStatus>("/auth/app-passwords/auto-enroll");
+}
+
+export function enableAutoAppPasswordEnrollment(minutes = 15): Promise<AppPasswordAutoEnrollStatus> {
+  return apiFetchJSON<AppPasswordAutoEnrollStatus>("/auth/app-passwords/auto-enroll", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ minutes })
+  });
 }
 
 export async function getReferral(): Promise<ReferralInfo> {

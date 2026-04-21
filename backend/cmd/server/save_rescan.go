@@ -1,0 +1,194 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+type saveRescanOptions struct {
+	DryRun          bool
+	PruneUnsupported bool
+}
+
+type saveRescanResult struct {
+	Scanned   int
+	Updated   int
+	Rejected  int
+	Removed   int
+}
+
+func runSaveRescan(args []string) error {
+	fs := flag.NewFlagSet("rescan-saves", flag.ContinueOnError)
+	dryRun := fs.Bool("dry-run", false, "show intended changes without writing to disk")
+	pruneUnsupported := fs.Bool("prune-unsupported", true, "remove unsupported/noise saves during rescan")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	a := newApp()
+	if err := a.initSaveStore(); err != nil {
+		return err
+	}
+
+	result, err := a.rescanSaves(saveRescanOptions{
+		DryRun:          *dryRun,
+		PruneUnsupported: *pruneUnsupported,
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Printf("save rescan complete: scanned=%d updated=%d rejected=%d removed=%d dry_run=%v prune_unsupported=%v",
+		result.Scanned, result.Updated, result.Rejected, result.Removed, *dryRun, *pruneUnsupported)
+	return nil
+}
+
+func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
+	records := a.snapshotSaveRecords()
+	result := saveRescanResult{}
+
+	for _, original := range records {
+		result.Scanned++
+
+		payload, err := os.ReadFile(original.payloadPath)
+		if err != nil {
+			return result, fmt.Errorf("read payload for %s: %w", original.Summary.ID, err)
+		}
+
+		normalized := a.normalizeSaveInput(saveCreateInput{
+			Filename:      original.Summary.Filename,
+			Payload:       payload,
+			Game:          original.Summary.Game,
+			Format:        original.Summary.Format,
+			Metadata:      original.Summary.Metadata,
+			ROMSHA1:       original.ROMSHA1,
+			ROMMD5:        original.ROMMD5,
+			SlotName:      original.SlotName,
+			SystemSlug:    firstNonEmpty(original.SystemSlug, original.Summary.SystemSlug),
+			GameSlug:      original.GameSlug,
+			SystemPath:    original.SystemPath,
+			GamePath:      original.GamePath,
+			DisplayTitle:  original.Summary.DisplayTitle,
+			RegionCode:    original.Summary.RegionCode,
+			RegionFlag:    original.Summary.RegionFlag,
+			LanguageCodes: original.Summary.LanguageCodes,
+			CoverArtURL:   original.Summary.CoverArtURL,
+			MemoryCard:    original.Summary.MemoryCard,
+			CreatedAt:     original.Summary.CreatedAt,
+		})
+
+		if !isSupportedSystemSlug(normalized.SystemSlug) {
+			result.Rejected++
+			if options.PruneUnsupported {
+				result.Removed++
+				if !options.DryRun {
+					if err := os.RemoveAll(original.dirPath); err != nil {
+						return result, fmt.Errorf("remove unsupported save %s: %w", original.Summary.ID, err)
+					}
+				}
+			}
+			continue
+		}
+
+		updated := applyNormalizedSaveToRecord(original, normalized)
+		changed, err := saveRecordChanged(original, updated)
+		if err != nil {
+			return result, err
+		}
+		if !changed {
+			continue
+		}
+
+		result.Updated++
+		if options.DryRun {
+			continue
+		}
+		if err := persistSaveRecordMetadata(updated); err != nil {
+			return result, err
+		}
+	}
+
+	if !options.DryRun {
+		if err := a.reloadSavesFromDisk(); err != nil {
+			return result, err
+		}
+	}
+
+	return result, nil
+}
+
+func applyNormalizedSaveToRecord(record saveRecord, normalized saveCreateInput) saveRecord {
+	updated := record
+	systemSlug := canonicalSegment(normalized.SystemSlug, "unknown-system")
+	updated.SystemSlug = systemSlug
+	updated.SystemPath = strings.TrimSpace(normalized.SystemPath)
+	if updated.SystemPath == "" && normalized.Game.System != nil {
+		updated.SystemPath = sanitizeDisplayPathSegment(normalized.Game.System.Name, "Unknown System")
+	}
+	if updated.SystemPath == "" {
+		updated.SystemPath = sanitizeDisplayPathSegment(systemSlug, "Unknown System")
+	}
+
+	updated.GamePath = strings.TrimSpace(normalized.GamePath)
+	if updated.GamePath == "" {
+		updated.GamePath = sanitizeDisplayPathSegment(normalized.DisplayTitle, "Unknown Game")
+	}
+	updated.GameSlug = canonicalSegment(firstNonEmpty(normalized.GameSlug, updated.GameSlug, normalized.DisplayTitle), "unknown-game")
+
+	updated.Summary.DisplayTitle = normalized.DisplayTitle
+	updated.Summary.SystemSlug = systemSlug
+	updated.Summary.RegionCode = normalized.RegionCode
+	updated.Summary.RegionFlag = regionFlagFromCode(normalized.RegionCode)
+	updated.Summary.LanguageCodes = normalized.LanguageCodes
+	updated.Summary.CoverArtURL = normalized.CoverArtURL
+	updated.Summary.MemoryCard = normalized.MemoryCard
+	updated.Summary.Game = normalized.Game
+	updated.Summary.Game.DisplayTitle = normalized.DisplayTitle
+	updated.Summary.Game.Name = normalized.DisplayTitle
+	updated.Summary.Game.RegionCode = normalized.RegionCode
+	updated.Summary.Game.RegionFlag = updated.Summary.RegionFlag
+	updated.Summary.Game.LanguageCodes = normalized.LanguageCodes
+	if updated.Summary.Game.System == nil && isSupportedSystemSlug(systemSlug) {
+		updated.Summary.Game.System = supportedSystemFromSlug(systemSlug)
+	}
+
+	return updated
+}
+
+func saveRecordChanged(before, after saveRecord) (bool, error) {
+	beforeJSON, err := json.Marshal(normalizeRecordForCompare(before))
+	if err != nil {
+		return false, fmt.Errorf("encode before record for compare: %w", err)
+	}
+	afterJSON, err := json.Marshal(normalizeRecordForCompare(after))
+	if err != nil {
+		return false, fmt.Errorf("encode after record for compare: %w", err)
+	}
+	return !bytes.Equal(beforeJSON, afterJSON), nil
+}
+
+func normalizeRecordForCompare(record saveRecord) saveRecord {
+	clean := record
+	clean.payloadPath = ""
+	clean.dirPath = ""
+	return clean
+}
+
+func persistSaveRecordMetadata(record saveRecord) error {
+	metadataPath := filepath.Join(record.dirPath, "metadata.json")
+	payload, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode save metadata for %s: %w", record.Summary.ID, err)
+	}
+	if err := writeFileAtomic(metadataPath, payload, 0o644); err != nil {
+		return fmt.Errorf("write save metadata for %s: %w", record.Summary.ID, err)
+	}
+	return nil
+}
+

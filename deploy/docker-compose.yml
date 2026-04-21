@@ -7,8 +7,8 @@ services:
     environment:
       PORT: 3001
       AUTH_MODE: ${AUTH_MODE:-disabled}
-      SAVE_ROOT: /var/lib/retrosavemanager/saves
-      STATE_ROOT: /var/lib/retrosavemanager/state
+      SAVE_ROOT: /saves
+      STATE_ROOT: /config
       BASE_URL: ${BASE_URL:-}
       PUBLIC_HOST: ${PUBLIC_HOST:-}
       TLS_ENABLED: ${TLS_ENABLED:-false}
@@ -16,8 +16,8 @@ services:
       IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
       RAWG_API_KEY: ${RAWG_API_KEY:-}
     volumes:
-      - ${SAVE_ROOT_HOST_PATH:-./data/saves}:/var/lib/retrosavemanager/saves
-      - ${STATE_ROOT_HOST_PATH:-./data/state}:/var/lib/retrosavemanager/state
+      - ${CONFIG_HOST_PATH:-./data/config}:/config
+      - ${SAVES_HOST_PATH:-./data/saves}:/saves
     restart: unless-stopped
     networks:
       - internal

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -144,7 +143,7 @@ func (a *app) handleAuthAppPasswordsList(w http.ResponseWriter, r *http.Request)
 	a.mu.Lock()
 	items := make([]appPassword, 0, len(a.appPasswords))
 	for _, item := range a.appPasswords {
-		items = append(items, item)
+		items = append(items, a.publicAppPasswordLocked(item))
 	}
 	a.mu.Unlock()
 
@@ -168,28 +167,29 @@ func (a *app) handleAuthAppPasswordsCreate(w http.ResponseWriter, r *http.Reques
 	}
 
 	now := time.Now().UTC()
+	plainTextKey := ""
+	record := appPassword{}
 
 	a.mu.Lock()
-	id := a.nextAppPasswordID
-	a.nextAppPasswordID++
-	record := appPassword{
-		ID:        "app-password-" + strconv.Itoa(id),
-		Name:      name,
-		LastFour:  randomHex(2),
-		CreatedAt: now,
-	}
-	a.appPasswords[record.ID] = record
+	record, plainTextKey = a.createAppPasswordLocked(name, now)
+	publicRecord := a.publicAppPasswordLocked(record)
+	_ = a.persistSecurityDeviceStateLocked()
 	a.mu.Unlock()
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"appPassword": map[string]any{
-			"id":        record.ID,
-			"name":      record.Name,
-			"lastFour":  record.LastFour,
-			"createdAt": record.CreatedAt,
+			"id":                 publicRecord.ID,
+			"name":               publicRecord.Name,
+			"lastFour":           publicRecord.LastFour,
+			"createdAt":          publicRecord.CreatedAt,
+			"lastUsedAt":         publicRecord.LastUsed,
+			"boundDeviceId":      publicRecord.BoundDeviceID,
+			"syncAll":            publicRecord.SyncAll,
+			"allowedSystemSlugs": publicRecord.AllowedSystemSlugs,
 		},
-		"plainTextToken": "rsm-" + randomHex(16),
+		"plainTextKey":   plainTextKey,
+		"plainTextToken": plainTextKey,
 	})
 }
 
@@ -202,9 +202,25 @@ func (a *app) handleAuthAppPasswordsDelete(w http.ResponseWriter, r *http.Reques
 	}
 
 	a.mu.Lock()
-	_, ok := a.appPasswords[id]
+	record, ok := a.appPasswords[id]
 	if ok {
 		delete(a.appPasswords, id)
+		for deviceID, d := range a.devices {
+			if d.BoundAppPasswordID == nil || *d.BoundAppPasswordID != id {
+				continue
+			}
+			d.BoundAppPasswordID = nil
+			d.BoundAppPasswordName = ""
+			a.devices[deviceID] = a.publicDeviceLocked(d)
+		}
+		if record.BoundDeviceID != nil {
+			if d, exists := a.devices[*record.BoundDeviceID]; exists {
+				d.BoundAppPasswordID = nil
+				d.BoundAppPasswordName = ""
+				a.devices[d.ID] = a.publicDeviceLocked(d)
+			}
+		}
+		_ = a.persistSecurityDeviceStateLocked()
 	}
 	a.mu.Unlock()
 
@@ -213,6 +229,48 @@ func (a *app) handleAuthAppPasswordsDelete(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+func (a *app) handleAuthAppPasswordsAutoStatus(w http.ResponseWriter, r *http.Request) {
+	_ = requestPrincipal(r)
+
+	a.mu.Lock()
+	active := a.autoAppPasswordWindowActiveLocked(time.Now().UTC())
+	enabledUntil := copyTimePtr(a.autoAppPasswordEnabledUntil)
+	a.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":      true,
+		"active":       active,
+		"enabledUntil": enabledUntil,
+	})
+}
+
+func (a *app) handleAuthAppPasswordsAutoEnable(w http.ResponseWriter, r *http.Request) {
+	_ = requestPrincipal(r)
+
+	var payload struct {
+		Minutes int `json:"minutes"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&payload)
+
+	minutes := payload.Minutes
+	if minutes <= 0 {
+		minutes = 15
+	}
+
+	a.mu.Lock()
+	until := a.enableAutoAppPasswordWindowLocked(time.Duration(minutes) * time.Minute)
+	active := a.autoAppPasswordWindowActiveLocked(time.Now().UTC())
+	_ = a.persistSecurityDeviceStateLocked()
+	a.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":      true,
+		"active":       active,
+		"enabledUntil": until,
+		"minutes":      minutes,
+	})
 }
 
 func (a *app) handleReferral(w http.ResponseWriter, r *http.Request) {

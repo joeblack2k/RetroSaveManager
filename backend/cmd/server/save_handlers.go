@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -15,12 +16,26 @@ import (
 
 func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
+	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
+	if !ok {
+		return
+	}
 
 	romSHA1 := strings.TrimSpace(r.URL.Query().Get("romSha1"))
 	slotName := normalizedSlot(r.URL.Query().Get("slotName"))
 
 	latest, ok := a.latestSaveRecord(romSHA1, slotName)
 	if ok {
+		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(latest)) {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success": true,
+				"exists":  false,
+				"sha256":  nil,
+				"version": nil,
+				"id":      nil,
+			})
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
 			"exists":  true,
@@ -49,6 +64,14 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
 			return
 		}
+		formValue := func(key string) string {
+			return r.FormValue(key)
+		}
+		helperCtx, authorized := a.authorizeHelperSyncRequest(w, r, formValue)
+		if !authorized {
+			return
+		}
+		identity := extractHelperIdentity(r, formValue)
 
 		file, header, err := r.FormFile("file")
 		if err != nil {
@@ -71,23 +94,42 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			Game:       gameInfo,
 			Format:     inferSaveFormat(filename),
 			Metadata:   nil,
-			ROMSHA1:    strings.TrimSpace(r.FormValue("rom_sha1")),
-			ROMMD5:     strings.TrimSpace(r.FormValue("rom_md5")),
-			SlotName:   strings.TrimSpace(r.FormValue("slotName")),
-			SystemSlug: safeMultipartSystemSlug(r.FormValue("system"), gameInfo.System),
+			ROMSHA1:    strings.TrimSpace(formValue("rom_sha1")),
+			ROMMD5:     strings.TrimSpace(formValue("rom_md5")),
+			SlotName:   strings.TrimSpace(formValue("slotName")),
+			SystemSlug: safeMultipartSystemSlug(formValue("system"), gameInfo.System),
 			GameSlug:   canonicalSegment(gameInfo.Name, "unknown-game"),
+		}
+		preview := a.normalizeSaveInput(input)
+		if !isSupportedSystemSlug(preview.SystemSlug) {
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{
+				Error:      "Unprocessable Entity",
+				Message:    "unsupported or unrecognized save format; only known consoles/arcade are allowed",
+				StatusCode: http.StatusUnprocessableEntity,
+			})
+			return
+		}
+		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, preview.SystemSlug) {
+			writeJSON(w, http.StatusForbidden, apiError{
+				Error:      "Forbidden",
+				Message:    "this device is not allowed to sync saves for this console",
+				StatusCode: http.StatusForbidden,
+			})
+			return
 		}
 
 		record, err := a.createSave(input)
 		if err != nil {
+			if errors.Is(err, errUnsupportedSaveFormat) {
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+				return
+			}
 			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 			return
 		}
 
-		deviceType := strings.TrimSpace(r.FormValue("device_type"))
-		fingerprint := strings.TrimSpace(r.FormValue("fingerprint"))
-		if deviceType != "" && fingerprint != "" {
-			a.upsertDevice(deviceType, fingerprint)
+		if !helperCtx.IsHelper && identity.isComplete() {
+			a.upsertDevice(identity.DeviceType, identity.Fingerprint)
 		}
 
 		a.saveCreatedEvent(record)
@@ -136,6 +178,15 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			GameSlug:   canonicalSegment(gameInfo.Name, "unknown-game"),
 		})
 		if err != nil {
+			if errors.Is(err, errUnsupportedSaveFormat) {
+				errorCount++
+				results = append(results, map[string]any{
+					"filename": item.Filename,
+					"success":  false,
+					"error":    err.Error(),
+				})
+				continue
+			}
 			errorCount++
 			results = append(results, map[string]any{
 				"filename": item.Filename,
@@ -230,6 +281,16 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 	filtered := make([]saveSummary, 0, len(filteredRecords))
 	for _, record := range filteredRecords {
 		summary := record.Summary
+		summary.SystemSlug = canonicalSegment(firstNonEmpty(record.SystemSlug, summary.SystemSlug), "unknown-system")
+		if summary.Game.System != nil {
+			derived := canonicalSegment(firstNonEmpty(summary.Game.System.Slug, summary.Game.System.Name), "")
+			if derived != "" {
+				summary.SystemSlug = derived
+			}
+		}
+		if summary.Game.System == nil && isSupportedSystemSlug(summary.SystemSlug) {
+			summary.Game.System = supportedSystemFromSlug(summary.SystemSlug)
+		}
 		cleanTitle, regionFromTitle, langsFromTitle := cleanupDisplayTitleRegionAndLanguages(summary.DisplayTitle)
 		if cleanTitle == "" || cleanTitle == "Unknown Game" {
 			cleanTitle, regionFromTitle, langsFromTitle = cleanupDisplayTitleRegionAndLanguages(summary.Game.Name)
@@ -296,11 +357,7 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleSaveSystems(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 
-	writeJSON(w, http.StatusOK, []system{
-		{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"},
-		{ID: 26, Name: "Nintendo Super Nintendo Entertainment System", Slug: "snes"},
-		{ID: 33, Name: "Sega Genesis/Mega Drive", Slug: "genesis"},
-	})
+	writeJSON(w, http.StatusOK, a.saveSystemsCatalog())
 }
 
 func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
@@ -535,6 +592,10 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:     time.Now().UTC(),
 	})
 	if err != nil {
+		if errors.Is(err, errUnsupportedSaveFormat) {
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 		return
 	}
@@ -631,6 +692,10 @@ func (a *app) handleDeleteGameSaves(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
+	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
+	if !ok {
+		return
+	}
 
 	saveID := strings.TrimSpace(r.URL.Query().Get("id"))
 	if saveID == "" {
@@ -641,6 +706,10 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	record, ok := a.findSaveRecordByID(saveID)
 	if !ok {
 		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
+		return
+	}
+	if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(record)) {
+		writeJSON(w, http.StatusForbidden, apiError{Error: "Forbidden", Message: "this device is not allowed to download saves for this console", StatusCode: http.StatusForbidden})
 		return
 	}
 
@@ -656,6 +725,10 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) handleDownloadManySaves(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
+	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
+	if !ok {
+		return
+	}
 
 	ids := splitCSV(r.URL.Query().Get("ids"))
 	if len(ids) == 0 {
@@ -667,6 +740,19 @@ func (a *app) handleDownloadManySaves(w http.ResponseWriter, r *http.Request) {
 	if len(records) == 0 {
 		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "No saves found", StatusCode: http.StatusNotFound})
 		return
+	}
+	if helperCtx.IsHelper {
+		filtered := make([]saveRecord, 0, len(records))
+		for _, record := range records {
+			if systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(record)) {
+				filtered = append(filtered, record)
+			}
+		}
+		records = filtered
+		if len(records) == 0 {
+			writeJSON(w, http.StatusForbidden, apiError{Error: "Forbidden", Message: "this device is not allowed to download saves for these consoles", StatusCode: http.StatusForbidden})
+			return
+		}
 	}
 
 	archive, err := zipRecords(records)
@@ -682,9 +768,15 @@ func (a *app) handleDownloadManySaves(w http.ResponseWriter, r *http.Request) {
 
 func safeMultipartSystemSlug(raw string, sys *system) string {
 	if strings.TrimSpace(raw) != "" {
+		if normalized := supportedSystemSlugFromLabel(raw); normalized != "" {
+			return normalized
+		}
 		return canonicalSegment(raw, "unknown-system")
 	}
 	if sys != nil {
+		if normalized := supportedSystemSlugFromLabel(firstNonEmpty(sys.Slug, sys.Name)); normalized != "" {
+			return normalized
+		}
 		return canonicalSegment(sys.Slug, "unknown-system")
 	}
 	return "unknown-system"
