@@ -1,4 +1,4 @@
-# 1Retro self-host compatibility route matrix
+# Retro Save Manager self-host compatibility route matrix
 
 Frozen from `COMPAT_SPEC_V0.md` (primary) and `reverse/selfhost_endpoint_contract.md` (inventory widening) on 2026-04-20.
 

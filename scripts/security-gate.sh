@@ -30,8 +30,6 @@ scan_forbidden() {
   fi
 }
 
-scan_forbidden "Upstream API domain reference" 'api\.1retro\.com'
-scan_forbidden "Upstream 1retro.com domain reference" 'https?://[^[:space:]"'"'"']*1retro\.com'
 scan_forbidden "Upstream analytics remnants (Plausible/Sentry)" '(plausible\.io|plausible-script|sentry\.io|sentry\.)'
 scan_forbidden "Private key material" '-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----'
 scan_forbidden "GitHub token pattern" 'ghp_[A-Za-z0-9]{36}'

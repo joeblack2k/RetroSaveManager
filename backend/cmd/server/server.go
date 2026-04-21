@@ -13,7 +13,7 @@ func serve(handler http.Handler) {
 	}
 
 	addr := ":" + port
-	log.Printf("1retro selfhost stub listening on %s", addr)
+	log.Printf("rsm selfhost service listening on %s", addr)
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}

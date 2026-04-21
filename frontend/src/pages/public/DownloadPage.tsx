@@ -10,7 +10,7 @@ const helperTargets = [
 export function DownloadPage(): JSX.Element {
   return (
     <div className="grid two-cols">
-      <SectionCard title="Helper apps" subtitle="Gebruik bestaande 1Retro helper apps met een aangepaste API-URL.">
+      <SectionCard title="Helper apps" subtitle="Gebruik bestaande helper apps met een aangepaste API-URL.">
         <ul className="plain-list">
           {helperTargets.map((target) => (
             <li key={target}>{target}</li>
@@ -18,9 +18,9 @@ export function DownloadPage(): JSX.Element {
         </ul>
         <p>
           Stel in de helper in:
-          <code> ONE_RETRO_API_URL=http://jouw-host </code>
+          <code> RSM_API_URL=http://jouw-host </code>
           en optioneel
-          <code> ONE_RETRO_APP_PASSWORD </code>
+          <code> RSM_APP_PASSWORD </code>
           .
         </p>
       </SectionCard>

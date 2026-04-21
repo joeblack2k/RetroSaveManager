@@ -1,6 +1,6 @@
 # RetroSaveManager
 
-RetroSaveManager is a self-hosted, LAN-first save synchronization service with compatibility-focused API behavior for existing 1Retro helper clients.
+RetroSaveManager is a self-hosted, LAN-first save synchronization service with compatibility-focused API behavior for existing helper clients.
 
 ## Scope
 
@@ -59,8 +59,8 @@ cd deploy
 
 Use your helper client with:
 
-- `ONE_RETRO_API_URL=http://<internal-hostname-or-ip>`
-- `ONE_RETRO_APP_PASSWORD=<optional-app-password>`
+- `RSM_API_URL=http://<internal-hostname-or-ip>`
+- `RSM_APP_PASSWORD=<optional-app-password>`
 
 The service exposes compatibility routes at both root and `/v1` aliases.
 

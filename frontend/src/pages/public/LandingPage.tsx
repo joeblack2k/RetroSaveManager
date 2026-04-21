@@ -4,7 +4,7 @@ import { SectionCard } from "../../components/SectionCard";
 export function LandingPage(): JSX.Element {
   return (
     <div className="grid two-cols">
-      <SectionCard title="Self-hosted 1Retro-compatible service" subtitle="Volledig intern, geen upstream tracking, helper-friendly API surface.">
+      <SectionCard title="Self-hosted save sync service" subtitle="Volledig intern, geen upstream tracking, helper-friendly API surface.">
         <p>
           RetroSaveManager synchroniseert save files tussen MiSTer, RetroArch, OnionOS en desktop clients. De backend biedt root en
           <code> /v1 </code>

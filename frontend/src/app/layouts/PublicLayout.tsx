@@ -15,7 +15,7 @@ export function PublicLayout(): JSX.Element {
       <header className="hero-header">
         <div className="brand-row">
           <Link to="/" className="brand-link">
-            1Retro
+            Retro Save Manager
           </Link>
           <TopNav items={publicNav} />
         </div>
