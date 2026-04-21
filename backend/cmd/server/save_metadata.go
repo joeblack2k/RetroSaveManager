@@ -23,11 +23,11 @@ const (
 )
 
 var (
-	trailingTagPattern = regexp.MustCompile(`\s*\(([^)]*)\)\s*$`)
+	trailingTagPattern     = regexp.MustCompile(`\s*\(([^)]*)\)\s*$`)
 	trailingCounterPattern = regexp.MustCompile(`(?i)(?:[_\.-]+|\s+(?:slot|save)\s+)#?([0-9]{1,3})$`)
-	cardNumberPattern  = regexp.MustCompile(`(?i)(memory[\s_-]*card|card)[\s_-]*([0-9]{1,2})`)
-	spacePattern       = regexp.MustCompile(`\s+`)
-	productCodePattern = regexp.MustCompile(`\b([A-Z]{4}[-_][0-9]{3}\.[0-9]{2}|[A-Z]{4}[0-9]{5})\b`)
+	cardNumberPattern      = regexp.MustCompile(`(?i)(memory[\s_-]*card|card)[\s_-]*([0-9]{1,2})`)
+	spacePattern           = regexp.MustCompile(`\s+`)
+	productCodePattern     = regexp.MustCompile(`\b([A-Z]{4}[-_][0-9]{3}\.[0-9]{2}|[A-Z]{4}[0-9]{5})\b`)
 )
 
 type normalizedSaveMetadata struct {
@@ -42,7 +42,7 @@ type normalizedSaveMetadata struct {
 	MemoryCard     *memoryCardDetails
 }
 
-func deriveNormalizedSaveMetadata(input saveCreateInput, filename string) normalizedSaveMetadata {
+func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detection saveSystemDetectionResult) normalizedSaveMetadata {
 	originalTitle := strings.TrimSpace(input.Game.Name)
 	if originalTitle == "" {
 		originalTitle = strings.TrimSpace(strings.TrimSuffix(filename, filepath.Ext(filename)))
@@ -57,7 +57,7 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string) normal
 	}
 	languageCodes = normalizeLanguageCodes(append(languageCodes, filenameLanguages...))
 
-	sys := normalizeSystemForSave(input.Game.System, input.SystemSlug, filename, input.Format, input.Payload, originalTitle)
+	sys := detection.System
 	regionCode = normalizeRegionCode(regionCode)
 	if input.RegionCode != "" {
 		regionCode = normalizeRegionCode(input.RegionCode)
@@ -72,15 +72,15 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string) normal
 		languageCodes = normalizeLanguageCodes(append(input.LanguageCodes, languageCodes...))
 	}
 
-	isPS := isPlayStationSave(sys, input.Format, filename)
+	isPS := isConfirmedPS1MemoryCard(sys, input.Format, filename, input.Payload)
 	cardName := ""
 	var memoryCard *memoryCardDetails
 	gamePath := displayTitle
 	if isPS {
-		cardName = deriveMemoryCardName(input.SlotName, filename)
+		cardName = canonicalMemoryCardName(input.MemoryCard, input.SlotName, filename)
 		displayTitle = cardName
 		gamePath = cardName
-		memoryCard = parsePlayStationMemoryCard(input.Payload, cardName)
+		memoryCard = parsePlayStationMemoryCard(input.Payload, filename, cardName)
 		if memoryCard == nil {
 			memoryCard = &memoryCardDetails{Name: cardName}
 		}
@@ -95,12 +95,17 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string) normal
 	}
 
 	return normalizedSaveMetadata{
-		DisplayTitle:   displayTitle,
-		RegionCode:     regionCode,
-		RegionFlag:     regionFlagFromCode(regionCode),
-		LanguageCodes:  languageCodes,
-		System:         sys,
-		SystemPath:     sanitizeDisplayPathSegment(sys.Name, "Unknown System"),
+		DisplayTitle:  displayTitle,
+		RegionCode:    regionCode,
+		RegionFlag:    regionFlagFromCode(regionCode),
+		LanguageCodes: languageCodes,
+		System:        sys,
+		SystemPath: sanitizeDisplayPathSegment(func() string {
+			if sys != nil {
+				return sys.Name
+			}
+			return "Unknown System"
+		}(), "Unknown System"),
 		GamePath:       sanitizeDisplayPathSegment(gamePath, "Unknown Game"),
 		IsPSMemoryCard: isPS,
 		MemoryCard:     memoryCard,
@@ -409,29 +414,34 @@ func sanitizeDisplayPathSegment(value, fallback string) string {
 	return clean
 }
 
-func isPlayStationSave(sys *system, format, filename string) bool {
+func isPS1System(sys *system) bool {
 	if sys != nil {
-		slug := strings.ToLower(strings.TrimSpace(sys.Slug))
-		name := strings.ToLower(strings.TrimSpace(sys.Name))
-		if strings.Contains(slug, "psx") || strings.Contains(slug, "ps1") || strings.Contains(slug, "playstation") {
-			return true
-		}
-		if strings.Contains(name, "playstation") {
+		slug := supportedSystemSlugFromLabel(firstNonEmpty(sys.Slug, sys.Name))
+		if slug == "psx" {
 			return true
 		}
 	}
+	return false
+}
 
-	if strings.Contains(strings.ToLower(strings.TrimSpace(format)), "mcr") {
-		return true
+func isConfirmedPS1MemoryCard(sys *system, format, filename string, payload []byte) bool {
+	if sys != nil && !isPS1System(sys) {
+		return false
 	}
-
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
-	return isPlayStationExt(ext)
+	if !isPlayStationExt(ext) {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(format)), "mcr") {
+			ext = "mcr"
+		} else {
+			return false
+		}
+	}
+	return isLikelyPS1MemoryCard(payload, ext)
 }
 
 func isPlayStationExt(ext string) bool {
 	switch strings.ToLower(strings.TrimSpace(ext)) {
-	case "mcr", "mcd", "gme", "mc":
+	case "mcr", "mcd", "gme", "mc", "vmp", "psv":
 		return true
 	default:
 		return false
@@ -452,18 +462,19 @@ func deriveMemoryCardName(slotName, filename string) string {
 	return "Memory Card 1"
 }
 
-func parsePlayStationMemoryCard(payload []byte, cardName string) *memoryCardDetails {
-	if len(payload) < psMemoryCardBlockSize {
+func parsePlayStationMemoryCard(payload []byte, filename, cardName string) *memoryCardDetails {
+	image := normalizedPS1MemoryCardImage(payload, strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), "."))
+	if len(image) < psMemoryCardBlockSize {
 		return nil
 	}
 
 	entries := make([]memoryCardEntry, 0, 8)
 	for dirIndex := 1; dirIndex <= psDirectoryEntries; dirIndex++ {
 		offset := dirIndex * psDirectoryEntrySize
-		if offset+psDirectoryEntrySize > len(payload) {
+		if offset+psDirectoryEntrySize > len(image) {
 			break
 		}
-		entry := payload[offset : offset+psDirectoryEntrySize]
+		entry := image[offset : offset+psDirectoryEntrySize]
 		state := entry[0]
 		productCode := extractPrintableASCII(entry[0x0a:0x16])
 		if !isLikelyUsedDirectoryEntry(state, productCode) {
@@ -471,11 +482,11 @@ func parsePlayStationMemoryCard(payload []byte, cardName string) *memoryCardDeta
 		}
 
 		slot := dirIndex
-		blocks := countDirectoryBlocks(payload, dirIndex)
+		blocks := countDirectoryBlocks(image, dirIndex)
 		if blocks <= 0 {
 			blocks = 1
 		}
-		title := parseMemoryCardEntryTitle(payload, slot, productCode)
+		title := parseMemoryCardEntryTitle(image, slot, productCode)
 		region := regionFromProductCode(productCode)
 		if region == regionUnknown {
 			region = detectRegionCode(title)
@@ -494,6 +505,28 @@ func parsePlayStationMemoryCard(payload []byte, cardName string) *memoryCardDeta
 		return &memoryCardDetails{Name: cardName}
 	}
 	return &memoryCardDetails{Name: cardName, Entries: entries}
+}
+
+func normalizedPS1MemoryCardImage(payload []byte, ext string) []byte {
+	switch strings.ToLower(strings.TrimSpace(ext)) {
+	case "gme":
+		if len(payload) == ps1MemoryCardTotalSize+ps1DexDriveHeaderSize {
+			return payload[ps1DexDriveHeaderSize:]
+		}
+	case "vmp":
+		if len(payload) == ps1MemoryCardTotalSize+ps1PSPVMPHeaderSize && len(payload) > ps1PSPVMPHeaderSize {
+			return payload[ps1PSPVMPHeaderSize:]
+		}
+	case "mcr", "mcd", "mc", "psv":
+		if len(payload) == ps1MemoryCardTotalSize {
+			return payload
+		}
+	default:
+		if len(payload) == ps1MemoryCardTotalSize {
+			return payload
+		}
+	}
+	return nil
 }
 
 func isLikelyUsedDirectoryEntry(state byte, productCode string) bool {

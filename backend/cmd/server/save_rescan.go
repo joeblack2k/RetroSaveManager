@@ -12,15 +12,22 @@ import (
 )
 
 type saveRescanOptions struct {
-	DryRun          bool
+	DryRun           bool
 	PruneUnsupported bool
 }
 
+type saveRescanRejection struct {
+	SaveID   string `json:"saveId"`
+	Filename string `json:"filename"`
+	Reason   string `json:"reason"`
+}
+
 type saveRescanResult struct {
-	Scanned   int
-	Updated   int
-	Rejected  int
-	Removed   int
+	Scanned    int                   `json:"scanned"`
+	Updated    int                   `json:"updated"`
+	Rejected   int                   `json:"rejected"`
+	Removed    int                   `json:"removed"`
+	Rejections []saveRescanRejection `json:"rejections,omitempty"`
 }
 
 func runSaveRescan(args []string) error {
@@ -37,7 +44,7 @@ func runSaveRescan(args []string) error {
 	}
 
 	result, err := a.rescanSaves(saveRescanOptions{
-		DryRun:          *dryRun,
+		DryRun:           *dryRun,
 		PruneUnsupported: *pruneUnsupported,
 	})
 	if err != nil {
@@ -46,12 +53,18 @@ func runSaveRescan(args []string) error {
 
 	log.Printf("save rescan complete: scanned=%d updated=%d rejected=%d removed=%d dry_run=%v prune_unsupported=%v",
 		result.Scanned, result.Updated, result.Rejected, result.Removed, *dryRun, *pruneUnsupported)
+	for _, rejected := range result.Rejections {
+		log.Printf("rejected save: id=%s filename=%s reason=%s", rejected.SaveID, rejected.Filename, rejected.Reason)
+	}
 	return nil
 }
 
 func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
-	records := a.snapshotSaveRecords()
 	result := saveRescanResult{}
+	records, err := a.rawSaveRecordsForRescan()
+	if err != nil {
+		return result, err
+	}
 
 	for _, original := range records {
 		result.Scanned++
@@ -61,7 +74,7 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 			return result, fmt.Errorf("read payload for %s: %w", original.Summary.ID, err)
 		}
 
-		normalized := a.normalizeSaveInput(saveCreateInput{
+		normalized := a.normalizeSaveInputDetailedWithOptions(saveCreateInput{
 			Filename:      original.Summary.Filename,
 			Payload:       payload,
 			Game:          original.Summary.Game,
@@ -81,22 +94,30 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 			CoverArtURL:   original.Summary.CoverArtURL,
 			MemoryCard:    original.Summary.MemoryCard,
 			CreatedAt:     original.Summary.CreatedAt,
-		})
+		}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
 
-		if !isSupportedSystemSlug(normalized.SystemSlug) {
+		if normalized.Rejected || !isSupportedSystemSlug(normalized.Input.SystemSlug) {
 			result.Rejected++
+			result.Rejections = append(result.Rejections, saveRescanRejection{
+				SaveID:   original.Summary.ID,
+				Filename: original.Summary.Filename,
+				Reason:   firstNonEmpty(normalized.RejectReason, normalized.Detection.Reason, errUnsupportedSaveFormat.Error()),
+			})
 			if options.PruneUnsupported {
 				result.Removed++
 				if !options.DryRun {
 					if err := os.RemoveAll(original.dirPath); err != nil {
 						return result, fmt.Errorf("remove unsupported save %s: %w", original.Summary.ID, err)
 					}
+					if a.saveStore != nil {
+						cleanupEmptyParents(filepath.Dir(original.dirPath), a.saveStore.root)
+					}
 				}
 			}
 			continue
 		}
 
-		updated := applyNormalizedSaveToRecord(original, normalized)
+		updated := applyNormalizedSaveToRecord(original, normalized.Input)
 		changed, err := saveRecordChanged(original, updated)
 		if err != nil {
 			return result, err
@@ -108,6 +129,9 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 		result.Updated++
 		if options.DryRun {
 			continue
+		}
+		if err := relocateSaveRecordDir(a.saveStore.root, &updated); err != nil {
+			return result, err
 		}
 		if err := persistSaveRecordMetadata(updated); err != nil {
 			return result, err
@@ -121,6 +145,16 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 	}
 
 	return result, nil
+}
+
+func (a *app) rawSaveRecordsForRescan() ([]saveRecord, error) {
+	a.mu.Lock()
+	store := a.saveStore
+	a.mu.Unlock()
+	if store == nil {
+		return nil, fmt.Errorf("save store is not initialized")
+	}
+	return store.load()
 }
 
 func applyNormalizedSaveToRecord(record saveRecord, normalized saveCreateInput) saveRecord {
@@ -192,3 +226,24 @@ func persistSaveRecordMetadata(record saveRecord) error {
 	return nil
 }
 
+func relocateSaveRecordDir(saveRoot string, record *saveRecord) error {
+	if record == nil {
+		return nil
+	}
+	targetDir, err := safeJoinUnderRoot(saveRoot, record.SystemPath, record.GamePath, record.Summary.ID)
+	if err != nil {
+		return fmt.Errorf("build canonical save dir for %s: %w", record.Summary.ID, err)
+	}
+	if filepath.Clean(targetDir) != filepath.Clean(record.dirPath) {
+		if err := applySaveLayoutMove(saveRoot, saveLayoutMove{
+			SaveID: record.Summary.ID,
+			From:   record.dirPath,
+			To:     targetDir,
+		}); err != nil {
+			return err
+		}
+		record.dirPath = targetDir
+	}
+	record.payloadPath = filepath.Join(record.dirPath, record.PayloadFile)
+	return nil
+}
