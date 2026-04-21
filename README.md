@@ -17,6 +17,10 @@ RetroSaveManager is a self-hosted, LAN-first save synchronization service with c
 - `scripts/` Contract verification, backup/restore wrappers, security gate
 - `tests/` Evidence output folder for local verification runs
 
+## Release Notes
+
+See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
+
 ## Save Data Layout
 
 All save files live below a single backup-friendly root:
