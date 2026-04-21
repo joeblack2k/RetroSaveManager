@@ -100,16 +100,16 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			SystemSlug: safeMultipartSystemSlug(formValue("system"), gameInfo.System),
 			GameSlug:   canonicalSegment(gameInfo.Name, "unknown-game"),
 		}
-		preview := a.normalizeSaveInput(input)
-		if !isSupportedSystemSlug(preview.SystemSlug) {
+		preview := a.normalizeSaveInputDetailed(input)
+		if preview.Rejected || !isSupportedSystemSlug(preview.Input.SystemSlug) {
 			writeJSON(w, http.StatusUnprocessableEntity, apiError{
 				Error:      "Unprocessable Entity",
-				Message:    "unsupported or unrecognized save format; only known consoles/arcade are allowed",
+				Message:    errUnsupportedSaveFormat.Error(),
 				StatusCode: http.StatusUnprocessableEntity,
 			})
 			return
 		}
-		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, preview.SystemSlug) {
+		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, preview.Input.SystemSlug) {
 			writeJSON(w, http.StatusForbidden, apiError{
 				Error:      "Forbidden",
 				Message:    "this device is not allowed to sync saves for this console",
@@ -121,7 +121,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		record, err := a.createSave(input)
 		if err != nil {
 			if errors.Is(err, errUnsupportedSaveFormat) {
-				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: errUnsupportedSaveFormat.Error(), StatusCode: http.StatusUnprocessableEntity})
 				return
 			}
 			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
@@ -183,7 +183,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				results = append(results, map[string]any{
 					"filename": item.Filename,
 					"success":  false,
-					"error":    err.Error(),
+					"error":    errUnsupportedSaveFormat.Error(),
 				})
 				continue
 			}
@@ -225,11 +225,9 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 	romMD5 := strings.TrimSpace(r.URL.Query().Get("romMd5"))
 	systemID := parseIntOrDefault(r.URL.Query().Get("systemId"), 0)
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	filteredRecords := make([]saveRecord, 0, len(a.saveRecords))
-	for _, record := range a.saveRecords {
+	records := a.snapshotSaveRecords()
+	filteredRecords := make([]saveRecord, 0, len(records))
+	for _, record := range records {
 		if romSHA1 != "" && record.ROMSHA1 != romSHA1 {
 			continue
 		}
@@ -245,97 +243,44 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type saveAggregate struct {
-		saveCount       int
-		totalSizeBytes  int
-		latestSizeBytes int
-		latestVersion   int
+		representative saveSummary
+		saveCount      int
+		totalSizeBytes int
 	}
 	aggregates := make(map[string]saveAggregate, len(filteredRecords))
-	groupKey := func(summary saveSummary) string {
-		systemKey := "unknown-system"
-		if summary.Game.System != nil {
-			systemKey = strings.TrimSpace(summary.Game.System.Slug)
-			if systemKey == "" {
-				systemKey = canonicalSegment(summary.Game.System.Name, "unknown-system")
-			}
-		}
-		titleKey := strings.TrimSpace(summary.DisplayTitle)
-		if titleKey == "" {
-			titleKey = strings.TrimSpace(summary.Game.Name)
-		}
-		titleKey, _, _ = cleanupDisplayTitleRegionAndLanguages(titleKey)
-		return strings.ToLower(systemKey + "::" + titleKey)
-	}
 	for _, record := range filteredRecords {
-		key := groupKey(record.Summary)
+		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
+			continue
+		}
+		summary := canonicalSummaryForRecord(record)
+		if !isSupportedSystemSlug(summary.SystemSlug) {
+			continue
+		}
+		key := canonicalHistoryKeyForRecord(record)
 		agg := aggregates[key]
+		if agg.saveCount == 0 || summary.CreatedAt.After(agg.representative.CreatedAt) || (summary.CreatedAt.Equal(agg.representative.CreatedAt) && summary.ID > agg.representative.ID) {
+			agg.representative = summary
+		}
 		agg.saveCount++
 		agg.totalSizeBytes += record.Summary.FileSize
-		if record.Summary.Version >= agg.latestVersion {
-			agg.latestVersion = record.Summary.Version
-			agg.latestSizeBytes = record.Summary.FileSize
-		}
 		aggregates[key] = agg
 	}
 
-	filtered := make([]saveSummary, 0, len(filteredRecords))
-	for _, record := range filteredRecords {
-		summary := record.Summary
-		summary.SystemSlug = canonicalSegment(firstNonEmpty(record.SystemSlug, summary.SystemSlug), "unknown-system")
-		if summary.Game.System != nil {
-			derived := canonicalSegment(firstNonEmpty(summary.Game.System.Slug, summary.Game.System.Name), "")
-			if derived != "" {
-				summary.SystemSlug = derived
-			}
-		}
-		if summary.Game.System == nil && isSupportedSystemSlug(summary.SystemSlug) {
-			summary.Game.System = supportedSystemFromSlug(summary.SystemSlug)
-		}
-		cleanTitle, regionFromTitle, langsFromTitle := cleanupDisplayTitleRegionAndLanguages(summary.DisplayTitle)
-		if cleanTitle == "" || cleanTitle == "Unknown Game" {
-			cleanTitle, regionFromTitle, langsFromTitle = cleanupDisplayTitleRegionAndLanguages(summary.Game.Name)
-		}
-		if cleanTitle == "" || cleanTitle == "Unknown Game" {
-			cleanTitle, regionFromTitle, langsFromTitle = cleanupDisplayTitleRegionAndLanguages(summary.Filename)
-		}
-		if cleanTitle != "" {
-			summary.DisplayTitle = cleanTitle
-			summary.Game.DisplayTitle = cleanTitle
-			summary.Game.Name = cleanTitle
-		}
-		if normalizeRegionCode(summary.RegionCode) == regionUnknown {
-			summary.RegionCode = normalizeRegionCode(regionFromTitle)
-		}
-		if normalizeRegionCode(summary.RegionCode) == regionUnknown {
-			summary.RegionCode = normalizeRegionCode(summary.Game.RegionCode)
-		}
-		summary.RegionFlag = regionFlagFromCode(summary.RegionCode)
-		summary.Game.RegionCode = summary.RegionCode
-		summary.Game.RegionFlag = summary.RegionFlag
-		summary.LanguageCodes = normalizeLanguageCodes(summary.LanguageCodes)
-		if len(summary.LanguageCodes) == 0 {
-			summary.LanguageCodes = normalizeLanguageCodes(summary.Game.LanguageCodes)
-		}
-		if len(summary.LanguageCodes) == 0 {
-			summary.LanguageCodes = normalizeLanguageCodes(langsFromTitle)
-		}
-		summary.Game.LanguageCodes = summary.LanguageCodes
-		agg := aggregates[groupKey(summary)]
+	filtered := make([]saveSummary, 0, len(aggregates))
+	for _, agg := range aggregates {
+		summary := agg.representative
 		summary.SaveCount = agg.saveCount
 		summary.TotalSizeBytes = agg.totalSizeBytes
-		summary.LatestSizeBytes = agg.latestSizeBytes
-		summary.LatestVersion = agg.latestVersion
-		if strings.TrimSpace(summary.CoverArtURL) == "" {
-			summary.CoverArtURL = strings.TrimSpace(summary.Game.CoverArtURL)
-		}
-		if strings.TrimSpace(summary.CoverArtURL) == "" && summary.Game.BoxartThumb != nil {
-			summary.CoverArtURL = strings.TrimSpace(*summary.Game.BoxartThumb)
-		}
-		if strings.TrimSpace(summary.CoverArtURL) == "" && summary.Game.Boxart != nil {
-			summary.CoverArtURL = strings.TrimSpace(*summary.Game.Boxart)
-		}
+		summary.LatestSizeBytes = summary.FileSize
+		summary.LatestVersion = summary.Version
 		filtered = append(filtered, summary)
 	}
+	sort.Slice(filtered, func(i, j int) bool {
+		if filtered[i].CreatedAt.Equal(filtered[j].CreatedAt) {
+			return filtered[i].ID > filtered[j].ID
+		}
+		return filtered[i].CreatedAt.After(filtered[j].CreatedAt)
+	})
 
 	if offset > len(filtered) {
 		offset = len(filtered)
@@ -390,48 +335,37 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if gameID == 0 && saveID == "" && systemSlug == "" && displayTitle == "" {
-		gameID = 281
+		for _, record := range a.snapshotSaveRecords() {
+			if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
+				continue
+			}
+			sourceRecord = record
+			hasSourceRecord = true
+			gameID = canonicalSummaryForRecord(record).Game.ID
+			break
+		}
 	}
 
 	records := a.snapshotSaveRecords()
 	var versions []saveSummary
 	for _, record := range records {
+		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
+			continue
+		}
 		if hasSourceRecord && !sameSaveHistoryTrack(record, sourceRecord) {
 			continue
 		}
-		s := record.Summary
+		s := canonicalSummaryForRecord(record)
 		if gameID != 0 && s.Game.ID != gameID {
 			continue
 		}
-		recordSystem := canonicalOptionalSegment(record.SystemSlug)
-		if recordSystem == "" && s.Game.System != nil {
-			recordSystem = canonicalOptionalSegment(s.Game.System.Slug)
-		}
+		recordSystem := canonicalOptionalSegment(s.SystemSlug)
 		if systemSlug != "" && recordSystem != systemSlug {
 			continue
 		}
-		cleanTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(s.DisplayTitle)
-		if cleanTitle == "" || cleanTitle == "Unknown Game" {
-			cleanTitle, _, _ = cleanupDisplayTitleRegionAndLanguages(s.Game.Name)
-		}
-		if displayTitle != "" && !strings.EqualFold(cleanTitle, displayTitle) {
+		if displayTitle != "" && !strings.EqualFold(s.DisplayTitle, canonicalDisplayTitle(displayTitle)) {
 			continue
 		}
-		s.DisplayTitle = cleanTitle
-		s.Game.DisplayTitle = cleanTitle
-		s.Game.Name = cleanTitle
-		s.RegionCode = normalizeRegionCode(s.RegionCode)
-		if s.RegionCode == regionUnknown {
-			s.RegionCode = normalizeRegionCode(s.Game.RegionCode)
-		}
-		s.RegionFlag = regionFlagFromCode(s.RegionCode)
-		s.Game.RegionCode = s.RegionCode
-		s.Game.RegionFlag = s.RegionFlag
-		s.LanguageCodes = normalizeLanguageCodes(s.LanguageCodes)
-		if len(s.LanguageCodes) == 0 {
-			s.LanguageCodes = normalizeLanguageCodes(s.Game.LanguageCodes)
-		}
-		s.Game.LanguageCodes = s.LanguageCodes
 		versions = append(versions, s)
 	}
 
@@ -508,31 +442,7 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 }
 
 func sameSaveHistoryTrack(candidate saveRecord, source saveRecord) bool {
-	sourceROM := strings.TrimSpace(source.ROMSHA1)
-	if sourceROM != "" {
-		return strings.TrimSpace(candidate.ROMSHA1) == sourceROM && normalizedSlot(candidate.SlotName) == normalizedSlot(source.SlotName)
-	}
-
-	if source.Summary.Game.ID != 0 && candidate.Summary.Game.ID == source.Summary.Game.ID {
-		sourceTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(source.Summary.DisplayTitle)
-		candidateTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(candidate.Summary.DisplayTitle)
-		if sourceTitle == "" || sourceTitle == "Unknown Game" {
-			return true
-		}
-		return strings.EqualFold(sourceTitle, candidateTitle)
-	}
-
-	sourceSystem := canonicalOptionalSegment(source.SystemSlug)
-	candidateSystem := canonicalOptionalSegment(candidate.SystemSlug)
-	if sourceSystem != "" && sourceSystem == candidateSystem {
-		sourceTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(source.Summary.DisplayTitle)
-		candidateTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(candidate.Summary.DisplayTitle)
-		if sourceTitle != "" && sourceTitle != "Unknown Game" {
-			return strings.EqualFold(sourceTitle, candidateTitle)
-		}
-	}
-
-	return source.Summary.ID == candidate.Summary.ID
+	return canonicalHistoryKeyForRecord(candidate) == canonicalHistoryKeyForRecord(source)
 }
 
 func canonicalOptionalSegment(value string) string {
@@ -540,6 +450,39 @@ func canonicalOptionalSegment(value string) string {
 		return ""
 	}
 	return canonicalSegment(value, "")
+}
+
+func canonicalSummaryForRecord(record saveRecord) saveSummary {
+	summary := record.Summary
+	track := canonicalTrackFromRecord(record)
+	summary.SystemSlug = canonicalSegment(track.SystemSlug, "unknown-system")
+	summary.DisplayTitle = track.DisplayTitle
+	summary.RegionCode = canonicalRegion(summary.RegionCode, track.RegionCode)
+	summary.RegionFlag = regionFlagFromCode(summary.RegionCode)
+	summary.LanguageCodes = normalizeLanguageCodes(summary.LanguageCodes)
+	if len(summary.LanguageCodes) == 0 {
+		summary.LanguageCodes = normalizeLanguageCodes(summary.Game.LanguageCodes)
+	}
+	summary.Game.ID = canonicalGameIDForTrack(track)
+	summary.Game.Name = track.DisplayTitle
+	summary.Game.DisplayTitle = track.DisplayTitle
+	summary.Game.RegionCode = summary.RegionCode
+	summary.Game.RegionFlag = summary.RegionFlag
+	summary.Game.LanguageCodes = summary.LanguageCodes
+	summary.Game.System = track.System
+	if !track.IsPS1Card {
+		summary.MemoryCard = nil
+	}
+	if strings.TrimSpace(summary.CoverArtURL) == "" {
+		summary.CoverArtURL = strings.TrimSpace(summary.Game.CoverArtURL)
+	}
+	if strings.TrimSpace(summary.CoverArtURL) == "" && summary.Game.BoxartThumb != nil {
+		summary.CoverArtURL = strings.TrimSpace(*summary.Game.BoxartThumb)
+	}
+	if strings.TrimSpace(summary.CoverArtURL) == "" && summary.Game.Boxart != nil {
+		summary.CoverArtURL = strings.TrimSpace(*summary.Game.Boxart)
+	}
+	return summary
 }
 
 func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
@@ -593,7 +536,7 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, errUnsupportedSaveFormat) {
-			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: errUnsupportedSaveFormat.Error(), StatusCode: http.StatusUnprocessableEntity})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})

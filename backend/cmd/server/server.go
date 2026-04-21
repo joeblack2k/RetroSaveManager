@@ -9,7 +9,7 @@ import (
 func serve(handler http.Handler) {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "3001"
+		port = "80"
 	}
 
 	addr := ":" + port

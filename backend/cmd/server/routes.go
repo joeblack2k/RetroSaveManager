@@ -14,6 +14,7 @@ func newRouter(app *app) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Logger)
+	staticFrontend := newFrontendStaticHandler()
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "time": time.Now().UTC()})
@@ -21,6 +22,24 @@ func newRouter(app *app) http.Handler {
 
 	registerCompatRoutes(r, app, "")
 	registerCompatRoutes(r, app, "/v1")
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		if isReservedAPIPath(r.URL.Path) {
+			writeJSON(w, http.StatusNotFound, apiError{
+				Error:      "Not Found",
+				Message:    "Route not found",
+				StatusCode: http.StatusNotFound,
+			})
+			return
+		}
+
+		if r.Method == http.MethodGet || r.Method == http.MethodHead {
+			if staticFrontend != nil && staticFrontend.serve(w, r) {
+				return
+			}
+		}
+		http.NotFound(w, r)
+	})
 
 	return r
 }

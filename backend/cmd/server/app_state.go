@@ -35,27 +35,27 @@ type authStateSnapshot struct {
 }
 
 type app struct {
-	mu                    sync.Mutex
-	securityStateFile     string
+	mu                          sync.Mutex
+	securityStateFile           string
 	autoAppPasswordEnabledUntil *time.Time
-	nextDeviceID          int
-	nextAppPasswordID     int
-	nextLibraryID         int
-	nextSuggestionID      int
-	devices               map[int]device
-	trustedDevices        map[string]trustedDevice
-	appPasswords          map[string]appPassword
-	catalog               map[string]catalogGame
-	library               map[string]libraryGame
-	roadmapItems          map[string]roadmapItem
-	roadmapSuggestions    map[string]roadmapSuggestion
-	saves                 []saveSummary
-	saveStore             *saveStore
-	saveRecords           []saveRecord
-	enricher              *gameEnricher
-	conflicts             map[string]conflictRecord
-	nextEventSubscriberID int
-	eventSubscribers      map[int]chan sseEvent
+	nextDeviceID                int
+	nextAppPasswordID           int
+	nextLibraryID               int
+	nextSuggestionID            int
+	devices                     map[int]device
+	trustedDevices              map[string]trustedDevice
+	appPasswords                map[string]appPassword
+	catalog                     map[string]catalogGame
+	library                     map[string]libraryGame
+	roadmapItems                map[string]roadmapItem
+	roadmapSuggestions          map[string]roadmapSuggestion
+	saves                       []saveSummary
+	saveStore                   *saveStore
+	saveRecords                 []saveRecord
+	enricher                    *gameEnricher
+	conflicts                   map[string]conflictRecord
+	nextEventSubscriberID       int
+	eventSubscribers            map[int]chan sseEvent
 }
 
 func newApp() *app {
@@ -206,11 +206,14 @@ func (a *app) createSave(input saveCreateInput) (saveRecord, error) {
 		return saveRecord{}, fmt.Errorf("save store is not initialized")
 	}
 
-	normalizedInput := a.normalizeSaveInput(input)
-	if !isSupportedSystemSlug(normalizedInput.SystemSlug) {
+	normalized := a.normalizeSaveInputDetailed(input)
+	if normalized.Rejected || !isSupportedSystemSlug(normalized.Input.SystemSlug) {
+		if strings.TrimSpace(normalized.RejectReason) != "" {
+			return saveRecord{}, fmt.Errorf("%w: %s", errUnsupportedSaveFormat, normalized.RejectReason)
+		}
 		return saveRecord{}, fmt.Errorf("%w", errUnsupportedSaveFormat)
 	}
-	record, err := store.create(normalizedInput)
+	record, err := store.create(normalized.Input)
 	if err != nil {
 		return saveRecord{}, err
 	}
@@ -447,8 +450,11 @@ func (a *app) authSnapshot() authStateSnapshot {
 	gameKeys := map[string]struct{}{}
 	storageUsedBytes := 0
 	for _, record := range a.saveRecords {
+		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
+			continue
+		}
 		storageUsedBytes += record.Summary.FileSize
-		key := fmt.Sprintf("%d:%s", record.Summary.Game.ID, strings.TrimSpace(record.Summary.Game.Name))
+		key := fmt.Sprintf("%d", canonicalSummaryForRecord(record).Game.ID)
 		gameKeys[key] = struct{}{}
 	}
 

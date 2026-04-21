@@ -335,8 +335,6 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 	if strings.TrimSpace(displayTitle) == "" {
 		displayTitle = "Unknown Game"
 	}
-	summary.DisplayTitle = displayTitle
-
 	regionCode := normalizeRegionCode(summary.RegionCode)
 	if regionCode == regionUnknown {
 		regionCode = normalizeRegionCode(summary.Game.RegionCode)
@@ -348,6 +346,7 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 		_, detected, _ := cleanupDisplayTitleRegionAndLanguages(summary.Filename)
 		regionCode = normalizeRegionCode(detected)
 	}
+	summary.DisplayTitle = displayTitle
 	summary.RegionCode = regionCode
 	summary.RegionFlag = regionFlagFromCode(regionCode)
 	languageCodes := normalizeLanguageCodes(summary.LanguageCodes)
@@ -420,6 +419,12 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 		summary.Game.System = supportedSystemFromSlug(summary.SystemSlug)
 	}
 	if summary.Game.System != nil {
+		if slug := supportedSystemSlugFromLabel(firstNonEmpty(summary.Game.System.Slug, summary.Game.System.Name)); slug != "" {
+			supported := supportedSystemFromSlug(slug)
+			summary.Game.System = supported
+			record.SystemSlug = supported.Slug
+			summary.SystemSlug = supported.Slug
+		}
 		if strings.TrimSpace(summary.Game.System.Slug) == "" {
 			summary.Game.System.Slug = summary.SystemSlug
 		}
@@ -428,7 +433,7 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 		}
 	}
 	if strings.TrimSpace(record.GameSlug) == "" {
-		record.GameSlug = canonicalSegment(summary.DisplayTitle, "unknown-game")
+		record.GameSlug = canonicalGameSlugForTrack(canonicalTrackFromRecord(*record))
 	}
 
 	if strings.TrimSpace(record.SystemPath) == "" {
@@ -442,13 +447,39 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 		record.GamePath = sanitizeDisplayPathSegment(summary.DisplayTitle, "Unknown Game")
 	}
 
-	if summary.MemoryCard == nil && isPlayStationSave(summary.Game.System, summary.Format, summary.Filename) {
-		payload, err := os.ReadFile(record.payloadPath)
-		if err == nil {
-			cardName := deriveMemoryCardName(record.SlotName, summary.Filename)
-			summary.MemoryCard = parsePlayStationMemoryCard(payload, cardName)
+	if payload, err := os.ReadFile(record.payloadPath); err == nil {
+		if isConfirmedPS1MemoryCard(summary.Game.System, summary.Format, summary.Filename, payload) {
+			cardName := canonicalMemoryCardName(summary.MemoryCard, record.SlotName, summary.Filename)
+			summary.MemoryCard = parsePlayStationMemoryCard(payload, summary.Filename, cardName)
+			if summary.MemoryCard == nil {
+				summary.MemoryCard = &memoryCardDetails{Name: cardName}
+			}
+			summary.DisplayTitle = summary.MemoryCard.Name
+			summary.Game.DisplayTitle = summary.DisplayTitle
+			summary.Game.Name = summary.DisplayTitle
+			record.GamePath = sanitizeDisplayPathSegment(summary.DisplayTitle, "Memory Card 1")
+		} else {
+			summary.MemoryCard = nil
 		}
 	}
+
+	track := canonicalTrackFromRecord(*record)
+	summary.DisplayTitle = track.DisplayTitle
+	summary.RegionCode = canonicalRegion(summary.RegionCode, track.RegionCode)
+	summary.RegionFlag = regionFlagFromCode(summary.RegionCode)
+	summary.Game.ID = canonicalGameIDForTrack(track)
+	summary.Game.Name = track.DisplayTitle
+	summary.Game.DisplayTitle = track.DisplayTitle
+	summary.Game.RegionCode = summary.RegionCode
+	summary.Game.RegionFlag = summary.RegionFlag
+	record.GameSlug = canonicalGameSlugForTrack(track)
+	record.SystemPath = sanitizeDisplayPathSegment(func() string {
+		if track.System != nil {
+			return track.System.Name
+		}
+		return record.SystemSlug
+	}(), "Unknown System")
+	record.GamePath = sanitizeDisplayPathSegment(track.DisplayTitle, "Unknown Game")
 }
 
 func decodeSaveBatchData(data string) ([]byte, error) {
@@ -562,21 +593,9 @@ func deterministicGameID(name string) int {
 
 func nextSaveVersion(existing []saveRecord, input saveCreateInput, filename string) int {
 	version := 1
-	targetSlot := strings.TrimSpace(input.SlotName)
-	if targetSlot == "" {
-		targetSlot = "default"
-	}
+	targetKey := canonicalVersionKeyForInput(input, filename)
 	for _, record := range existing {
-		sameTrack := false
-		switch {
-		case strings.TrimSpace(input.ROMSHA1) != "":
-			sameTrack = record.ROMSHA1 == strings.TrimSpace(input.ROMSHA1) && normalizedSlot(record.SlotName) == targetSlot
-		case input.Game.ID != 0:
-			sameTrack = record.Summary.Game.ID == input.Game.ID
-		default:
-			sameTrack = record.Summary.Filename == safeFilename(filename)
-		}
-		if sameTrack && record.Summary.Version >= version {
+		if canonicalVersionKeyForRecord(record) == targetKey && record.Summary.Version >= version {
 			version = record.Summary.Version + 1
 		}
 	}

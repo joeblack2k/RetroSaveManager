@@ -56,7 +56,7 @@ func TestSaveLayoutMigrationAndRollback(t *testing.T) {
 		t.Fatalf("migrate save layout: %v", err)
 	}
 
-	newDir := filepath.Join(saveRoot, "Super Nintendo", "Yoshi Story", "save-1")
+	newDir := filepath.Join(saveRoot, "Nintendo Super Nintendo Entertainment System", "Yoshi Story", "save-1")
 	if _, err := os.Stat(newDir); err != nil {
 		t.Fatalf("expected new dir: %v", err)
 	}

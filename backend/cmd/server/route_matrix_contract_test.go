@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -157,7 +158,7 @@ func buildCompatRequest(t *testing.T, h *contractHarness, prefix string, route c
 		req.Path += "?romSha1=missing-rom&slotName=default"
 	case "/save":
 		if route.Method == http.MethodGet {
-			req.Path += "?gameId=281"
+			req.Path += "?gameId=" + seededSaveGameID(t, h)
 		} else if route.Method == http.MethodDelete {
 			req.Path += "?id=" + seededSaveID(t, h)
 		}
@@ -168,10 +169,10 @@ func buildCompatRequest(t *testing.T, h *contractHarness, prefix string, route c
 			helperKey := createHelperAppPassword(t, h, prefix, "matrix-helper")
 			body, contentType := multipartBody(t, map[string]string{
 				"app_password": helperKey,
-				"rom_sha1":    "compat-rom",
-				"slotName":    "default",
-				"device_type": "retroarch",
-				"fingerprint": "seed-1",
+				"rom_sha1":     "compat-rom",
+				"slotName":     "default",
+				"device_type":  "retroarch",
+				"fingerprint":  "seed-1",
 			}, "file", "compat.srm", []byte("compat-save"))
 			req.Body = body
 			req.ContentType = contentType
@@ -185,7 +186,7 @@ func buildCompatRequest(t *testing.T, h *contractHarness, prefix string, route c
 	case "/saves/systems":
 		// No-op.
 	case "/game/saves":
-		req.Path += "?gameIds=281"
+		req.Path += "?gameIds=" + seededSaveGameID(t, h)
 	case "/rom/lookup":
 		if route.Method == http.MethodGet {
 			req.Path += "?filenameStem=Wario%20Land%20II"
@@ -260,6 +261,16 @@ func seededSaveID(t *testing.T, h *contractHarness) string {
 		t.Fatalf("expected at least one seeded save record")
 	}
 	return h.app.saveRecords[0].Summary.ID
+}
+
+func seededSaveGameID(t *testing.T, h *contractHarness) string {
+	t.Helper()
+	h.app.mu.Lock()
+	defer h.app.mu.Unlock()
+	if len(h.app.saveRecords) == 0 {
+		t.Fatalf("expected at least one seeded save record")
+	}
+	return fmt.Sprintf("%d", canonicalSummaryForRecord(h.app.saveRecords[0]).Game.ID)
 }
 
 func seededConflictID(t *testing.T, h *contractHarness, prefix string) string {
