@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Go
+backend/bin/
+backend/coverage.out
+
+# Runtime data
+deploy/data/
+backend/cmd/server/data/
+tests/evidence/
+
+# Env
+.env
+.env.*
+!.env.example
+!deploy/.env.example
+
+# Logs
+*.log

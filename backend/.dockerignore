@@ -1,0 +1,6 @@
+.git
+.github
+cmd/server/data
+contracts
+scripts
+*.md

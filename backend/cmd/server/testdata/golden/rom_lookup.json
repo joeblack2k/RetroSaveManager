@@ -1,0 +1,18 @@
+{
+  "count": 1,
+  "rom": {
+    "fileName": "Wario Land II.srm",
+    "game": {
+      "boxart": null,
+      "boxartThumb": null,
+      "hasParser": false,
+      "id": 281,
+      "name": "Wario Land II",
+      "system": null
+    },
+    "id": 281,
+    "md5": "3cbbff10c3f6b306217a65d09dfabd45",
+    "sha1": "751bf15dd2a97091cf4e3575eeed9258e04c3ed4"
+  },
+  "success": true
+}

@@ -1,0 +1,39 @@
+{
+  "message": "Authenticated",
+  "success": true,
+  "user": {
+    "displayName": "Internal User",
+    "email": "internal@localhost",
+    "fileCount": 1,
+    "gameCount": 1,
+    "id": "<redacted>",
+    "quota": {
+      "blobCount": {
+        "current": 1,
+        "hardLimit": 0,
+        "softLimit": 0,
+        "status": "ok"
+      },
+      "devices": {
+        "current": 1,
+        "hardLimit": 0,
+        "softLimit": 0,
+        "status": "ok"
+      },
+      "planName": "Internal",
+      "planSlug": "internal",
+      "savesPerGameHardLimit": 0,
+      "savesPerGameSoftLimit": 0,
+      "storage": {
+        "current": 17,
+        "hardLimit": 0,
+        "softLimit": 0,
+        "status": "ok"
+      }
+    },
+    "roles": [
+      "user"
+    ],
+    "storageUsedBytes": 17
+  }
+}

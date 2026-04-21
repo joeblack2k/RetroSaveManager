@@ -1,0 +1,1903 @@
+{
+  "version": "v0-frozen-2026-04-20",
+  "generated_at": "2026-04-20",
+  "alias_policy": {
+    "default": "serve-both-root-and-v1",
+    "summary": "Serve every surfaced compatibility route at both the root path and a /v1-prefixed alias. Treat root as the canonical path for native/helper clients and /v1 as the canonical alias for web clients.",
+    "exceptions": []
+  },
+  "sources": {
+    "primary_contract": "Resources/COMPAT_SPEC_V0.md",
+    "inventory_widening": "Resources/reverse/selfhost_endpoint_contract.md",
+    "current_server_surface": "Resources/selfhost-go/cmd/server/main.go",
+    "supporting_notes": [
+      "Resources/reverse/decompile_notes.md",
+      "Resources/selfhost-go/README.md"
+    ]
+  },
+  "counts": {
+    "required": 19,
+    "stub-required": 35,
+    "out-of-scope": 71,
+    "total": 125
+  },
+  "classification_policy": {
+    "required": "Explicitly specified in COMPAT_SPEC_V0.md or needed to preserve the documented helper/web core contract with stable payload expectations.",
+    "stub-required": "Surfaced by reverse/web evidence but missing strong payload/status guarantees; implement as permissive compatibility stubs first.",
+    "out-of-scope": "Surfaced upstream but excluded from this self-hosted v1 scope, especially billing, admin, catalog, roadmap, forge, manager, and similar non-core features."
+  },
+  "open_questions": [
+    "Reverse notes infer POST /rom/lookup and POST /conflicts/check, while COMPAT_SPEC_V0.md canonizes GET variants. Freeze GET as canonical and keep POST as optional compatibility stubs if runtime capture later confirms them.",
+    "The matrix assumes the root path and /v1 alias should both exist for every surfaced route, even when only one form is currently observed in a specific client."
+  ],
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/admin/catalog",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin/catalog surface is beyond single-user helper-first scope."
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/catalog/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin/catalog surface is beyond single-user helper-first scope."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/plans",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/plans",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/plans/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "PUT",
+      "path": "/admin/plans/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/releases",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/releases/version",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/releases/version",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/reports/signups",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/roadmap/items",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/admin feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/roadmap/items/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/admin feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "PUT",
+      "path": "/admin/roadmap/items/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/admin feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/roadmap/suggestions",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/admin feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "PUT",
+      "path": "/admin/roadmap/suggestions/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/admin feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/roadmap/suggestions/{id}/promote",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/admin feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/roles",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/roles/grant",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/roles/revoke",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/settings",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "PUT",
+      "path": "/admin/settings",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/stripe/price-mappings",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Billing admin surface is excluded with all stripe work."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/stripe/price-mappings",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Billing admin surface is excluded with all stripe work."
+    },
+    {
+      "method": "DELETE",
+      "path": "/admin/stripe/price-mappings/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Billing admin surface is excluded with all stripe work."
+    },
+    {
+      "method": "PATCH",
+      "path": "/admin/stripe/price-mappings/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Billing admin surface is excluded with all stripe work."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/users",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/users/{id}/cancel-deletion",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/users/{id}/delete",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/users/{id}/disable",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/users/{id}/enable",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "GET",
+      "path": "/admin/users/{id}/plan",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/users/{id}/plan",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/admin/users/{id}/storage-bonus",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 admin envelope required.",
+      "notes": "Admin surface excluded from v1 compatibility target."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/2fa/backup-codes/regenerate",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with placeholder codes is acceptable.",
+      "notes": "Stub to keep web settings flows from breaking."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/2fa/disable",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Surfaced account-security workflow."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/2fa/setup/totp",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON setup stub is acceptable.",
+      "notes": "Out of primary helper flow but part of surfaced account UI."
+    },
+    {
+      "method": "GET",
+      "path": "/auth/2fa/status",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON status envelope expected.",
+      "notes": "Can return disabled/default values in no-auth mode."
+    },
+    {
+      "method": "GET",
+      "path": "/auth/2fa/trusted-devices",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON list envelope expected.",
+      "notes": "Web account-security surface."
+    },
+    {
+      "method": "DELETE",
+      "path": "/auth/2fa/trusted-devices/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200,
+        404
+      ],
+      "envelope_notes": "Success envelope is sufficient.",
+      "notes": "Delete surface for trusted device rows."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/2fa/verify",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Required by surfaced clients but can remain a permissive no-op in single-user no-auth mode."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/2fa/verify-setup",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Surfaced account-security workflow."
+    },
+    {
+      "method": "GET",
+      "path": "/auth/app-passwords",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON list envelope expected.",
+      "notes": "Surfaced settings route adjacent to required token/app-password exchange."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/app-passwords",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with created credential metadata is acceptable.",
+      "notes": "Settings-management surface; exact shape can be stubbed first."
+    },
+    {
+      "method": "DELETE",
+      "path": "/auth/app-passwords/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200,
+        404
+      ],
+      "envelope_notes": "Success envelope is sufficient.",
+      "notes": "Delete surface for app-password rows."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/cancel-deletion",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Companion lifecycle action for web settings flow."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/delete-account",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Surfaced account lifecycle action; can no-op for single-user LAN mode."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/device",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON device-code envelope with deviceCode, userCode, verificationUri, expiresInSeconds.",
+      "notes": "Compat-spec device flow stub for helper/no-auth onboarding."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/device/confirm",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope is acceptable.",
+      "notes": "Surfaced in reverse contract for browser device confirmation flow."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/device/token",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        202,
+        200
+      ],
+      "envelope_notes": "Pending response allowed before success token envelope.",
+      "notes": "Canon from compat spec: request includes deviceCode; no-auth mode should remain permissive."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/device/verify",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON stub response is acceptable.",
+      "notes": "Surfaced in reverse contract for browser device flow; no compat-spec payload yet."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/forgot-password",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success/message envelope is sufficient.",
+      "notes": "Single-user no-auth deployments can no-op while preserving stable JSON."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with user object and stable keys in no-auth mode.",
+      "notes": "Primary helper/session bootstrap; accept Authorization header and ignore CSRF marker."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient for no-auth mode.",
+      "notes": "Surfaced by web and reverse notes, but not contract-detailed in compat spec."
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with user, quota, storageUsedBytes, gameCount, and fileCount.",
+      "notes": "Must never 401 in AUTH_MODE=disabled; map all requests to one internal principal."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/resend-verification",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Reverse/web surfaced route without compat-spec payload details."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/reset-password",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success/message envelope is sufficient.",
+      "notes": "Stub for surfaced password-reset forms."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/signup",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Prefer JSON success/message envelope.",
+      "notes": "Keep stub-compatible for helper/web flows; no strict auth semantics in LAN mode."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/token",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with token and expiresInDays.",
+      "notes": "Allow empty JSON body; issue dummy or internal token in no-auth mode."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/token/app-password",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Same envelope as /auth/token.",
+      "notes": "Stub-compatible app-password token exchange for helper clients."
+    },
+    {
+      "method": "POST",
+      "path": "/auth/verify-email",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Account-extra surface from web contract."
+    },
+    {
+      "method": "GET",
+      "path": "/catalog",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 catalog envelope required.",
+      "notes": "Optional free-ROM catalog surface, not part of helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/catalog/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 catalog envelope required.",
+      "notes": "Optional free-ROM catalog surface, not part of helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/catalog/{id}/download",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 catalog envelope required.",
+      "notes": "Optional free-ROM catalog surface, not part of helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/conflicts",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON list envelope expected.",
+      "notes": "Web-core conflicts page surface without compat-spec payload detail."
+    },
+    {
+      "method": "GET",
+      "path": "/conflicts/check",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON envelope with exists/conflictId/status/cloud fields.",
+      "notes": "Treat GET with romSha1 and slotName as canonical because compat spec is primary."
+    },
+    {
+      "method": "POST",
+      "path": "/conflicts/check",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Likely JSON conflict envelope matching GET /conflicts/check fields.",
+      "notes": "Reverse contract infers POST, but compat spec canonizes GET; retain as conservative compatibility stub."
+    },
+    {
+      "method": "GET",
+      "path": "/conflicts/count",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON count envelope.",
+      "notes": "Surfaced by web bundle for conflict badges; current server already exposes it."
+    },
+    {
+      "method": "POST",
+      "path": "/conflicts/report",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Multipart upload returns success, created, conflictId.",
+      "notes": "Compat spec expects multipart with file and hash fields; missing file should fail with client-readable error."
+    },
+    {
+      "method": "GET",
+      "path": "/conflicts/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200,
+        404
+      ],
+      "envelope_notes": "JSON detail envelope expected.",
+      "notes": "Needed for web conflict detail pages, but payload still reverse-derived."
+    },
+    {
+      "method": "POST",
+      "path": "/conflicts/{id}/resolve",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Success envelope is sufficient at first.",
+      "notes": "Conflict resolution route surfaced in web bundle."
+    },
+    {
+      "method": "POST",
+      "path": "/dev/signup",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Simple success envelope is sufficient.",
+      "notes": "Inferred binary route; keep as stub until runtime capture confirms payload."
+    },
+    {
+      "method": "GET",
+      "path": "/devices",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with devices array.",
+      "notes": "Web-core device management is explicitly called out in compat spec section 6."
+    },
+    {
+      "method": "DELETE",
+      "path": "/devices/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Success envelope on delete.",
+      "notes": "Compat spec requires delete support for device cleanup."
+    },
+    {
+      "method": "PATCH",
+      "path": "/devices/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200,
+        404
+      ],
+      "envelope_notes": "Success envelope on update; not-found envelope allowed for unknown device.",
+      "notes": "Alias update is part of required web parity surface."
+    },
+    {
+      "method": "GET",
+      "path": "/events",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "SSE stream with keepalive comments and event names rather than JSON body.",
+      "notes": "Required for watch compatibility; /v1/events should be served via alias policy too."
+    },
+    {
+      "method": "GET",
+      "path": "/forge/games",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 forge envelope required.",
+      "notes": "Forge/editor surface is outside v1 compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/forge/parsers",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 forge envelope required.",
+      "notes": "Forge/editor surface is outside v1 compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/forge/parsers/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 forge envelope required.",
+      "notes": "Forge/editor surface is outside v1 compatibility scope."
+    },
+    {
+      "method": "PATCH",
+      "path": "/forge/parsers/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 forge envelope required.",
+      "notes": "Forge/editor surface is outside v1 compatibility scope."
+    },
+    {
+      "method": "POST",
+      "path": "/forge/parsers/{id}/games",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 forge envelope required.",
+      "notes": "Forge/editor surface is outside v1 compatibility scope."
+    },
+    {
+      "method": "DELETE",
+      "path": "/forge/parsers/{id}/games/{gameId}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 forge envelope required.",
+      "notes": "Forge/editor surface is outside v1 compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/forge/systems",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 forge envelope required.",
+      "notes": "Forge/editor surface is outside v1 compatibility scope."
+    },
+    {
+      "method": "DELETE",
+      "path": "/game/saves",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Success envelope is sufficient.",
+      "notes": "Web bulk-delete convenience route for multiple game ids."
+    },
+    {
+      "method": "GET",
+      "path": "/games/library",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 game-library envelope required.",
+      "notes": "Optional library management surface outside v1 helper-sync goal."
+    },
+    {
+      "method": "POST",
+      "path": "/games/library",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 game-library envelope required.",
+      "notes": "Optional library management surface outside v1 helper-sync goal."
+    },
+    {
+      "method": "DELETE",
+      "path": "/games/library/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 game-library envelope required.",
+      "notes": "Optional library management surface outside v1 helper-sync goal."
+    },
+    {
+      "method": "POST",
+      "path": "/games/lookup",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON results array matching query objects to minimal game objects.",
+      "notes": "Web helper lookup route; stable query echoing matters more than deep metadata in v1."
+    },
+    {
+      "method": "GET",
+      "path": "/manager/games",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "POST",
+      "path": "/manager/games",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "DELETE",
+      "path": "/manager/games/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/manager/games/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "PUT",
+      "path": "/manager/games/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "POST",
+      "path": "/manager/games/{id}/boxart",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "POST",
+      "path": "/manager/games/{id}/links",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "DELETE",
+      "path": "/manager/games/{id}/links/{linkId}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "DELETE",
+      "path": "/manager/games/{id}/metadata/{key}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "PUT",
+      "path": "/manager/games/{id}/metadata/{key}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/manager/games/{id}/roms",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "POST",
+      "path": "/manager/games/{id}/roms",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/manager/publishers",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "POST",
+      "path": "/manager/publishers",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "DELETE",
+      "path": "/manager/roms/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "PUT",
+      "path": "/manager/roms/{id}",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/manager/systems",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 manager envelope required.",
+      "notes": "Manager surface is outside helper-first compatibility scope."
+    },
+    {
+      "method": "GET",
+      "path": "/parser/wasm",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Binary or wasm payload, not JSON.",
+      "notes": "Surfaced parser-editor dependency for save detail pages."
+    },
+    {
+      "method": "GET",
+      "path": "/referral",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON stub envelope is sufficient.",
+      "notes": "Surfaced non-admin route without v1 single-user priority, so preserve as stub only."
+    },
+    {
+      "method": "GET",
+      "path": "/roadmap/items",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/community feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "POST",
+      "path": "/roadmap/items/{id}/vote",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/community feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "POST",
+      "path": "/roadmap/suggestions",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/community feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "GET",
+      "path": "/roadmap/suggestions/mine",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 roadmap envelope required.",
+      "notes": "Roadmap/community feature set is outside helper-first compatibility."
+    },
+    {
+      "method": "GET",
+      "path": "/rom/lookup",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with count and rom/game payload.",
+      "notes": "Treat GET with filenameStem query as canonical because compat spec is the primary contract."
+    },
+    {
+      "method": "POST",
+      "path": "/rom/lookup",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Likely JSON lookup envelope matching GET /rom/lookup fields.",
+      "notes": "Reverse contract infers POST, but compat spec canonizes GET; keep POST as compatibility stub if later capture confirms it."
+    },
+    {
+      "method": "DELETE",
+      "path": "/save",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Success envelope is sufficient.",
+      "notes": "Surfaced delete-by-id route for web save management."
+    },
+    {
+      "method": "GET",
+      "path": "/save",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with game and versions arrays.",
+      "notes": "Used by web save detail; not specified in compat spec, so freeze as stub-required."
+    },
+    {
+      "method": "GET",
+      "path": "/save/latest",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with exists, sha256, version, id.",
+      "notes": "Canonical method is GET with romSha1 and optional slotName query parameters."
+    },
+    {
+      "method": "DELETE",
+      "path": "/saves",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Success envelope is sufficient.",
+      "notes": "Bulk-delete route surfaced by web bundle; exact response body can stay minimal in v1."
+    },
+    {
+      "method": "GET",
+      "path": "/saves",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "JSON success envelope with saves, total, limit, offset.",
+      "notes": "List endpoint for web parity and batch clients; filters may be accepted permissively at first."
+    },
+    {
+      "method": "POST",
+      "path": "/saves",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Supports multipart single-upload and JSON batch-upload envelopes.",
+      "notes": "Single route must absorb helper multipart uploads and web batch JSON uploads under root and /v1 aliases."
+    },
+    {
+      "method": "GET",
+      "path": "/saves/download",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Binary attachment response, not JSON.",
+      "notes": "Download by save id; keep attachment semantics stable."
+    },
+    {
+      "method": "GET",
+      "path": "/saves/download_many",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "stub-required",
+      "source": [
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "ZIP or archive download, not JSON.",
+      "notes": "Web convenience route outside compat spec but needed for save-management parity."
+    },
+    {
+      "method": "GET",
+      "path": "/saves/systems",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "required",
+      "source": [
+        "COMPAT_SPEC_V0",
+        "selfhost_endpoint_contract",
+        "cmd/server/main.go"
+      ],
+      "expected_statuses": [
+        200
+      ],
+      "envelope_notes": "Return list of systems with id and name; slug tolerated if present.",
+      "notes": "Compat spec calls for simple system list used by web save filtering."
+    },
+    {
+      "method": "POST",
+      "path": "/stripe/checkout",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 billing envelope required.",
+      "notes": "Billing explicitly excluded for this self-hosted v1."
+    },
+    {
+      "method": "POST",
+      "path": "/stripe/portal",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 billing envelope required.",
+      "notes": "Billing explicitly excluded for this self-hosted v1."
+    },
+    {
+      "method": "GET",
+      "path": "/stripe/status",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 billing envelope required.",
+      "notes": "Billing explicitly excluded for this self-hosted v1."
+    },
+    {
+      "method": "POST",
+      "path": "/stripe/unlink",
+      "alias_policy": "serve-both-root-and-v1",
+      "scope": "out-of-scope",
+      "source": [
+        "selfhost_endpoint_contract"
+      ],
+      "expected_statuses": [
+        404,
+        501
+      ],
+      "envelope_notes": "No v1 billing envelope required.",
+      "notes": "Billing explicitly excluded for this self-hosted v1."
+    }
+  ]
+}

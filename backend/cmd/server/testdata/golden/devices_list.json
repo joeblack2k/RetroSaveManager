@@ -1,0 +1,14 @@
+{
+  "devices": [
+    {
+      "alias": null,
+      "createdAt": "<timestamp>",
+      "deviceType": "internal",
+      "displayName": "internal seed0001",
+      "fingerprint": "seed0001",
+      "id": 1,
+      "lastSyncedAt": "<timestamp>"
+    }
+  ],
+  "success": true
+}

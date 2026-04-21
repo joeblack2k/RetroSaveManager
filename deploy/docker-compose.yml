@@ -1,0 +1,92 @@
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-ghcr.io/joeblack2k/retrosavemanager:${IMAGE_TAG:-latest}}
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3001
+      AUTH_MODE: ${AUTH_MODE:-disabled}
+      SAVE_ROOT: /var/lib/retrosavemanager/saves
+      STATE_ROOT: /var/lib/retrosavemanager/state
+      BASE_URL: ${BASE_URL:-}
+      PUBLIC_HOST: ${PUBLIC_HOST:-}
+      TLS_ENABLED: ${TLS_ENABLED:-false}
+    volumes:
+      - ${SAVE_ROOT_HOST_PATH:-./data/saves}:/var/lib/retrosavemanager/saves
+      - ${STATE_ROOT_HOST_PATH:-./data/state}:/var/lib/retrosavemanager/state
+    restart: unless-stopped
+    networks:
+      - internal
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/joeblack2k/retrosavemanager-frontend:${IMAGE_TAG:-latest}}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - internal
+
+  gateway-direct:
+    profiles: ["direct"]
+    image: caddy:2.8.4-alpine
+    depends_on:
+      - backend
+      - frontend
+    volumes:
+      - ./caddy/Caddyfile.direct:/etc/caddy/Caddyfile:ro
+    ports:
+      - ${HTTP_PORT:-80}:80
+    restart: unless-stopped
+    networks:
+      - internal
+
+  gateway-tls:
+    profiles: ["tls"]
+    image: caddy:2.8.4-alpine
+    depends_on:
+      - backend
+      - frontend
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-retrosavemanager.local}
+    volumes:
+      - ./caddy/Caddyfile.tls:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - ${HTTP_PORT:-80}:80
+      - ${HTTPS_PORT:-443}:443
+    restart: unless-stopped
+    networks:
+      - internal
+
+  gateway-macvlan:
+    profiles: ["macvlan"]
+    image: caddy:2.8.4-alpine
+    depends_on:
+      - backend
+      - frontend
+    volumes:
+      - ./caddy/Caddyfile.macvlan:/etc/caddy/Caddyfile:ro
+    restart: unless-stopped
+    networks:
+      internal:
+      lan_macvlan:
+        ipv4_address: ${MACVLAN_IP:-198.51.100.250}
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge
+  lan_macvlan:
+    driver: macvlan
+    driver_opts:
+      parent: ${MACVLAN_PARENT:-eth0}
+    ipam:
+      config:
+        - subnet: ${MACVLAN_SUBNET:-198.51.100.0/24}
+          gateway: ${MACVLAN_GATEWAY:-198.51.100.1}

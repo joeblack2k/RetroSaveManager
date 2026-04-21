@@ -1,0 +1,30 @@
+{
+  "limit": 2,
+  "offset": 0,
+  "saves": [
+    {
+      "createdAt": "<timestamp>",
+      "fileSize": 17,
+      "filename": "Wario Land II.srm",
+      "format": "sram",
+      "game": {
+        "boxart": null,
+        "boxartThumb": null,
+        "hasParser": false,
+        "id": 281,
+        "name": "Wario Land II",
+        "system": {
+          "id": 19,
+          "name": "Nintendo Game Boy",
+          "slug": "gameboy"
+        }
+      },
+      "id": "<redacted>",
+      "metadata": null,
+      "sha256": "6f1535549c71b4cfb9f193123e8dca7912db841cf87d46e4336ec5d9c19f0e48",
+      "version": 1
+    }
+  ],
+  "success": true,
+  "total": 1
+}
