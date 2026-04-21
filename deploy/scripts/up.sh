@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-profile="${1:-direct}"
+mode="${1:-direct}"
 
 cd "$(dirname "$0")/.."
-docker compose --profile "$profile" up -d --build
+case "$mode" in
+  direct)
+    docker compose up -d --build --remove-orphans
+    ;;
+  macvlan)
+    docker compose -f docker-compose.yml -f docker-compose.macvlan.yml up -d --build --remove-orphans
+    ;;
+  *)
+    echo "Unsupported mode: $mode" >&2
+    echo "Use: direct | macvlan" >&2
+    exit 1
+    ;;
+esac

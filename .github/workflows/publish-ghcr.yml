@@ -13,18 +13,6 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: backend
-            context: ./backend
-            dockerfile: ./backend/Dockerfile
-            image_name: retrosavemanager
-          - name: frontend
-            context: ./frontend
-            dockerfile: ./frontend/Dockerfile
-            image_name: retrosavemanager-frontend
 
     steps:
       - name: Checkout
@@ -51,7 +39,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ steps.vars.outputs.owner_lc }}/${{ matrix.image_name }}
+          images: ghcr.io/${{ steps.vars.outputs.owner_lc }}/retrosavemanager
           tags: |
             type=sha,prefix=
             type=ref,event=tag
@@ -60,8 +48,8 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
+          context: .
+          file: ./backend/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}

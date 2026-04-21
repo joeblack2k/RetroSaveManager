@@ -2,9 +2,8 @@
 
 ## Profiles
 
-- `direct`: expose HTTP on host port 80
-- `tls`: expose HTTP/HTTPS on ports 80/443 with Caddy internal TLS
-- `macvlan`: place gateway container on LAN with its own IP
+- `direct`: single container on host port 80
+- `macvlan`: single container on LAN with its own IP
 
 ## Internal DNS (AdGuard)
 
@@ -24,7 +23,7 @@ cd deploy
 ./scripts/pull-up.sh direct
 ```
 
-Switch `direct` to `tls` or `macvlan` when needed.
+Switch `direct` to `macvlan` when needed.
 
 ## Persistence
 
@@ -61,7 +60,7 @@ After deploy, run a deep rescan to improve system detection and prune unsupporte
 Docker deploy (without local Go toolchain):
 
 ```bash
-docker compose exec backend /usr/local/bin/retrosave-api rescan-saves --prune-unsupported=true
+docker compose exec app /usr/local/bin/retrosave-api rescan-saves --prune-unsupported=true
 ```
 
 ## Optional Metadata Enrichment

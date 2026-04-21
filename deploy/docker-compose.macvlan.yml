@@ -1,0 +1,17 @@
+services:
+  app:
+    networks:
+      - internal
+      lan_macvlan:
+        ipv4_address: ${MACVLAN_IP:-198.51.100.250}
+    ports: []
+
+networks:
+  lan_macvlan:
+    driver: macvlan
+    driver_opts:
+      parent: ${MACVLAN_PARENT:-eth0}
+    ipam:
+      config:
+        - subnet: ${MACVLAN_SUBNET:-198.51.100.0/24}
+          gateway: ${MACVLAN_GATEWAY:-198.51.100.1}

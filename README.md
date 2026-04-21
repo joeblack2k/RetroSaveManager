@@ -12,7 +12,7 @@ RetroSaveManager is a self-hosted, LAN-first save synchronization service with c
 
 - `backend/` Go API (compat routes, save store, contracts, tests)
 - `frontend/` Modular React + TypeScript web app
-- `deploy/` Docker Compose profiles, Caddy gateway configs, deployment scripts
+- `deploy/` Single-container Docker Compose + deployment scripts
 - `contracts/` Route matrix and compatibility contract snapshots
 - `scripts/` Contract verification, backup/restore wrappers, security gate
 - `tests/` Evidence output folder for local verification runs
@@ -53,7 +53,7 @@ Run a deep rescan to normalize console detection, clean title noise, and optiona
 Docker-only deploys can run the built-in command directly:
 
 ```bash
-docker compose exec backend /usr/local/bin/retrosave-api rescan-saves --prune-unsupported=true
+docker compose exec app /usr/local/bin/retrosave-api rescan-saves --prune-unsupported=true
 ```
 
 ## Quick Start (Docker)
@@ -64,21 +64,14 @@ docker compose exec backend /usr/local/bin/retrosave-api rescan-saves --prune-un
 cp deploy/.env.example deploy/.env
 ```
 
-2. Start direct HTTP profile (`:80`):
+2. Start single-container direct HTTP (`:80`):
 
 ```bash
 cd deploy
 ./scripts/up.sh direct
 ```
 
-3. Optional TLS profile (`:443`, internal certs via Caddy):
-
-```bash
-cd deploy
-./scripts/up.sh tls
-```
-
-4. Optional macvlan profile (container with own LAN IP):
+3. Optional macvlan mode (single container with own LAN IP):
 
 ```bash
 cd deploy
@@ -130,6 +123,5 @@ Optional live enrichment (cover art + metadata fallback chain):
 GitHub Actions publishes:
 
 - `ghcr.io/<owner>/retrosavemanager`
-- `ghcr.io/<owner>/retrosavemanager-frontend`
 
 on pushes to `main` and version tags.
