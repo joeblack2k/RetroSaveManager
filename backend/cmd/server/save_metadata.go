@@ -120,21 +120,25 @@ func cleanupDisplayTitleRegionAndLanguages(raw string) (string, string, []string
 
 	detectedRegion := detectRegionCode(raw)
 	detectedLanguages := make([]string, 0, 4)
-	for {
-		match := trailingTagPattern.FindStringSubmatchIndex(title)
-		if match == nil {
-			break
+	stripTrailingTags := func() {
+		for {
+			match := trailingTagPattern.FindStringSubmatchIndex(title)
+			if match == nil {
+				break
+			}
+			tag := title[match[2]:match[3]]
+			if !looksLikeRomMetadataTag(tag) {
+				break
+			}
+			if detectedRegion == regionUnknown {
+				detectedRegion = detectRegionCode(tag)
+			}
+			detectedLanguages = append(detectedLanguages, extractLanguageCodes(tag)...)
+			title = strings.TrimSpace(title[:match[0]])
 		}
-		tag := title[match[2]:match[3]]
-		if !looksLikeRomMetadataTag(tag) {
-			break
-		}
-		if detectedRegion == regionUnknown {
-			detectedRegion = detectRegionCode(tag)
-		}
-		detectedLanguages = append(detectedLanguages, extractLanguageCodes(tag)...)
-		title = strings.TrimSpace(title[:match[0]])
 	}
+
+	stripTrailingTags()
 
 	title = strings.TrimSpace(strings.Trim(title, "-_"))
 	for {
@@ -144,6 +148,8 @@ func cleanupDisplayTitleRegionAndLanguages(raw string) (string, string, []string
 		}
 		title = strings.TrimSpace(title[:match[0]])
 	}
+	// Removing trailing counters can expose a metadata tag such as "(USA)_1".
+	stripTrailingTags()
 	title = strings.TrimSpace(strings.Trim(title, "-_"))
 	if title == "" {
 		title = "Unknown Game"

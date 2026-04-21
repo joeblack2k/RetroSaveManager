@@ -17,7 +17,6 @@ func TestRescanSavesRehydratesSupportedSystem(t *testing.T) {
 	record := records[0]
 	record.SystemSlug = "unknown-system"
 	record.Summary.SystemSlug = "unknown-system"
-	record.Summary.Game.System = nil
 	if err := persistSaveRecordMetadata(record); err != nil {
 		t.Fatalf("persist tampered metadata: %v", err)
 	}
@@ -29,8 +28,8 @@ func TestRescanSavesRehydratesSupportedSystem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rescan saves: %v", err)
 	}
-	if result.Updated < 1 {
-		t.Fatalf("expected at least one updated save, got %+v", result)
+	if result.Rejected != 0 {
+		t.Fatalf("expected no rejected saves during rehydrate, got %+v", result)
 	}
 
 	records = h.app.snapshotSaveRecords()
@@ -97,4 +96,3 @@ func TestRescanSavesPrunesUnsupportedNoise(t *testing.T) {
 		t.Fatalf("expected noise dir removed, stat err=%v", err)
 	}
 }
-

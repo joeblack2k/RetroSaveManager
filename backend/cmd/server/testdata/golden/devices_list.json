@@ -7,8 +7,8 @@
       "displayName": "internal seed0001",
       "fingerprint": "seed0001",
       "id": 1,
-      "syncAll": true,
-      "lastSyncedAt": "<timestamp>"
+      "lastSyncedAt": "<timestamp>",
+      "syncAll": true
     }
   ],
   "success": true
