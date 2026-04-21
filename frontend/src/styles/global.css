@@ -462,6 +462,46 @@ code {
   background: #343741;
 }
 
+.saves-console-group {
+  border: 1px solid #4a4f5c;
+  border-radius: 0.72rem;
+  background: #343741;
+  margin-bottom: 0.9rem;
+  overflow: hidden;
+}
+
+.saves-console-group > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  cursor: pointer;
+  padding: 0.8rem 0.9rem;
+  background: #3d404b;
+  color: #e4e8f2;
+}
+
+.saves-console-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.saves-console-group > summary strong {
+  font-size: 1rem;
+}
+
+.saves-console-group > summary span {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.saves-console-group .saves-table-wrap {
+  margin-top: 0;
+  border: 0;
+  border-top: 1px solid #4a4f5c;
+  border-radius: 0;
+}
+
 .saves-table {
   width: 100%;
   border-collapse: collapse;
@@ -490,18 +530,10 @@ code {
   background: #3b3f4a;
 }
 
-.saves-table__check {
-  width: 2.45rem;
-}
-
-.saves-table input[type="checkbox"] {
-  accent-color: #76a1ff;
-}
-
 .saves-game-cell {
   display: flex;
   align-items: center;
-  gap: 0.82rem;
+  gap: 0.45rem;
 }
 
 .saves-game-cell strong {
@@ -516,14 +548,52 @@ code {
   font-size: 0.85rem;
 }
 
-.saves-cover {
-  width: 58px;
-  height: 58px;
-  object-fit: cover;
-  border-radius: 0.38rem;
-  border: 1px solid #5a6070;
-  background: #3a3f4c;
-  flex: 0 0 auto;
+.saves-region-cell {
+  width: 4.2rem;
+}
+
+.saves-region-flag {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.saves-action-link {
+  display: inline-grid;
+  place-items: center;
+  min-width: 5rem;
+  min-height: 2.2rem;
+  border-radius: 0.45rem;
+  border: 1px solid #4b5365;
+  background: #262a34;
+  color: #e8ecf7;
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.saves-action-link:hover {
+  background: #2f3440;
+}
+
+.saves-action-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 5rem;
+  min-height: 2.2rem;
+  border-radius: 0.45rem;
+  border: 1px solid #4b5365;
+  background: #262a34;
+  color: #e8ecf7;
+  font: inherit;
+  cursor: pointer;
+}
+
+.saves-action-btn:hover:not(:disabled) {
+  background: #2f3440;
+}
+
+.saves-action-btn:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
 }
 
 .saves-download-btn {
@@ -576,6 +646,11 @@ code {
   border-bottom: 1px solid #454a58;
   padding: 0.56rem;
   text-align: left;
+}
+
+.table td code {
+  font-size: 0.8rem;
+  word-break: break-all;
 }
 
 .table th {

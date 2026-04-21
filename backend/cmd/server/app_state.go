@@ -50,6 +50,7 @@ type app struct {
 	saves                 []saveSummary
 	saveStore             *saveStore
 	saveRecords           []saveRecord
+	enricher              *gameEnricher
 	conflicts             map[string]conflictRecord
 	nextEventSubscriberID int
 	eventSubscribers      map[int]chan sseEvent
@@ -136,6 +137,7 @@ func newApp() *app {
 		roadmapSuggestions: map[string]roadmapSuggestion{},
 		saves:              []saveSummary{},
 		saveRecords:        []saveRecord{},
+		enricher:           newGameEnricherFromEnv(),
 		conflicts:          map[string]conflictRecord{},
 		eventSubscribers:   map[int]chan sseEvent{},
 	}
@@ -190,10 +192,13 @@ func (a *app) createSave(input saveCreateInput) (saveRecord, error) {
 		return saveRecord{}, fmt.Errorf("save store is not initialized")
 	}
 
-	record, err := store.create(input)
+	normalizedInput := a.normalizeSaveInput(input)
+	record, err := store.create(normalizedInput)
 	if err != nil {
 		return saveRecord{}, err
 	}
+
+	a.decorateLoadedRecord(&record)
 
 	a.mu.Lock()
 	a.saveRecords = append([]saveRecord{record}, a.saveRecords...)
@@ -216,7 +221,9 @@ func (a *app) reloadSavesFromDisk() error {
 	}
 
 	summaries := make([]saveSummary, 0, len(records))
-	for _, record := range records {
+	for i := range records {
+		a.decorateLoadedRecord(&records[i])
+		record := records[i]
 		summaries = append(summaries, record.Summary)
 	}
 

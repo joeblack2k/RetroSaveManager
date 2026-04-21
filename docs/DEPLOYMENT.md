@@ -30,3 +30,26 @@ Switch `direct` to `tls` or `macvlan` when needed.
 
 - Save data volume: `SAVE_ROOT_HOST_PATH` (back up this root)
 - App state volume: `STATE_ROOT_HOST_PATH`
+
+## Save Layout Migration
+
+After upgrading, migrate older slug folders to display folders:
+
+```bash
+./scripts/migrate-save-layout.sh --dry-run
+./scripts/migrate-save-layout.sh --manifest ./deploy/data/state/save-layout-manifest.json
+```
+
+Rollback if needed:
+
+```bash
+./scripts/migrate-save-layout.sh --rollback --manifest ./deploy/data/state/save-layout-manifest.json
+```
+
+## Optional Metadata Enrichment
+
+Set these backend env vars in `deploy/.env` to enable live cover lookup:
+
+- `IGDB_CLIENT_ID`
+- `IGDB_CLIENT_SECRET`
+- `RAWG_API_KEY`

@@ -29,23 +29,33 @@ type saveRecord struct {
 	SlotName    string      `json:"slotName,omitempty"`
 	SystemSlug  string      `json:"systemSlug"`
 	GameSlug    string      `json:"gameSlug"`
+	SystemPath  string      `json:"systemPath,omitempty"`
+	GamePath    string      `json:"gamePath,omitempty"`
 	PayloadFile string      `json:"payloadFile"`
 	payloadPath string      `json:"-"`
 	dirPath     string      `json:"-"`
 }
 
 type saveCreateInput struct {
-	Filename   string
-	Payload    []byte
-	Game       game
-	Format     string
-	Metadata   any
-	ROMSHA1    string
-	ROMMD5     string
-	SlotName   string
-	SystemSlug string
-	GameSlug   string
-	CreatedAt  time.Time
+	Filename      string
+	Payload       []byte
+	Game          game
+	Format        string
+	Metadata      any
+	ROMSHA1       string
+	ROMMD5        string
+	SlotName      string
+	SystemSlug    string
+	GameSlug      string
+	SystemPath    string
+	GamePath      string
+	DisplayTitle  string
+	RegionCode    string
+	RegionFlag    string
+	LanguageCodes []string
+	CoverArtURL   string
+	MemoryCard    *memoryCardDetails
+	CreatedAt     time.Time
 }
 
 func newSaveStoreFromEnv() (*saveStore, error) {
@@ -93,6 +103,7 @@ func (s *saveStore) load() ([]saveRecord, error) {
 		}
 		record.dirPath = filepath.Dir(path)
 		record.payloadPath = filepath.Join(record.dirPath, record.PayloadFile)
+		s.hydrateRecordDerivedFields(&record)
 		records = append(records, record)
 		return nil
 	})
@@ -161,6 +172,68 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 	}
 	input.Game.Name = gameName
 
+	displayTitle := strings.TrimSpace(input.DisplayTitle)
+	if displayTitle == "" {
+		displayTitle = strings.TrimSpace(input.Game.DisplayTitle)
+	}
+	if displayTitle == "" {
+		displayTitle, _, _ = cleanupDisplayTitleRegionAndLanguages(gameName)
+	}
+	if displayTitle == "" {
+		displayTitle = gameName
+	}
+	regionCode := normalizeRegionCode(input.RegionCode)
+	if regionCode == regionUnknown {
+		if normalizeRegionCode(input.Game.RegionCode) != regionUnknown {
+			regionCode = normalizeRegionCode(input.Game.RegionCode)
+		} else {
+			_, detected, _ := cleanupDisplayTitleRegionAndLanguages(gameName)
+			regionCode = normalizeRegionCode(detected)
+		}
+	}
+	languageCodes := normalizeLanguageCodes(input.LanguageCodes)
+	if len(languageCodes) == 0 {
+		languageCodes = normalizeLanguageCodes(input.Game.LanguageCodes)
+	}
+	if len(languageCodes) == 0 {
+		_, _, languageCodes = cleanupDisplayTitleRegionAndLanguages(gameName)
+	}
+	if len(languageCodes) == 0 {
+		_, _, languageCodes = cleanupDisplayTitleRegionAndLanguages(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	}
+	regionFlag := strings.TrimSpace(input.RegionFlag)
+	if regionFlag == "" {
+		regionFlag = regionFlagFromCode(regionCode)
+	}
+
+	coverArtURL := strings.TrimSpace(input.CoverArtURL)
+	if coverArtURL == "" {
+		coverArtURL = strings.TrimSpace(input.Game.CoverArtURL)
+	}
+	if coverArtURL == "" {
+		if input.Game.BoxartThumb != nil {
+			coverArtURL = strings.TrimSpace(*input.Game.BoxartThumb)
+		}
+		if coverArtURL == "" && input.Game.Boxart != nil {
+			coverArtURL = strings.TrimSpace(*input.Game.Boxart)
+		}
+	}
+	if coverArtURL != "" {
+		coverCopy := coverArtURL
+		input.Game.CoverArtURL = coverArtURL
+		if input.Game.BoxartThumb == nil {
+			input.Game.BoxartThumb = &coverCopy
+		}
+		if input.Game.Boxart == nil {
+			boxCopy := coverArtURL
+			input.Game.Boxart = &boxCopy
+		}
+	}
+	input.Game.DisplayTitle = displayTitle
+	input.Game.RegionCode = regionCode
+	input.Game.RegionFlag = regionFlag
+	input.Game.LanguageCodes = languageCodes
+
 	shaSum := sha256.Sum256(input.Payload)
 	shaHex := hex.EncodeToString(shaSum[:])
 	version := nextSaveVersion(existing, input, filename)
@@ -170,7 +243,22 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 		ext = ".bin"
 	}
 
-	targetDir, err := safeJoinUnderRoot(s.root, systemSlug, gameSlug, id)
+	systemPath := sanitizeDisplayPathSegment(input.SystemPath, "")
+	if systemPath == "" && input.Game.System != nil {
+		systemPath = sanitizeDisplayPathSegment(input.Game.System.Name, "")
+	}
+	if systemPath == "" {
+		systemPath = sanitizeDisplayPathSegment(systemSlug, "Unknown System")
+	}
+	gamePath := sanitizeDisplayPathSegment(input.GamePath, "")
+	if gamePath == "" {
+		gamePath = sanitizeDisplayPathSegment(displayTitle, "")
+	}
+	if gamePath == "" {
+		gamePath = sanitizeDisplayPathSegment(gameSlug, "Unknown Game")
+	}
+
+	targetDir, err := safeJoinUnderRoot(s.root, systemPath, gamePath, id)
 	if err != nil {
 		return saveRecord{}, err
 	}
@@ -180,21 +268,33 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 
 	record := saveRecord{
 		Summary: saveSummary{
-			ID:        id,
-			Game:      input.Game,
-			Filename:  filename,
-			FileSize:  len(input.Payload),
-			Format:    format,
-			Version:   version,
-			SHA256:    shaHex,
-			CreatedAt: createdAt,
-			Metadata:  input.Metadata,
+			ID:              id,
+			Game:            input.Game,
+			DisplayTitle:    displayTitle,
+			RegionCode:      regionCode,
+			RegionFlag:      regionFlag,
+			LanguageCodes:   languageCodes,
+			CoverArtURL:     coverArtURL,
+			SaveCount:       1,
+			LatestSizeBytes: len(input.Payload),
+			TotalSizeBytes:  len(input.Payload),
+			LatestVersion:   version,
+			MemoryCard:      input.MemoryCard,
+			Filename:        filename,
+			FileSize:        len(input.Payload),
+			Format:          format,
+			Version:         version,
+			SHA256:          shaHex,
+			CreatedAt:       createdAt,
+			Metadata:        input.Metadata,
 		},
 		ROMSHA1:     strings.TrimSpace(input.ROMSHA1),
 		ROMMD5:      strings.TrimSpace(input.ROMMD5),
 		SlotName:    slotName,
 		SystemSlug:  systemSlug,
 		GameSlug:    gameSlug,
+		SystemPath:  systemPath,
+		GamePath:    gamePath,
 		PayloadFile: "payload" + ext,
 		payloadPath: filepath.Join(targetDir, "payload"+ext),
 		dirPath:     targetDir,
@@ -213,6 +313,129 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 		return saveRecord{}, fmt.Errorf("write metadata: %w", err)
 	}
 	return record, nil
+}
+
+func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
+	if record == nil {
+		return
+	}
+
+	summary := &record.Summary
+	displayTitle, parsedRegion, parsedLanguages := cleanupDisplayTitleRegionAndLanguages(summary.DisplayTitle)
+	if displayTitle == "" || displayTitle == "Unknown Game" {
+		displayTitle, parsedRegion, parsedLanguages = cleanupDisplayTitleRegionAndLanguages(summary.Game.DisplayTitle)
+	}
+	if displayTitle == "" || displayTitle == "Unknown Game" {
+		displayTitle, parsedRegion, parsedLanguages = cleanupDisplayTitleRegionAndLanguages(summary.Game.Name)
+	}
+	if displayTitle == "" || displayTitle == "Unknown Game" {
+		displayTitle, parsedRegion, parsedLanguages = cleanupDisplayTitleRegionAndLanguages(strings.TrimSuffix(summary.Filename, filepath.Ext(summary.Filename)))
+	}
+	if strings.TrimSpace(displayTitle) == "" {
+		displayTitle = "Unknown Game"
+	}
+	summary.DisplayTitle = displayTitle
+
+	regionCode := normalizeRegionCode(summary.RegionCode)
+	if regionCode == regionUnknown {
+		regionCode = normalizeRegionCode(summary.Game.RegionCode)
+	}
+	if regionCode == regionUnknown {
+		regionCode = normalizeRegionCode(parsedRegion)
+	}
+	if regionCode == regionUnknown {
+		_, detected, _ := cleanupDisplayTitleRegionAndLanguages(summary.Filename)
+		regionCode = normalizeRegionCode(detected)
+	}
+	summary.RegionCode = regionCode
+	summary.RegionFlag = regionFlagFromCode(regionCode)
+	languageCodes := normalizeLanguageCodes(summary.LanguageCodes)
+	if len(languageCodes) == 0 {
+		languageCodes = normalizeLanguageCodes(summary.Game.LanguageCodes)
+	}
+	if len(languageCodes) == 0 {
+		languageCodes = normalizeLanguageCodes(parsedLanguages)
+	}
+	if len(languageCodes) == 0 {
+		_, _, languageCodes = cleanupDisplayTitleRegionAndLanguages(summary.Filename)
+	}
+	summary.LanguageCodes = languageCodes
+
+	cover := strings.TrimSpace(summary.CoverArtURL)
+	if cover == "" {
+		cover = strings.TrimSpace(summary.Game.CoverArtURL)
+	}
+	if cover == "" && summary.Game.BoxartThumb != nil {
+		cover = strings.TrimSpace(*summary.Game.BoxartThumb)
+	}
+	if cover == "" && summary.Game.Boxart != nil {
+		cover = strings.TrimSpace(*summary.Game.Boxart)
+	}
+	summary.CoverArtURL = cover
+	if cover != "" {
+		coverCopy := cover
+		summary.Game.CoverArtURL = cover
+		if summary.Game.BoxartThumb == nil {
+			summary.Game.BoxartThumb = &coverCopy
+		}
+		if summary.Game.Boxart == nil {
+			boxCopy := cover
+			summary.Game.Boxart = &boxCopy
+		}
+	}
+
+	summary.Game.DisplayTitle = summary.DisplayTitle
+	summary.Game.Name = summary.DisplayTitle
+	summary.Game.RegionCode = summary.RegionCode
+	summary.Game.RegionFlag = summary.RegionFlag
+	summary.Game.LanguageCodes = summary.LanguageCodes
+
+	if summary.SaveCount <= 0 {
+		summary.SaveCount = 1
+	}
+	if summary.LatestSizeBytes <= 0 {
+		summary.LatestSizeBytes = summary.FileSize
+	}
+	if summary.TotalSizeBytes <= 0 {
+		summary.TotalSizeBytes = summary.FileSize
+	}
+	if summary.LatestVersion <= 0 {
+		summary.LatestVersion = summary.Version
+	}
+
+	if strings.TrimSpace(record.SystemSlug) == "" {
+		if summary.Game.System != nil {
+			record.SystemSlug = canonicalSegment(summary.Game.System.Slug, "")
+			if record.SystemSlug == "" {
+				record.SystemSlug = canonicalSegment(summary.Game.System.Name, "unknown-system")
+			}
+		}
+		if record.SystemSlug == "" {
+			record.SystemSlug = "unknown-system"
+		}
+	}
+	if strings.TrimSpace(record.GameSlug) == "" {
+		record.GameSlug = canonicalSegment(summary.DisplayTitle, "unknown-game")
+	}
+
+	if strings.TrimSpace(record.SystemPath) == "" {
+		systemName := record.SystemSlug
+		if summary.Game.System != nil && strings.TrimSpace(summary.Game.System.Name) != "" {
+			systemName = summary.Game.System.Name
+		}
+		record.SystemPath = sanitizeDisplayPathSegment(systemName, "Unknown System")
+	}
+	if strings.TrimSpace(record.GamePath) == "" {
+		record.GamePath = sanitizeDisplayPathSegment(summary.DisplayTitle, "Unknown Game")
+	}
+
+	if summary.MemoryCard == nil && isPlayStationSave(summary.Game.System, summary.Format, summary.Filename) {
+		payload, err := os.ReadFile(record.payloadPath)
+		if err == nil {
+			cardName := deriveMemoryCardName(record.SlotName, summary.Filename)
+			summary.MemoryCard = parsePlayStationMemoryCard(payload, cardName)
+		}
+	}
 }
 
 func decodeSaveBatchData(data string) ([]byte, error) {
@@ -265,31 +488,51 @@ func fallbackGameFromFilename(filename string) game {
 	if name == "" {
 		name = "Unknown Game"
 	}
+	displayTitle, regionCode, languageCodes := cleanupDisplayTitleRegionAndLanguages(name)
 	if strings.EqualFold(name, "Wario Land II") {
 		return gameForID(281)
 	}
 	return game{
-		ID:          deterministicGameID(name),
-		Name:        name,
-		Boxart:      nil,
-		BoxartThumb: nil,
-		HasParser:   false,
-		System:      nil,
+		ID:            deterministicGameID(name),
+		Name:          displayTitle,
+		DisplayTitle:  displayTitle,
+		RegionCode:    regionCode,
+		RegionFlag:    regionFlagFromCode(regionCode),
+		LanguageCodes: languageCodes,
+		Boxart:        nil,
+		BoxartThumb:   nil,
+		HasParser:     false,
+		System:        nil,
 	}
 }
 
 func gameForID(id int) game {
 	if id == 281 {
 		gb := &system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"}
-		return game{ID: 281, Name: "Wario Land II", Boxart: nil, BoxartThumb: nil, HasParser: false, System: gb}
+		return game{
+			ID:            281,
+			Name:          "Wario Land II",
+			DisplayTitle:  "Wario Land II",
+			RegionCode:    regionUnknown,
+			RegionFlag:    regionFlagFromCode(regionUnknown),
+			LanguageCodes: nil,
+			Boxart:        nil,
+			BoxartThumb:   nil,
+			HasParser:     false,
+			System:        gb,
+		}
 	}
 	return game{
-		ID:          id,
-		Name:        fmt.Sprintf("Game %d", id),
-		Boxart:      nil,
-		BoxartThumb: nil,
-		HasParser:   false,
-		System:      nil,
+		ID:            id,
+		Name:          fmt.Sprintf("Game %d", id),
+		DisplayTitle:  fmt.Sprintf("Game %d", id),
+		RegionCode:    regionUnknown,
+		RegionFlag:    regionFlagFromCode(regionUnknown),
+		LanguageCodes: nil,
+		Boxart:        nil,
+		BoxartThumb:   nil,
+		HasParser:     false,
+		System:        nil,
 	}
 }
 

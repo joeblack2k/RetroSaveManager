@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +177,7 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	filtered := make([]saveSummary, 0, len(a.saveRecords))
+	filteredRecords := make([]saveRecord, 0, len(a.saveRecords))
 	for _, record := range a.saveRecords {
 		if romSHA1 != "" && record.ROMSHA1 != romSHA1 {
 			continue
@@ -189,7 +190,90 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		filtered = append(filtered, record.Summary)
+		filteredRecords = append(filteredRecords, record)
+	}
+
+	type saveAggregate struct {
+		saveCount       int
+		totalSizeBytes  int
+		latestSizeBytes int
+		latestVersion   int
+	}
+	aggregates := make(map[string]saveAggregate, len(filteredRecords))
+	groupKey := func(summary saveSummary) string {
+		systemKey := "unknown-system"
+		if summary.Game.System != nil {
+			systemKey = strings.TrimSpace(summary.Game.System.Slug)
+			if systemKey == "" {
+				systemKey = canonicalSegment(summary.Game.System.Name, "unknown-system")
+			}
+		}
+		titleKey := strings.TrimSpace(summary.DisplayTitle)
+		if titleKey == "" {
+			titleKey = strings.TrimSpace(summary.Game.Name)
+		}
+		titleKey, _, _ = cleanupDisplayTitleRegionAndLanguages(titleKey)
+		return strings.ToLower(systemKey + "::" + titleKey)
+	}
+	for _, record := range filteredRecords {
+		key := groupKey(record.Summary)
+		agg := aggregates[key]
+		agg.saveCount++
+		agg.totalSizeBytes += record.Summary.FileSize
+		if record.Summary.Version >= agg.latestVersion {
+			agg.latestVersion = record.Summary.Version
+			agg.latestSizeBytes = record.Summary.FileSize
+		}
+		aggregates[key] = agg
+	}
+
+	filtered := make([]saveSummary, 0, len(filteredRecords))
+	for _, record := range filteredRecords {
+		summary := record.Summary
+		cleanTitle, regionFromTitle, langsFromTitle := cleanupDisplayTitleRegionAndLanguages(summary.DisplayTitle)
+		if cleanTitle == "" || cleanTitle == "Unknown Game" {
+			cleanTitle, regionFromTitle, langsFromTitle = cleanupDisplayTitleRegionAndLanguages(summary.Game.Name)
+		}
+		if cleanTitle == "" || cleanTitle == "Unknown Game" {
+			cleanTitle, regionFromTitle, langsFromTitle = cleanupDisplayTitleRegionAndLanguages(summary.Filename)
+		}
+		if cleanTitle != "" {
+			summary.DisplayTitle = cleanTitle
+			summary.Game.DisplayTitle = cleanTitle
+			summary.Game.Name = cleanTitle
+		}
+		if normalizeRegionCode(summary.RegionCode) == regionUnknown {
+			summary.RegionCode = normalizeRegionCode(regionFromTitle)
+		}
+		if normalizeRegionCode(summary.RegionCode) == regionUnknown {
+			summary.RegionCode = normalizeRegionCode(summary.Game.RegionCode)
+		}
+		summary.RegionFlag = regionFlagFromCode(summary.RegionCode)
+		summary.Game.RegionCode = summary.RegionCode
+		summary.Game.RegionFlag = summary.RegionFlag
+		summary.LanguageCodes = normalizeLanguageCodes(summary.LanguageCodes)
+		if len(summary.LanguageCodes) == 0 {
+			summary.LanguageCodes = normalizeLanguageCodes(summary.Game.LanguageCodes)
+		}
+		if len(summary.LanguageCodes) == 0 {
+			summary.LanguageCodes = normalizeLanguageCodes(langsFromTitle)
+		}
+		summary.Game.LanguageCodes = summary.LanguageCodes
+		agg := aggregates[groupKey(summary)]
+		summary.SaveCount = agg.saveCount
+		summary.TotalSizeBytes = agg.totalSizeBytes
+		summary.LatestSizeBytes = agg.latestSizeBytes
+		summary.LatestVersion = agg.latestVersion
+		if strings.TrimSpace(summary.CoverArtURL) == "" {
+			summary.CoverArtURL = strings.TrimSpace(summary.Game.CoverArtURL)
+		}
+		if strings.TrimSpace(summary.CoverArtURL) == "" && summary.Game.BoxartThumb != nil {
+			summary.CoverArtURL = strings.TrimSpace(*summary.Game.BoxartThumb)
+		}
+		if strings.TrimSpace(summary.CoverArtURL) == "" && summary.Game.Boxart != nil {
+			summary.CoverArtURL = strings.TrimSpace(*summary.Game.Boxart)
+		}
+		filtered = append(filtered, summary)
 	}
 
 	if offset > len(filtered) {
@@ -222,27 +306,272 @@ func (a *app) handleSaveSystems(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 
-	gameID := parseIntOrDefault(r.URL.Query().Get("gameId"), 281)
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	gameID := parseIntOrDefault(r.URL.Query().Get("gameId"), 0)
+	saveID := strings.TrimSpace(r.URL.Query().Get("saveId"))
+	systemSlug := canonicalOptionalSegment(r.URL.Query().Get("systemSlug"))
+	displayTitle := strings.TrimSpace(r.URL.Query().Get("displayTitle"))
+	sourceRecord := saveRecord{}
+	hasSourceRecord := false
 
-	var versions []saveSummary
-	for _, s := range a.saves {
-		if s.Game.ID == gameID {
-			versions = append(versions, s)
+	if saveID != "" {
+		record, ok := a.findSaveRecordByID(saveID)
+		if ok {
+			sourceRecord = record
+			hasSourceRecord = true
+			if gameID == 0 {
+				gameID = record.Summary.Game.ID
+			}
+			if systemSlug == "" {
+				systemSlug = canonicalOptionalSegment(record.SystemSlug)
+				if systemSlug == "" && record.Summary.Game.System != nil {
+					systemSlug = canonicalOptionalSegment(record.Summary.Game.System.Slug)
+				}
+			}
+			if displayTitle == "" {
+				displayTitle = strings.TrimSpace(record.Summary.DisplayTitle)
+			}
 		}
 	}
+	if gameID == 0 && saveID == "" && systemSlug == "" && displayTitle == "" {
+		gameID = 281
+	}
+
+	records := a.snapshotSaveRecords()
+	var versions []saveSummary
+	for _, record := range records {
+		if hasSourceRecord && !sameSaveHistoryTrack(record, sourceRecord) {
+			continue
+		}
+		s := record.Summary
+		if gameID != 0 && s.Game.ID != gameID {
+			continue
+		}
+		recordSystem := canonicalOptionalSegment(record.SystemSlug)
+		if recordSystem == "" && s.Game.System != nil {
+			recordSystem = canonicalOptionalSegment(s.Game.System.Slug)
+		}
+		if systemSlug != "" && recordSystem != systemSlug {
+			continue
+		}
+		cleanTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(s.DisplayTitle)
+		if cleanTitle == "" || cleanTitle == "Unknown Game" {
+			cleanTitle, _, _ = cleanupDisplayTitleRegionAndLanguages(s.Game.Name)
+		}
+		if displayTitle != "" && !strings.EqualFold(cleanTitle, displayTitle) {
+			continue
+		}
+		s.DisplayTitle = cleanTitle
+		s.Game.DisplayTitle = cleanTitle
+		s.Game.Name = cleanTitle
+		s.RegionCode = normalizeRegionCode(s.RegionCode)
+		if s.RegionCode == regionUnknown {
+			s.RegionCode = normalizeRegionCode(s.Game.RegionCode)
+		}
+		s.RegionFlag = regionFlagFromCode(s.RegionCode)
+		s.Game.RegionCode = s.RegionCode
+		s.Game.RegionFlag = s.RegionFlag
+		s.LanguageCodes = normalizeLanguageCodes(s.LanguageCodes)
+		if len(s.LanguageCodes) == 0 {
+			s.LanguageCodes = normalizeLanguageCodes(s.Game.LanguageCodes)
+		}
+		s.Game.LanguageCodes = s.LanguageCodes
+		versions = append(versions, s)
+	}
+
+	sort.Slice(versions, func(i, j int) bool {
+		if versions[i].CreatedAt.Equal(versions[j].CreatedAt) {
+			if versions[i].Version == versions[j].Version {
+				return versions[i].ID > versions[j].ID
+			}
+			return versions[i].Version > versions[j].Version
+		}
+		return versions[i].CreatedAt.After(versions[j].CreatedAt)
+	})
 
 	if len(versions) == 0 {
 		writeJSON(w, http.StatusOK, map[string]any{"success": true, "game": nil, "versions": []any{}})
 		return
 	}
 
+	totalSizeBytes := 0
+	regionCode := regionUnknown
+	languageCodes := make([]string, 0, 4)
+	for _, version := range versions {
+		totalSizeBytes += version.FileSize
+		if normalizeRegionCode(regionCode) == regionUnknown && normalizeRegionCode(version.RegionCode) != regionUnknown {
+			regionCode = normalizeRegionCode(version.RegionCode)
+		}
+		if len(languageCodes) == 0 && len(version.LanguageCodes) > 0 {
+			languageCodes = append(languageCodes, version.LanguageCodes...)
+		}
+	}
+	latest := versions[0]
+	displayTitleOut := strings.TrimSpace(latest.DisplayTitle)
+	if displayTitleOut == "" || displayTitleOut == "Unknown Game" {
+		displayTitleOut = strings.TrimSpace(latest.Game.DisplayTitle)
+	}
+	if displayTitleOut == "" || displayTitleOut == "Unknown Game" {
+		displayTitleOut = strings.TrimSpace(latest.Game.Name)
+	}
+	if displayTitleOut == "" {
+		displayTitleOut = "Unknown Game"
+	}
+	systemSlugOut := systemSlug
+	if systemSlugOut == "" && latest.Game.System != nil {
+		systemSlugOut = canonicalOptionalSegment(latest.Game.System.Slug)
+		if systemSlugOut == "" {
+			systemSlugOut = canonicalSegment(latest.Game.System.Name, "unknown-system")
+		}
+	}
+	if normalizeRegionCode(regionCode) == regionUnknown {
+		regionCode = normalizeRegionCode(latest.RegionCode)
+	}
+	if len(languageCodes) == 0 {
+		languageCodes = normalizeLanguageCodes(latest.LanguageCodes)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success":  true,
-		"game":     versions[0].Game,
+		"success":      true,
+		"game":         latest.Game,
+		"displayTitle": displayTitleOut,
+		"systemSlug":   systemSlugOut,
+		"summary": map[string]any{
+			"displayTitle":    displayTitleOut,
+			"system":          latest.Game.System,
+			"regionCode":      normalizeRegionCode(regionCode),
+			"regionFlag":      regionFlagFromCode(regionCode),
+			"languageCodes":   languageCodes,
+			"saveCount":       len(versions),
+			"totalSizeBytes":  totalSizeBytes,
+			"latestVersion":   latest.Version,
+			"latestCreatedAt": latest.CreatedAt,
+		},
 		"versions": versions,
 	})
+}
+
+func sameSaveHistoryTrack(candidate saveRecord, source saveRecord) bool {
+	sourceROM := strings.TrimSpace(source.ROMSHA1)
+	if sourceROM != "" {
+		return strings.TrimSpace(candidate.ROMSHA1) == sourceROM && normalizedSlot(candidate.SlotName) == normalizedSlot(source.SlotName)
+	}
+
+	if source.Summary.Game.ID != 0 && candidate.Summary.Game.ID == source.Summary.Game.ID {
+		sourceTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(source.Summary.DisplayTitle)
+		candidateTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(candidate.Summary.DisplayTitle)
+		if sourceTitle == "" || sourceTitle == "Unknown Game" {
+			return true
+		}
+		return strings.EqualFold(sourceTitle, candidateTitle)
+	}
+
+	sourceSystem := canonicalOptionalSegment(source.SystemSlug)
+	candidateSystem := canonicalOptionalSegment(candidate.SystemSlug)
+	if sourceSystem != "" && sourceSystem == candidateSystem {
+		sourceTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(source.Summary.DisplayTitle)
+		candidateTitle, _, _ := cleanupDisplayTitleRegionAndLanguages(candidate.Summary.DisplayTitle)
+		if sourceTitle != "" && sourceTitle != "Unknown Game" {
+			return strings.EqualFold(sourceTitle, candidateTitle)
+		}
+	}
+
+	return source.Summary.ID == candidate.Summary.ID
+}
+
+func canonicalOptionalSegment(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return canonicalSegment(value, "")
+}
+
+func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
+	_ = requestPrincipal(r)
+
+	var req struct {
+		SaveID string `json:"saveId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "invalid JSON body", StatusCode: http.StatusBadRequest})
+		return
+	}
+	targetID := strings.TrimSpace(req.SaveID)
+	if targetID == "" {
+		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "saveId is required", StatusCode: http.StatusBadRequest})
+		return
+	}
+
+	sourceRecord, ok := a.findSaveRecordByID(targetID)
+	if !ok {
+		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
+		return
+	}
+	payload, err := os.ReadFile(sourceRecord.payloadPath)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+		return
+	}
+
+	rollbackMeta := mergeRollbackMetadata(sourceRecord)
+	newRecord, err := a.createSave(saveCreateInput{
+		Filename:      sourceRecord.Summary.Filename,
+		Payload:       payload,
+		Game:          sourceRecord.Summary.Game,
+		Format:        sourceRecord.Summary.Format,
+		Metadata:      rollbackMeta,
+		ROMSHA1:       sourceRecord.ROMSHA1,
+		ROMMD5:        sourceRecord.ROMMD5,
+		SlotName:      sourceRecord.SlotName,
+		SystemSlug:    sourceRecord.SystemSlug,
+		GameSlug:      sourceRecord.GameSlug,
+		SystemPath:    sourceRecord.SystemPath,
+		GamePath:      sourceRecord.GamePath,
+		DisplayTitle:  sourceRecord.Summary.DisplayTitle,
+		RegionCode:    sourceRecord.Summary.RegionCode,
+		RegionFlag:    sourceRecord.Summary.RegionFlag,
+		LanguageCodes: sourceRecord.Summary.LanguageCodes,
+		CoverArtURL:   sourceRecord.Summary.CoverArtURL,
+		MemoryCard:    sourceRecord.Summary.MemoryCard,
+		CreatedAt:     time.Now().UTC(),
+	})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+		return
+	}
+
+	a.saveCreatedEvent(newRecord)
+	a.resolveConflictForSave(newRecord)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success":      true,
+		"sourceSaveId": sourceRecord.Summary.ID,
+		"save":         newRecord.Summary,
+	})
+}
+
+func mergeRollbackMetadata(source saveRecord) any {
+	rollbackAudit := map[string]any{
+		"action":        "rollback-promote-copy",
+		"sourceSaveId":  source.Summary.ID,
+		"sourceVersion": source.Summary.Version,
+		"sourceSHA256":  source.Summary.SHA256,
+		"rolledBackAt":  time.Now().UTC().Format(time.RFC3339Nano),
+	}
+	if source.Summary.Metadata == nil {
+		return map[string]any{"rollback": rollbackAudit}
+	}
+	if existing, ok := source.Summary.Metadata.(map[string]any); ok {
+		merged := make(map[string]any, len(existing)+1)
+		for key, value := range existing {
+			merged[key] = value
+		}
+		merged["rollback"] = rollbackAudit
+		return merged
+	}
+	return map[string]any{
+		"rollback":       rollbackAudit,
+		"sourceMetadata": source.Summary.Metadata,
+	}
 }
 
 func (a *app) handleDeleteSave(w http.ResponseWriter, r *http.Request) {

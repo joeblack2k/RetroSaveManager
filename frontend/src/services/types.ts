@@ -23,15 +23,43 @@ export type SaveSystem = {
 export type SaveGame = {
   id: number;
   name: string;
+  displayTitle?: string;
+  regionCode?: "US" | "EU" | "JP" | "UNKNOWN" | string;
+  regionFlag?: string;
+  languageCodes?: string[];
+  coverArtUrl?: string;
   boxart: string | null;
   boxartThumb: string | null;
   hasParser: boolean;
   system: SaveSystem | null;
 };
 
+export type MemoryCardEntry = {
+  title: string;
+  slot: number;
+  blocks: number;
+  productCode?: string;
+  regionCode?: "US" | "EU" | "JP" | "UNKNOWN" | string;
+};
+
+export type MemoryCardDetails = {
+  name: string;
+  entries?: MemoryCardEntry[];
+};
+
 export type SaveSummary = {
   id: string;
   game: SaveGame;
+  displayTitle?: string;
+  regionCode?: "US" | "EU" | "JP" | "UNKNOWN" | string;
+  regionFlag?: string;
+  languageCodes?: string[];
+  coverArtUrl?: string;
+  saveCount?: number;
+  latestSizeBytes?: number;
+  totalSizeBytes?: number;
+  latestVersion?: number;
+  memoryCard?: MemoryCardDetails | null;
   filename: string;
   fileSize: number;
   format: string;
@@ -39,6 +67,27 @@ export type SaveSummary = {
   sha256: string;
   createdAt: string;
   metadata: unknown;
+};
+
+export type SaveHistorySummary = {
+  displayTitle: string;
+  system: SaveSystem | null;
+  regionCode: "US" | "EU" | "JP" | "UNKNOWN" | string;
+  regionFlag: string;
+  languageCodes?: string[];
+  saveCount: number;
+  totalSizeBytes: number;
+  latestVersion: number;
+  latestCreatedAt: string;
+};
+
+export type SaveHistoryResponse = {
+  success: boolean;
+  game: SaveGame | null;
+  displayTitle?: string;
+  systemSlug?: string;
+  summary?: SaveHistorySummary;
+  versions: SaveSummary[];
 };
 
 export type Device = {

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -134,6 +135,83 @@ func TestContractSavesMultipartSuccessAndMissingFileFailure(t *testing.T) {
 	}
 }
 
+func TestContractSaveHistoryAndRollbackPromoteCopy(t *testing.T) {
+	h := newContractHarness(t)
+
+	first := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "rollback-rom",
+		"slotName": "slot-a",
+	}, "Yoshi's Story (USA) (En,Ja).eep", []byte("rollback-v1"))
+	firstSave := mustObject(t, first["save"], "save")
+	firstID := mustString(t, firstSave["id"], "save.id")
+
+	second := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "rollback-rom",
+		"slotName": "slot-a",
+	}, "Yoshi's Story (USA) (En,Ja).eep", []byte("rollback-v2"))
+	secondID := mustString(t, mustObject(t, second["save"], "save")["id"], "save.id")
+
+	historyBefore := h.request(http.MethodGet, "/save?saveId="+firstID, nil)
+	assertStatus(t, historyBefore, http.StatusOK)
+	beforeBody := decodeJSONMap(t, historyBefore.Body)
+	beforeVersions := mustArray(t, beforeBody["versions"], "versions")
+	if len(beforeVersions) != 2 {
+		t.Fatalf("expected 2 history versions before rollback, got %d", len(beforeVersions))
+	}
+	beforeSummary := mustObject(t, beforeBody["summary"], "summary")
+	beforeLangs := mustArray(t, beforeSummary["languageCodes"], "summary.languageCodes")
+	if len(beforeLangs) != 2 || mustString(t, beforeLangs[0], "summary.languageCodes[0]") != "EN" || mustString(t, beforeLangs[1], "summary.languageCodes[1]") != "JA" {
+		t.Fatalf("unexpected language codes before rollback: %s", prettyJSON(beforeSummary))
+	}
+	latestBefore := mustObject(t, beforeVersions[0], "versions[0]")
+	if mustString(t, latestBefore["id"], "versions[0].id") != secondID {
+		t.Fatalf("expected newest history version to be second upload")
+	}
+
+	rollbackReq := fmt.Sprintf(`{"saveId":"%s"}`, firstID)
+	rollbackResp := h.json(http.MethodPost, "/save/rollback", strings.NewReader(rollbackReq))
+	assertStatus(t, rollbackResp, http.StatusOK)
+	rollbackBody := decodeJSONMap(t, rollbackResp.Body)
+	if !mustBool(t, rollbackBody["success"], "success") {
+		t.Fatalf("expected rollback success")
+	}
+	if mustString(t, rollbackBody["sourceSaveId"], "sourceSaveId") != firstID {
+		t.Fatalf("unexpected sourceSaveId: %s", prettyJSON(rollbackBody))
+	}
+	rollbackSave := mustObject(t, rollbackBody["save"], "save")
+	rollbackSaveID := mustString(t, rollbackSave["id"], "save.id")
+	if mustNumber(t, rollbackSave["version"], "save.version") != 3 {
+		t.Fatalf("expected rollback to create version 3, got %s", prettyJSON(rollbackSave))
+	}
+
+	latest := h.request(http.MethodGet, "/save/latest?romSha1=rollback-rom&slotName=slot-a", nil)
+	assertStatus(t, latest, http.StatusOK)
+	latestBody := decodeJSONMap(t, latest.Body)
+	if mustString(t, latestBody["id"], "id") != rollbackSaveID {
+		t.Fatalf("expected rollback save to become latest: %s", prettyJSON(latestBody))
+	}
+	if mustNumber(t, latestBody["version"], "version") != 3 {
+		t.Fatalf("expected latest version=3 after rollback: %s", prettyJSON(latestBody))
+	}
+
+	historyAfter := h.request(http.MethodGet, "/save?saveId="+firstID, nil)
+	assertStatus(t, historyAfter, http.StatusOK)
+	afterBody := decodeJSONMap(t, historyAfter.Body)
+	afterVersions := mustArray(t, afterBody["versions"], "versions")
+	if len(afterVersions) != 3 {
+		t.Fatalf("expected 3 history versions after rollback, got %d", len(afterVersions))
+	}
+	newest := mustObject(t, afterVersions[0], "versions[0]")
+	if mustString(t, newest["id"], "versions[0].id") != rollbackSaveID {
+		t.Fatalf("expected rollback save as newest entry")
+	}
+	metadata := mustObject(t, newest["metadata"], "versions[0].metadata")
+	rollbackMeta := mustObject(t, metadata["rollback"], "versions[0].metadata.rollback")
+	if mustString(t, rollbackMeta["sourceSaveId"], "versions[0].metadata.rollback.sourceSaveId") != firstID {
+		t.Fatalf("expected rollback metadata to reference source save")
+	}
+}
+
 func TestContractV1SavesListEnvelope(t *testing.T) {
 	h := newContractHarness(t)
 
@@ -146,6 +224,19 @@ func TestContractV1SavesListEnvelope(t *testing.T) {
 	saves := mustArray(t, body["saves"], "saves")
 	if len(saves) == 0 {
 		t.Fatalf("expected seeded saves to be present")
+	}
+	first := mustObject(t, saves[0], "saves[0]")
+	if mustString(t, first["displayTitle"], "saves[0].displayTitle") == "" {
+		t.Fatalf("expected displayTitle to be present")
+	}
+	if mustString(t, first["regionCode"], "saves[0].regionCode") == "" {
+		t.Fatalf("expected regionCode to be present")
+	}
+	if mustNumber(t, first["saveCount"], "saves[0].saveCount") < 1 {
+		t.Fatalf("expected saveCount >= 1")
+	}
+	if mustNumber(t, first["totalSizeBytes"], "saves[0].totalSizeBytes") < 1 {
+		t.Fatalf("expected totalSizeBytes >= 1")
 	}
 	if mustNumber(t, body["total"], "total") < 1 {
 		t.Fatalf("expected total >= 1")

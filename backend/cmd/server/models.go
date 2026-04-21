@@ -19,22 +19,50 @@ type system struct {
 }
 
 type game struct {
-	ID          int     `json:"id"`
-	Name        string  `json:"name"`
-	Boxart      *string `json:"boxart"`
-	BoxartThumb *string `json:"boxartThumb"`
-	HasParser   bool    `json:"hasParser"`
-	System      *system `json:"system"`
+	ID            int      `json:"id"`
+	Name          string   `json:"name"`
+	DisplayTitle  string   `json:"displayTitle,omitempty"`
+	RegionCode    string   `json:"regionCode,omitempty"`
+	RegionFlag    string   `json:"regionFlag,omitempty"`
+	LanguageCodes []string `json:"languageCodes,omitempty"`
+	CoverArtURL   string   `json:"coverArtUrl,omitempty"`
+	Boxart        *string  `json:"boxart"`
+	BoxartThumb   *string  `json:"boxartThumb"`
+	HasParser     bool     `json:"hasParser"`
+	System        *system  `json:"system"`
+}
+
+type memoryCardEntry struct {
+	Title       string `json:"title"`
+	Slot        int    `json:"slot"`
+	Blocks      int    `json:"blocks"`
+	ProductCode string `json:"productCode,omitempty"`
+	RegionCode  string `json:"regionCode,omitempty"`
+}
+
+type memoryCardDetails struct {
+	Name    string            `json:"name"`
+	Entries []memoryCardEntry `json:"entries,omitempty"`
 }
 
 type saveSummary struct {
-	ID        string      `json:"id"`
-	Game      game        `json:"game"`
-	Filename  string      `json:"filename"`
-	FileSize  int         `json:"fileSize"`
-	Format    string      `json:"format"`
-	Version   int         `json:"version"`
-	SHA256    string      `json:"sha256"`
-	CreatedAt time.Time   `json:"createdAt"`
-	Metadata  interface{} `json:"metadata"`
+	ID              string             `json:"id"`
+	Game            game               `json:"game"`
+	DisplayTitle    string             `json:"displayTitle,omitempty"`
+	RegionCode      string             `json:"regionCode,omitempty"`
+	RegionFlag      string             `json:"regionFlag,omitempty"`
+	LanguageCodes   []string           `json:"languageCodes,omitempty"`
+	CoverArtURL     string             `json:"coverArtUrl,omitempty"`
+	SaveCount       int                `json:"saveCount,omitempty"`
+	LatestSizeBytes int                `json:"latestSizeBytes,omitempty"`
+	TotalSizeBytes  int                `json:"totalSizeBytes,omitempty"`
+	LatestVersion   int                `json:"latestVersion,omitempty"`
+	MemoryCard      *memoryCardDetails `json:"memoryCard,omitempty"`
+	Filename        string             `json:"filename"`
+	FileSize        int                `json:"fileSize"`
+	Format          string             `json:"format"`
+	Version         int                `json:"version"`
+	SHA256          string             `json:"sha256"`
+	CreatedAt       time.Time          `json:"createdAt"`
+	Metadata        interface{}        `json:"metadata"`
 }

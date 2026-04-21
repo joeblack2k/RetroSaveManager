@@ -8,6 +8,7 @@ import type {
   ReferralInfo,
   RoadmapItem,
   RoadmapSuggestion,
+  SaveHistoryResponse,
   SaveSummary
 } from "./types";
 
@@ -59,6 +60,37 @@ export async function getCurrentUser(): Promise<AuthUser> {
 export async function listSaves(): Promise<SaveSummary[]> {
   const response = await apiFetchJSON<{ saves: SaveSummary[] }>("/saves?limit=100&offset=0");
   return response.saves;
+}
+
+export async function getSaveHistory(params: {
+  saveId?: string;
+  gameId?: number;
+  systemSlug?: string;
+  displayTitle?: string;
+}): Promise<SaveHistoryResponse> {
+  const search = new URLSearchParams();
+  if (params.saveId) {
+    search.set("saveId", params.saveId);
+  }
+  if (typeof params.gameId === "number" && params.gameId > 0) {
+    search.set("gameId", String(params.gameId));
+  }
+  if (params.systemSlug) {
+    search.set("systemSlug", params.systemSlug);
+  }
+  if (params.displayTitle) {
+    search.set("displayTitle", params.displayTitle);
+  }
+  const suffix = search.toString();
+  return apiFetchJSON<SaveHistoryResponse>(`/save${suffix ? `?${suffix}` : ""}`);
+}
+
+export function rollbackSave(saveId: string): Promise<{ success: boolean; sourceSaveId: string; save: SaveSummary }> {
+  return apiFetchJSON("/save/rollback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ saveId })
+  });
 }
 
 export function deleteSave(id: string): Promise<{ success: boolean; remainingVersions: number }> {

@@ -12,6 +12,9 @@ services:
       BASE_URL: ${BASE_URL:-}
       PUBLIC_HOST: ${PUBLIC_HOST:-}
       TLS_ENABLED: ${TLS_ENABLED:-false}
+      IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
+      IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
+      RAWG_API_KEY: ${RAWG_API_KEY:-}
     volumes:
       - ${SAVE_ROOT_HOST_PATH:-./data/saves}:/var/lib/retrosavemanager/saves
       - ${STATE_ROOT_HOST_PATH:-./data/state}:/var/lib/retrosavemanager/state

@@ -21,10 +21,25 @@ RetroSaveManager is a self-hosted, LAN-first save synchronization service with c
 
 All save files live below a single backup-friendly root:
 
-- `SAVE_ROOT/<system>/<game>/<save-id>/payload.*`
-- `SAVE_ROOT/<system>/<game>/<save-id>/metadata.json`
+- `SAVE_ROOT/<System Display>/<Game Title or Memory Card>/<save-id>/payload.*`
+- `SAVE_ROOT/<System Display>/<Game Title or Memory Card>/<save-id>/metadata.json`
 
 Back up one root folder to capture all saves.
+
+### Layout Migration
+
+Migrate existing slug-based paths to the display layout:
+
+```bash
+./scripts/migrate-save-layout.sh --dry-run
+./scripts/migrate-save-layout.sh --manifest ./deploy/data/state/save-layout-manifest.json
+```
+
+Rollback with the same manifest:
+
+```bash
+./scripts/migrate-save-layout.sh --rollback --manifest ./deploy/data/state/save-layout-manifest.json
+```
 
 ## Quick Start (Docker)
 
@@ -88,6 +103,12 @@ Contract + security checks:
 ./scripts/verify-contract.sh
 ./scripts/security-gate.sh
 ```
+
+Optional live enrichment (cover art + metadata fallback chain):
+
+- `IGDB_CLIENT_ID`
+- `IGDB_CLIENT_SECRET`
+- `RAWG_API_KEY`
 
 ## Image Publishing
 

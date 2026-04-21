@@ -1,33 +1,42 @@
-import { ChangeEvent, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { apiDownloadURL } from "../../services/apiClient";
 import { deleteManySaves, getCurrentUser, listSaves } from "../../services/retrosaveApi";
-import { formatBytes, formatRelativeDate } from "../../utils/format";
-
-type SystemOption = {
-  slug: string;
-  name: string;
-};
+import type { SaveSummary } from "../../services/types";
+import { formatBytes, formatDate } from "../../utils/format";
 
 type SaveRow = {
   key: string;
+  gameID: number;
+  primarySaveID: string;
   gameName: string;
+  regionCode: string;
+  regionFlag: string;
+  languageCodes: string[];
   systemName: string;
   systemSlug: string;
   saveIDs: string[];
   saveCount: number;
+  latestSizeBytes: number;
   totalBytes: number;
   latestCreatedAt: string;
   latestVersion: number;
-  coverUrl: string;
   downloadUrl: string;
+};
+
+type ConsoleGroup = {
+  key: string;
+  name: string;
+  rows: SaveRow[];
+  saveCount: number;
+  totalBytes: number;
 };
 
 const DEFAULT_LIMIT_BYTES = 200 * 1024 * 1024;
 
 export function MyGamesPage(): JSX.Element {
-  const [systemFilter, setSystemFilter] = useState("all");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingKeys, setDeletingKeys] = useState<string[]>([]);
 
@@ -38,88 +47,82 @@ export function MyGamesPage(): JSX.Element {
 
   const { loading, error, data, reload } = useAsyncData(loader, []);
 
-  const systemOptions = useMemo<SystemOption[]>(() => {
-    if (!data) {
-      return [];
-    }
-    const map = new Map<string, string>();
-    for (const save of data.saves) {
-      const slug = save.game.system?.slug?.trim() || "unknown";
-      const name = save.game.system?.name?.trim() || "Unknown system";
-      if (!map.has(slug)) {
-        map.set(slug, name);
-      }
-    }
-    return [...map.entries()]
-      .map(([slug, name]) => ({ slug, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [data]);
-
   const rows = useMemo<SaveRow[]>(() => {
     if (!data) {
       return [];
     }
     const grouped = new Map<string, SaveRow & { saveIDs: string[] }>();
-    const filtered = data.saves.filter((save) => {
-      if (systemFilter === "all") {
-        return true;
-      }
-      const slug = save.game.system?.slug?.trim() || "unknown";
-      return slug === systemFilter;
-    });
 
-    for (const save of filtered) {
-      const systemSlug = save.game.system?.slug?.trim() || "unknown";
-      const systemName = save.game.system?.name?.trim() || "Unknown system";
-      const gameName = save.game.name?.trim() || "Unknown game";
+    for (const save of data.saves) {
+      const systemInfo = detectConsoleForSave(save);
+      const systemSlug = systemInfo.slug;
+      const systemName = systemInfo.name;
+      const rawName = save.displayTitle?.trim() || save.game.displayTitle?.trim() || save.game.name?.trim() || "Unknown game";
+      const gameName = cleanGameTitle(rawName);
+      const regionCode = normalizeRegionCode((save.regionCode || save.game.regionCode || "UNKNOWN").toString());
+      const languageCodes = mergeLanguageCodes(save.languageCodes, save.game.languageCodes, extractLanguageCodes(rawName));
       const key = `${systemSlug}:${save.game.id}:${gameName}`;
       const createdAt = save.createdAt || new Date(0).toISOString();
-      const explicitCover = save.game.boxartThumb || save.game.boxart;
 
       const existing = grouped.get(key);
       if (!existing) {
+        const saveCount = save.saveCount && save.saveCount > 0 ? save.saveCount : 1;
+        const latestSizeBytes = save.latestSizeBytes && save.latestSizeBytes > 0 ? save.latestSizeBytes : save.fileSize;
+        const totalBytes = save.totalSizeBytes && save.totalSizeBytes > 0 ? save.totalSizeBytes : save.fileSize;
+        const latestVersion = save.latestVersion && save.latestVersion > 0 ? save.latestVersion : save.version;
+
         grouped.set(key, {
           key,
+          gameID: save.game.id,
+          primarySaveID: save.id,
           gameName,
+          regionCode,
+          regionFlag: regionToFlagEmoji(regionCode),
+          languageCodes,
           systemName,
           systemSlug,
-          saveCount: 1,
-          totalBytes: save.fileSize,
+          saveCount,
+          latestSizeBytes,
+          totalBytes,
           latestCreatedAt: createdAt,
-          latestVersion: save.version,
-          coverUrl: explicitCover || buildFallbackCover(gameName),
+          latestVersion,
           saveIDs: [save.id],
           downloadUrl: ""
         });
         continue;
       }
 
-      existing.saveCount += 1;
-      existing.totalBytes += save.fileSize;
-      existing.latestVersion = Math.max(existing.latestVersion, save.version);
+      existing.saveCount = Math.max(existing.saveCount, save.saveCount && save.saveCount > 0 ? save.saveCount : existing.saveCount + 1);
+      existing.latestSizeBytes = Math.max(existing.latestSizeBytes, save.latestSizeBytes && save.latestSizeBytes > 0 ? save.latestSizeBytes : save.fileSize);
+      existing.totalBytes = Math.max(existing.totalBytes, save.totalSizeBytes && save.totalSizeBytes > 0 ? save.totalSizeBytes : existing.totalBytes + save.fileSize);
+      existing.latestVersion = Math.max(existing.latestVersion, save.latestVersion && save.latestVersion > 0 ? save.latestVersion : save.version);
+      existing.regionCode = pickPreferredRegionCode(existing.regionCode, regionCode);
+      existing.regionFlag = regionToFlagEmoji(existing.regionCode);
+      existing.languageCodes = mergeLanguageCodes(existing.languageCodes, languageCodes);
+
       if (new Date(createdAt).getTime() > new Date(existing.latestCreatedAt).getTime()) {
         existing.latestCreatedAt = createdAt;
+        existing.primarySaveID = save.id;
       }
       existing.saveIDs.push(save.id);
-      if (!explicitCover && existing.coverUrl) {
-        continue;
-      }
-      if (explicitCover) {
-        existing.coverUrl = explicitCover;
-      }
     }
 
     const list = [...grouped.values()].map((row) => ({
       key: row.key,
+      gameID: row.gameID,
+      primarySaveID: row.primarySaveID,
       gameName: row.gameName,
+      regionCode: row.regionCode,
+      regionFlag: row.regionFlag,
+      languageCodes: row.languageCodes,
       systemName: row.systemName,
       systemSlug: row.systemSlug,
       saveIDs: row.saveIDs,
       saveCount: row.saveCount,
+      latestSizeBytes: row.latestSizeBytes,
       totalBytes: row.totalBytes,
       latestCreatedAt: row.latestCreatedAt,
       latestVersion: row.latestVersion,
-      coverUrl: row.coverUrl,
       downloadUrl: row.saveIDs.length === 1
         ? apiDownloadURL(`/saves/download?id=${encodeURIComponent(row.saveIDs[0])}`)
         : apiDownloadURL(`/saves/download_many?ids=${encodeURIComponent(row.saveIDs.join(","))}`)
@@ -127,15 +130,46 @@ export function MyGamesPage(): JSX.Element {
 
     list.sort((a, b) => new Date(b.latestCreatedAt).getTime() - new Date(a.latestCreatedAt).getTime());
     return list;
-  }, [data, systemFilter]);
+  }, [data]);
+
+  const consoleGroups = useMemo<ConsoleGroup[]>(() => {
+    const grouped = new Map<string, ConsoleGroup>();
+    for (const row of rows) {
+      const existing = grouped.get(row.systemSlug);
+      if (!existing) {
+        grouped.set(row.systemSlug, {
+          key: row.systemSlug,
+          name: row.systemName,
+          rows: [row],
+          saveCount: row.saveCount,
+          totalBytes: row.totalBytes
+        });
+        continue;
+      }
+      existing.rows.push(row);
+      existing.saveCount += row.saveCount;
+      existing.totalBytes += row.totalBytes;
+    }
+
+    const groups = [...grouped.values()];
+    for (const group of groups) {
+      group.rows.sort((a, b) => new Date(b.latestCreatedAt).getTime() - new Date(a.latestCreatedAt).getTime());
+    }
+    groups.sort((a, b) => {
+      if (a.name === "Other") {
+        return 1;
+      }
+      if (b.name === "Other") {
+        return -1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    return groups;
+  }, [rows]);
 
   const totalSaveCount = useMemo(() => rows.reduce((sum, row) => sum + row.saveCount, 0), [rows]);
   const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.totalBytes, 0), [rows]);
   const usagePercent = Math.min(100, (totalBytes / DEFAULT_LIMIT_BYTES) * 100);
-
-  function handleSystemFilterChange(event: ChangeEvent<HTMLSelectElement>): void {
-    setSystemFilter(event.target.value);
-  }
 
   async function handleDeleteRow(row: SaveRow): Promise<void> {
     const saveLabel = row.saveCount === 1 ? "save" : "saves";
@@ -178,110 +212,284 @@ export function MyGamesPage(): JSX.Element {
           </div>
         </div>
         <div className="saves-board__actions">
-          <select className="saves-system-select" value={systemFilter} onChange={handleSystemFilterChange} aria-label="System filter" name="systemFilter">
-            <option value="all">All systems</option>
-            {systemOptions.map((option) => (
-              <option key={option.slug} value={option.slug}>
-                {option.name}
-              </option>
-            ))}
-          </select>
           <button className="saves-toolbar-btn" type="button">
             Upload
-          </button>
-          <button className="saves-toolbar-icon" type="button" aria-label="List view">
-            ≡
-          </button>
-          <button className="saves-toolbar-icon" type="button" aria-label="Grid view">
-            ▦
           </button>
         </div>
       </header>
       {deleteError ? <p className="error-state">{deleteError}</p> : null}
 
-      <div className="saves-table-wrap">
-        <table className="saves-table">
-          <thead>
-            <tr>
-              <th className="saves-table__check">
-                <input type="checkbox" aria-label="Select all rows" name="selectAllSaves" />
-              </th>
-              <th>Game</th>
-              <th>#</th>
-              <th>Size</th>
-              <th>Date</th>
-              <th>Download</th>
-              <th>Delete</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const isDeleting = deletingKeys.includes(row.key);
-              return (
-                <tr key={row.key}>
-                  <td className="saves-table__check">
-                    <input type="checkbox" aria-label={`Select ${row.gameName}`} name={`select-${row.key}`} />
-                  </td>
-                  <td>
-                    <div className="saves-game-cell">
-                      <img src={row.coverUrl} alt={`${row.gameName} cover`} className="saves-cover" loading="lazy" />
-                      <div>
-                        <strong>{row.gameName}</strong>
-                        <p>
-                          {row.systemName} · v{row.latestVersion}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{row.saveCount}</td>
-                  <td>{formatBytes(row.totalBytes)}</td>
-                  <td>{formatRelativeDate(row.latestCreatedAt)}</td>
-                  <td>
-                    <a className="saves-download-btn" href={row.downloadUrl}>
-                      <span aria-hidden="true">⇩</span>
-                      <span className="sr-only">Download {row.gameName}</span>
-                    </a>
-                  </td>
-                  <td>
-                    <button
-                      className="saves-delete-btn"
-                      type="button"
-                      onClick={() => void handleDeleteRow(row)}
-                      disabled={isDeleting}
-                      aria-label={`Delete ${row.gameName} saves`}
-                    >
-                      {isDeleting ? "..." : "Delete"}
-                    </button>
-                  </td>
+      {consoleGroups.map((group, index) => (
+        <details key={group.key} className="saves-console-group" open={index === 0}>
+          <summary>
+            <strong>{group.name}</strong>
+            <span>
+              {group.rows.length} games · {group.saveCount} saves · {formatBytes(group.totalBytes)}
+            </span>
+          </summary>
+
+          <div className="saves-table-wrap">
+            <table className="saves-table">
+              <thead>
+                <tr>
+                  <th>Game</th>
+                  <th>Region</th>
+                  <th>Saves</th>
+                  <th>Latest</th>
+                  <th>Total</th>
+                  <th>Rollback</th>
+                  <th>Date</th>
+                  <th>Details</th>
+                  <th>Download</th>
+                  <th>Delete</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {group.rows.map((row) => {
+                  const isDeleting = deletingKeys.includes(row.key);
+                  const detailsHref = `/app/saves/${encodeURIComponent(row.primarySaveID)}`;
+                  return (
+                    <tr key={row.key}>
+                      <td>
+                        <div className="saves-game-cell">
+                          <div>
+                            <strong>{row.gameName}</strong>
+                            {row.languageCodes.length > 0 ? <p>{row.languageCodes.join(", ")}</p> : null}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="saves-region-cell">
+                        <span className="saves-region-flag" title={row.regionCode}>{row.regionFlag}</span>
+                      </td>
+                      <td>{row.saveCount}</td>
+                      <td>{formatBytes(row.latestSizeBytes)}</td>
+                      <td>{formatBytes(row.totalBytes)}</td>
+                      <td>
+                        <Link className="saves-action-link" to={detailsHref}>Rollback</Link>
+                      </td>
+                      <td>{formatDate(row.latestCreatedAt)}</td>
+                      <td>
+                        <Link className="saves-action-link" to={detailsHref}>Details</Link>
+                      </td>
+                      <td>
+                        <a className="saves-download-btn" href={row.downloadUrl}>
+                          <span aria-hidden="true">⇩</span>
+                          <span className="sr-only">Download {row.gameName}</span>
+                        </a>
+                      </td>
+                      <td>
+                        <button
+                          className="saves-delete-btn"
+                          type="button"
+                          onClick={() => void handleDeleteRow(row)}
+                          disabled={isDeleting}
+                          aria-label={`Delete ${row.gameName} saves`}
+                        >
+                          {isDeleting ? "..." : "Delete"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ))}
     </section>
   );
 }
 
-function buildFallbackCover(title: string): string {
-  const initials = title
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.slice(0, 1).toUpperCase())
-    .join("") || "NA";
-  const safeText = initials.replace(/[^A-Z0-9]/g, "");
+function normalizeRegionCode(regionCode: string): string {
+  const normalized = regionCode.trim().toUpperCase();
+  switch (normalized) {
+    case "US":
+    case "USA":
+      return "US";
+    case "EU":
+    case "EUR":
+      return "EU";
+    case "JP":
+    case "JPN":
+      return "JP";
+    default:
+      return "UNKNOWN";
+  }
+}
 
-  const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#4B5563" />
-      <stop offset="100%" stop-color="#1F2937" />
-    </linearGradient>
-  </defs>
-  <rect width="128" height="128" rx="12" fill="url(#g)" />
-  <rect x="10" y="10" width="108" height="108" rx="8" fill="none" stroke="#9CA3AF" stroke-width="2" />
-  <text x="64" y="72" text-anchor="middle" fill="#E5E7EB" font-family="Arial, sans-serif" font-size="34" font-weight="700">${safeText}</text>
-</svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+function pickPreferredRegionCode(current: string, candidate: string): string {
+  const currentNormalized = normalizeRegionCode(current);
+  const candidateNormalized = normalizeRegionCode(candidate);
+  if (currentNormalized === "UNKNOWN" && candidateNormalized !== "UNKNOWN") {
+    return candidateNormalized;
+  }
+  return currentNormalized;
+}
+
+function regionToFlagEmoji(regionCode: string): string {
+  switch (normalizeRegionCode(regionCode)) {
+    case "US":
+      return "🇺🇸";
+    case "EU":
+      return "🇪🇺";
+    case "JP":
+      return "🇯🇵";
+    default:
+      return "🌐";
+  }
+}
+
+function cleanGameTitle(raw: string): string {
+  let title = raw.trim();
+  const tagPattern = /\s*\(([^)]*)\)\s*$/;
+  while (true) {
+    const match = tagPattern.exec(title);
+    if (!match) {
+      break;
+    }
+    const tag = (match[1] || "").trim().toLowerCase();
+    if (!looksLikeMetadataTag(tag)) {
+      break;
+    }
+    title = title.slice(0, match.index).trim();
+  }
+  if (!title) {
+    return "Unknown game";
+  }
+  return title;
+}
+
+function looksLikeMetadataTag(tag: string): boolean {
+  if (!tag) {
+    return false;
+  }
+  const hints = ["usa", "europe", "japan", "pal", "ntsc", "rev", "proto", "beta", "demo", "en", "ja", "fr", "de", "es", "it"];
+  if (hints.some((hint) => tag.includes(hint))) {
+    return true;
+  }
+  return /[0-9,+]/.test(tag);
+}
+
+function normalizeLanguageCode(raw: string): string | null {
+  const value = raw.trim().toLowerCase();
+  const map: Record<string, string> = {
+    en: "EN",
+    eng: "EN",
+    english: "EN",
+    ja: "JA",
+    jp: "JA",
+    jpn: "JA",
+    japanese: "JA",
+    fr: "FR",
+    fra: "FR",
+    fre: "FR",
+    french: "FR",
+    de: "DE",
+    deu: "DE",
+    ger: "DE",
+    german: "DE",
+    es: "ES",
+    spa: "ES",
+    spanish: "ES",
+    it: "IT",
+    ita: "IT",
+    italian: "IT",
+    pt: "PT",
+    por: "PT",
+    portuguese: "PT",
+    nl: "NL",
+    dut: "NL",
+    nld: "NL",
+    dutch: "NL"
+  };
+  return map[value] ?? null;
+}
+
+function extractLanguageCodes(raw: string): string[] {
+  const normalized = raw.toLowerCase().replace(/[,+/_-]/g, " ");
+  const parts = normalized.split(/\s+/).map((item) => item.trim()).filter((item) => item !== "");
+  return mergeLanguageCodes(parts);
+}
+
+function mergeLanguageCodes(...sources: Array<string[] | undefined>): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+    for (const item of source) {
+      const normalized = normalizeLanguageCode(item);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      out.push(normalized);
+    }
+  }
+  return out;
+}
+
+function detectConsoleForSave(save: SaveSummary): { slug: string; name: string } {
+  const knownSystem = save.game.system?.name?.trim() || "";
+  const knownSlug = save.game.system?.slug?.trim().toLowerCase() || "";
+
+  if (knownSlug !== "" && !isUnknownSystemLabel(knownSlug)) {
+    return normalizeConsoleLabel(knownSlug, knownSystem);
+  }
+  if (knownSystem !== "" && !isUnknownSystemLabel(knownSystem)) {
+    return normalizeConsoleLabel(knownSlug, knownSystem);
+  }
+
+  const filename = save.filename.toLowerCase();
+  const ext = filename.includes(".") ? filename.split(".").pop() || "" : "";
+  const title = (save.displayTitle || save.game.displayTitle || save.game.name || "").toLowerCase();
+  const format = (save.format || "").toLowerCase();
+
+  if (["mcr", "mcd", "gme", "mc"].includes(ext) || format.includes("mcr") || title.includes("memory card")) {
+    return { slug: "psx", name: "PlayStation" };
+  }
+  if (["eep", "fla", "mpk", "sra"].includes(ext)) {
+    return { slug: "n64", name: "Nintendo 64" };
+  }
+  if (["srm", "smc", "sfc"].includes(ext)) {
+    return { slug: "snes", name: "Super Nintendo" };
+  }
+  return { slug: "other", name: "Other" };
+}
+
+function normalizeConsoleLabel(slug: string, name: string): { slug: string; name: string } {
+  const combined = `${slug} ${name}`.toLowerCase();
+  if (combined.includes("snes") || combined.includes("super nintendo")) {
+    return { slug: "snes", name: "Super Nintendo" };
+  }
+  if (combined.includes("n64") || combined.includes("nintendo 64")) {
+    return { slug: "n64", name: "Nintendo 64" };
+  }
+  if (combined.includes("playstation") || combined.includes("psx") || combined.includes("ps1")) {
+    return { slug: "psx", name: "PlayStation" };
+  }
+  if (combined.includes("game boy") || combined.includes("gameboy")) {
+    return { slug: "gameboy", name: "Nintendo Game Boy" };
+  }
+  if (combined.includes("gba")) {
+    return { slug: "gba", name: "Game Boy Advance" };
+  }
+  if (combined.includes("genesis") || combined.includes("mega drive")) {
+    return { slug: "genesis", name: "Sega Genesis" };
+  }
+
+  const cleaned = name.trim();
+  if (cleaned === "" || isUnknownSystemLabel(cleaned)) {
+    return { slug: "other", name: "Other" };
+  }
+  return {
+    slug: slug.trim() !== "" ? slug.trim().toLowerCase() : cleaned.toLowerCase().replace(/\s+/g, "-"),
+    name: cleaned
+  };
+}
+
+function isUnknownSystemLabel(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "" || normalized === "unknown" || normalized === "unknown-system" || normalized === "unknown system";
 }

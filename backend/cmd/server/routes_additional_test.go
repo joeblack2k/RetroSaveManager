@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -74,4 +75,29 @@ func TestContractAdditionalAuthAndWebRoutes(t *testing.T) {
 			assertStatus(t, rr, tc.status)
 		})
 	}
+}
+
+func TestContractAdditionalSaveRollbackAliasParity(t *testing.T) {
+	h := newContractHarness(t)
+	h.app.mu.Lock()
+	if len(h.app.saveRecords) == 0 {
+		h.app.mu.Unlock()
+		t.Fatal("expected seeded save record")
+	}
+	saveID := h.app.saveRecords[0].Summary.ID
+	h.app.mu.Unlock()
+
+	body := fmt.Sprintf(`{"saveId":"%s"}`, saveID)
+	root := h.json(http.MethodPost, "/save/rollback", strings.NewReader(body))
+	assertStatus(t, root, http.StatusOK)
+	assertJSONContentType(t, root)
+
+	hV1 := newContractHarness(t)
+	hV1.app.mu.Lock()
+	saveID = hV1.app.saveRecords[0].Summary.ID
+	hV1.app.mu.Unlock()
+	body = fmt.Sprintf(`{"saveId":"%s"}`, saveID)
+	v1 := hV1.json(http.MethodPost, "/v1/save/rollback", strings.NewReader(body))
+	assertStatus(t, v1, http.StatusOK)
+	assertJSONContentType(t, v1)
 }

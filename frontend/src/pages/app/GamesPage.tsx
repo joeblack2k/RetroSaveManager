@@ -19,6 +19,7 @@ export function GamesPage(): JSX.Element {
           <thead>
             <tr>
               <th>Game</th>
+              <th>Region</th>
               <th>Bestand</th>
               <th>Versie</th>
               <th>Grootte</th>
@@ -29,7 +30,8 @@ export function GamesPage(): JSX.Element {
           <tbody>
             {data.map((save) => (
               <tr key={save.id}>
-                <td>{save.game.name}</td>
+                <td>{save.displayTitle || save.game.displayTitle || save.game.name}</td>
+                <td>{regionToFlagEmoji((save.regionCode || save.game.regionCode || "UNKNOWN").toString())}</td>
                 <td>{save.filename}</td>
                 <td>{save.version}</td>
                 <td>{formatBytes(save.fileSize)}</td>
@@ -46,4 +48,17 @@ export function GamesPage(): JSX.Element {
       ) : null}
     </SectionCard>
   );
+}
+
+function regionToFlagEmoji(regionCode: string): string {
+  switch (regionCode.toUpperCase()) {
+    case "US":
+      return "🇺🇸";
+    case "EU":
+      return "🇪🇺";
+    case "JP":
+      return "🇯🇵";
+    default:
+      return "🌐";
+  }
 }
