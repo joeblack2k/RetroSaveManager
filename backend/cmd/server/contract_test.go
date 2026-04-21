@@ -146,7 +146,7 @@ func TestContractSavesMultipartRejectsUnknownSystemNoise(t *testing.T) {
 		"rom_sha1":    "noise-rom",
 		"device_type": "linux-x86",
 		"fingerprint": "noise-device",
-	}, "notes.txt", []byte("this is plain text and not a valid save"))
+	}, "file", "notes.txt", []byte("this is plain text and not a valid save"))
 	assertStatus(t, rejected, http.StatusUnprocessableEntity)
 	assertJSONContentType(t, rejected)
 
