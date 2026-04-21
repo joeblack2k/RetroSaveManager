@@ -163,6 +163,69 @@ func TestRescanSavesPrunesFalsePositiveMemoryCardRecord(t *testing.T) {
 	}
 }
 
+func TestRescanSavesPrunesPlayStationSaveStateNoise(t *testing.T) {
+	h := newContractHarness(t)
+	records := h.app.snapshotSaveRecords()
+	if len(records) == 0 {
+		t.Fatal("expected seeded save record")
+	}
+
+	seed := records[0]
+	badDir := filepath.Join(filepath.Dir(seed.dirPath), "PlayStation", "Memory Card 1", "psx-state-noise")
+	if err := os.MkdirAll(badDir, 0o755); err != nil {
+		t.Fatalf("mkdir bad dir: %v", err)
+	}
+	payloadPath := filepath.Join(badDir, "payload.ss")
+	if err := os.WriteFile(payloadPath, make([]byte, 4*1024*1024), 0o644); err != nil {
+		t.Fatalf("write bad payload: %v", err)
+	}
+
+	bad := seed
+	bad.dirPath = badDir
+	bad.payloadPath = payloadPath
+	bad.PayloadFile = "payload.ss"
+	bad.SystemSlug = "psx"
+	bad.SystemPath = "PlayStation"
+	bad.GamePath = "Memory Card 1"
+	bad.GameSlug = "memory-card-1"
+	bad.Summary.ID = "psx-state-noise"
+	bad.Summary.Filename = "Castlevania - Symphony of the Night (USA)_1.ss"
+	bad.Summary.DisplayTitle = "Memory Card 1"
+	bad.Summary.Format = "ss"
+	bad.Summary.SystemSlug = "psx"
+	bad.Summary.Game = game{
+		ID:           999,
+		Name:         "Memory Card 1",
+		DisplayTitle: "Memory Card 1",
+		System:       &system{ID: 27, Name: "PlayStation", Slug: "psx"},
+	}
+	bad.Summary.MemoryCard = &memoryCardDetails{Name: "Memory Card 1"}
+
+	metadataPath := filepath.Join(badDir, "metadata.json")
+	metadataBytes, err := json.MarshalIndent(bad, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal save state metadata: %v", err)
+	}
+	if err := os.WriteFile(metadataPath, metadataBytes, 0o644); err != nil {
+		t.Fatalf("write save state metadata: %v", err)
+	}
+
+	if err := h.app.reloadSavesFromDisk(); err != nil {
+		t.Fatalf("reload with save state noise: %v", err)
+	}
+
+	result, err := h.app.rescanSaves(saveRescanOptions{DryRun: false, PruneUnsupported: true})
+	if err != nil {
+		t.Fatalf("rescan PS save state noise: %v", err)
+	}
+	if result.Removed < 1 {
+		t.Fatalf("expected PS save state noise to be removed, got %+v", result)
+	}
+	if _, err := os.Stat(badDir); !os.IsNotExist(err) {
+		t.Fatalf("expected PS save state dir removed, stat err=%v", err)
+	}
+}
+
 func TestRescanSavesCorrectsNintendoDSFromStoredFallbackMetadata(t *testing.T) {
 	h := newContractHarness(t)
 

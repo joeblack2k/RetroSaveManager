@@ -664,6 +664,37 @@ code {
   background: #3a3e49;
 }
 
+.memory-card-entry-preview {
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 0.65rem;
+  border: 1px solid #4a5263;
+  background: #171a21;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.memory-card-entry-preview--empty {
+  display: block;
+  background:
+    linear-gradient(135deg, rgba(103, 122, 152, 0.18), rgba(38, 44, 57, 0.9)),
+    #171a21;
+}
+
+.memory-card-entry-title-cell {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.memory-card-entry-title-cell strong {
+  display: block;
+}
+
+.memory-card-entry-title-cell span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 .plain-list {
   list-style: none;
   margin: 0;

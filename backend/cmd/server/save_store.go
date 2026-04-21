@@ -448,9 +448,10 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 	}
 
 	if payload, err := os.ReadFile(record.payloadPath); err == nil {
-		if isConfirmedPS1MemoryCard(summary.Game.System, summary.Format, summary.Filename, payload) {
+		artifactKind := classifyPlayStationArtifact(summary.Game.System, summary.Format, summary.Filename, payload)
+		if artifactKind == saveArtifactPS1MemoryCard || artifactKind == saveArtifactPS2MemoryCard {
 			cardName := canonicalMemoryCardName(summary.MemoryCard, record.SlotName, summary.Filename)
-			summary.MemoryCard = parsePlayStationMemoryCard(payload, summary.Filename, cardName)
+			summary.MemoryCard = parsePlayStationMemoryCard(summary.Game.System, payload, summary.Filename, cardName)
 			if summary.MemoryCard == nil {
 				summary.MemoryCard = &memoryCardDetails{Name: cardName}
 			}

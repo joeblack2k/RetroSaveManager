@@ -21,6 +21,10 @@ export function SaveDetailPage(): JSX.Element {
   const versions = data?.versions ?? [];
   const latest = versions.length > 0 ? versions[0] : null;
   const fallbackSummary = useMemo(() => buildSummaryFromVersions(versions), [versions]);
+  const memoryCard = useMemo(
+    () => versions.find((version) => version.memoryCard?.entries && version.memoryCard.entries.length > 0)?.memoryCard || latest?.memoryCard || null,
+    [latest?.memoryCard, versions]
+  );
 
   const displayTitle = (data?.displayTitle || data?.summary?.displayTitle || latest?.displayTitle || latest?.game.displayTitle || latest?.game.name || "Unknown game").trim();
   const systemName = data?.summary?.system?.name || latest?.game.system?.name || "Unknown";
@@ -73,26 +77,46 @@ export function SaveDetailPage(): JSX.Element {
             <p><strong>Latest date:</strong> {formatDate(latestCreatedAt)}</p>
           </div>
 
-          {latest?.memoryCard ? (
+          {memoryCard ? (
             <div className="stack compact">
-              <p><strong>Memory Card:</strong> {latest.memoryCard.name}</p>
-              {latest.memoryCard.entries && latest.memoryCard.entries.length > 0 ? (
+              <p><strong>Memory Card:</strong> {memoryCard.name}</p>
+              {memoryCard.entries && memoryCard.entries.length > 0 ? (
                 <table className="table">
                   <thead>
                     <tr>
+                      <th>Preview</th>
                       <th>Save</th>
                       <th>Slot</th>
                       <th>Blocks</th>
+                      <th>Size</th>
                       <th>Code</th>
                       <th>Region</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {latest.memoryCard.entries.map((entry, index) => (
+                    {memoryCard.entries.map((entry, index) => (
                       <tr key={`${entry.productCode || entry.title}-${entry.slot}-${index}`}>
-                        <td>{entry.title}</td>
+                        <td>
+                          {entry.iconDataUrl ? (
+                            <img
+                              className="memory-card-entry-preview"
+                              src={entry.iconDataUrl}
+                              alt={`${entry.title} icon`}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="memory-card-entry-preview memory-card-entry-preview--empty" aria-hidden="true" />
+                          )}
+                        </td>
+                        <td>
+                          <div className="memory-card-entry-title-cell">
+                            <strong>{entry.title}</strong>
+                            {entry.directoryName ? <span>{entry.directoryName}</span> : null}
+                          </div>
+                        </td>
                         <td>{entry.slot}</td>
                         <td>{entry.blocks}</td>
+                        <td>{entry.sizeBytes ? formatBytes(entry.sizeBytes) : "-"}</td>
                         <td>{entry.productCode || "-"}</td>
                         <td>{regionToFlagEmoji((entry.regionCode || "UNKNOWN").toString())} {normalizeRegionCode((entry.regionCode || "UNKNOWN").toString())}</td>
                       </tr>

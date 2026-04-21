@@ -10,7 +10,7 @@ type canonicalSaveTrack struct {
 	System         *system
 	DisplayTitle   string
 	RegionCode     string
-	IsPS1Card      bool
+	IsMemoryCard   bool
 	MemoryCardName string
 }
 
@@ -80,8 +80,8 @@ func canonicalTrackFromInput(input saveCreateInput) canonicalSaveTrack {
 			input.Game.RegionCode,
 		),
 	}
-	if systemSlug == "psx" && input.MemoryCard != nil {
-		track.IsPS1Card = true
+	if (systemSlug == "psx" || systemSlug == "ps2") && input.MemoryCard != nil {
+		track.IsMemoryCard = true
 		track.MemoryCardName = canonicalMemoryCardName(input.MemoryCard, input.SlotName, input.Filename)
 		track.DisplayTitle = track.MemoryCardName
 	}
@@ -105,8 +105,8 @@ func canonicalTrackFromSummary(summary saveSummary, fallbackSystemSlug string) c
 			summary.Game.RegionCode,
 		),
 	}
-	if systemSlug == "psx" && summary.MemoryCard != nil {
-		track.IsPS1Card = true
+	if (systemSlug == "psx" || systemSlug == "ps2") && summary.MemoryCard != nil {
+		track.IsMemoryCard = true
 		track.MemoryCardName = canonicalMemoryCardName(summary.MemoryCard, "", summary.Filename)
 		track.DisplayTitle = track.MemoryCardName
 	}
@@ -128,7 +128,7 @@ func canonicalTrackTitleKey(title string) string {
 
 func canonicalTrackKey(track canonicalSaveTrack) string {
 	systemSlug := canonicalSegment(track.SystemSlug, "unknown-system")
-	if track.IsPS1Card {
+	if track.IsMemoryCard {
 		cardName := strings.ToLower(strings.TrimSpace(spacePattern.ReplaceAllString(track.MemoryCardName, " ")))
 		if cardName == "" {
 			cardName = "memory card 1"
@@ -139,7 +139,7 @@ func canonicalTrackKey(track canonicalSaveTrack) string {
 }
 
 func canonicalGameSlugForTrack(track canonicalSaveTrack) string {
-	if track.IsPS1Card {
+	if track.IsMemoryCard {
 		return canonicalSegment(track.MemoryCardName, "memory-card")
 	}
 	return canonicalSegment(track.DisplayTitle, "unknown-game")

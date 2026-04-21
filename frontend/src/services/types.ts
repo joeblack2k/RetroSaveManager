@@ -41,6 +41,9 @@ export type MemoryCardEntry = {
   blocks: number;
   productCode?: string;
   regionCode?: "US" | "EU" | "JP" | "UNKNOWN" | string;
+  directoryName?: string;
+  iconDataUrl?: string;
+  sizeBytes?: number;
 };
 
 export type MemoryCardDetails = {

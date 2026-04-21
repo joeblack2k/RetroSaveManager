@@ -86,6 +86,13 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		input.CoverArtURL = strings.TrimSpace(*input.Game.Boxart)
 	}
 
+	rejectReason := ""
+	rejected := false
+	if normalized.ArtifactKind == saveArtifactUnsupported {
+		rejected = true
+		rejectReason = playStationRejectReason(normalized.System)
+	}
+
 	track := canonicalTrackFromInput(input)
 	input.SystemSlug = canonicalSegment(track.SystemSlug, "unknown-system")
 	input.DisplayTitle = track.DisplayTitle
@@ -114,16 +121,20 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		input.Game.Boxart = &box
 	}
 
-	rejectReason := ""
-	rejected := detection.System == nil || !isSupportedSystemSlug(input.SystemSlug)
-	if rejected {
-		if strings.TrimSpace(detection.Reason) != "" {
-			rejectReason = detection.Reason
-		} else {
-			rejectReason = errUnsupportedSaveFormat.Error()
+	if detection.System == nil || !isSupportedSystemSlug(input.SystemSlug) {
+		rejected = true
+		if rejectReason == "" {
+			if strings.TrimSpace(detection.Reason) != "" {
+				rejectReason = detection.Reason
+			} else {
+				rejectReason = errUnsupportedSaveFormat.Error()
+			}
 		}
+	}
+	if rejected {
 		input.SystemSlug = "unknown-system"
 		input.Game.System = nil
+		input.MemoryCard = nil
 	}
 
 	return normalizedSaveInputResult{

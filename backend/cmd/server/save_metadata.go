@@ -26,6 +26,7 @@ var (
 	trailingTagPattern     = regexp.MustCompile(`\s*\(([^)]*)\)\s*$`)
 	trailingCounterPattern = regexp.MustCompile(`(?i)(?:[_\.-]+|\s+(?:slot|save)\s+)#?([0-9]{1,3})$`)
 	cardNumberPattern      = regexp.MustCompile(`(?i)(memory[\s_-]*card|card)[\s_-]*([0-9]{1,2})`)
+	mcdNumberPattern       = regexp.MustCompile(`(?i)mcd0*([0-9]{1,2})`)
 	spacePattern           = regexp.MustCompile(`\s+`)
 	productCodePattern     = regexp.MustCompile(`\b([A-Z]{4}[-_][0-9]{3}\.[0-9]{2}|[A-Z]{4}[0-9]{5})\b`)
 )
@@ -38,6 +39,7 @@ type normalizedSaveMetadata struct {
 	System         *system
 	SystemPath     string
 	GamePath       string
+	ArtifactKind   saveArtifactKind
 	IsPSMemoryCard bool
 	MemoryCard     *memoryCardDetails
 }
@@ -72,7 +74,8 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detect
 		languageCodes = normalizeLanguageCodes(append(input.LanguageCodes, languageCodes...))
 	}
 
-	isPS := isConfirmedPS1MemoryCard(sys, input.Format, filename, input.Payload)
+	artifactKind := classifyPlayStationArtifact(sys, input.Format, filename, input.Payload)
+	isPS := artifactKind == saveArtifactPS1MemoryCard || artifactKind == saveArtifactPS2MemoryCard
 	cardName := ""
 	var memoryCard *memoryCardDetails
 	gamePath := displayTitle
@@ -80,7 +83,7 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detect
 		cardName = canonicalMemoryCardName(input.MemoryCard, input.SlotName, filename)
 		displayTitle = cardName
 		gamePath = cardName
-		memoryCard = parsePlayStationMemoryCard(input.Payload, filename, cardName)
+		memoryCard = parsePlayStationMemoryCard(sys, input.Payload, filename, cardName)
 		if memoryCard == nil {
 			memoryCard = &memoryCardDetails{Name: cardName}
 		}
@@ -106,6 +109,7 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detect
 			}
 			return "Unknown System"
 		}(), "Unknown System"),
+		ArtifactKind:   artifactKind,
 		GamePath:       sanitizeDisplayPathSegment(gamePath, "Unknown Game"),
 		IsPSMemoryCard: isPS,
 		MemoryCard:     memoryCard,
@@ -432,8 +436,6 @@ func isConfirmedPS1MemoryCard(sys *system, format, filename string, payload []by
 	if !isPlayStationExt(ext) {
 		if strings.Contains(strings.ToLower(strings.TrimSpace(format)), "mcr") {
 			ext = "mcr"
-		} else {
-			return false
 		}
 	}
 	return isLikelyPS1MemoryCard(payload, ext)
@@ -451,6 +453,12 @@ func isPlayStationExt(ext string) bool {
 func deriveMemoryCardName(slotName, filename string) string {
 	candidates := []string{slotName, filename}
 	for _, candidate := range candidates {
+		if match := mcdNumberPattern.FindStringSubmatch(candidate); len(match) >= 2 {
+			index, err := strconv.Atoi(match[1])
+			if err == nil && index > 0 {
+				return "Memory Card " + strconv.Itoa(index)
+			}
+		}
 		match := cardNumberPattern.FindStringSubmatch(candidate)
 		if len(match) >= 3 {
 			index, err := strconv.Atoi(match[2])
@@ -460,51 +468,6 @@ func deriveMemoryCardName(slotName, filename string) string {
 		}
 	}
 	return "Memory Card 1"
-}
-
-func parsePlayStationMemoryCard(payload []byte, filename, cardName string) *memoryCardDetails {
-	image := normalizedPS1MemoryCardImage(payload, strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), "."))
-	if len(image) < psMemoryCardBlockSize {
-		return nil
-	}
-
-	entries := make([]memoryCardEntry, 0, 8)
-	for dirIndex := 1; dirIndex <= psDirectoryEntries; dirIndex++ {
-		offset := dirIndex * psDirectoryEntrySize
-		if offset+psDirectoryEntrySize > len(image) {
-			break
-		}
-		entry := image[offset : offset+psDirectoryEntrySize]
-		state := entry[0]
-		productCode := extractPrintableASCII(entry[0x0a:0x16])
-		if !isLikelyUsedDirectoryEntry(state, productCode) {
-			continue
-		}
-
-		slot := dirIndex
-		blocks := countDirectoryBlocks(image, dirIndex)
-		if blocks <= 0 {
-			blocks = 1
-		}
-		title := parseMemoryCardEntryTitle(image, slot, productCode)
-		region := regionFromProductCode(productCode)
-		if region == regionUnknown {
-			region = detectRegionCode(title)
-		}
-
-		entries = append(entries, memoryCardEntry{
-			Title:       title,
-			Slot:        slot,
-			Blocks:      blocks,
-			ProductCode: productCode,
-			RegionCode:  normalizeRegionCode(region),
-		})
-	}
-
-	if len(entries) == 0 {
-		return &memoryCardDetails{Name: cardName}
-	}
-	return &memoryCardDetails{Name: cardName, Entries: entries}
 }
 
 func normalizedPS1MemoryCardImage(payload []byte, ext string) []byte {
@@ -527,18 +490,6 @@ func normalizedPS1MemoryCardImage(payload []byte, ext string) []byte {
 		}
 	}
 	return nil
-}
-
-func isLikelyUsedDirectoryEntry(state byte, productCode string) bool {
-	if strings.TrimSpace(productCode) != "" {
-		return true
-	}
-	switch state {
-	case 0x51, 0x52, 0x53, 0xA1, 0xA2, 0xA3:
-		return true
-	default:
-		return false
-	}
 }
 
 func countDirectoryBlocks(payload []byte, start int) int {
@@ -565,29 +516,6 @@ func countDirectoryBlocks(payload []byte, start int) int {
 	return count
 }
 
-func parseMemoryCardEntryTitle(payload []byte, slot int, productCode string) string {
-	offset := slot * psMemoryCardBlockSize
-	if offset >= len(payload) {
-		if productCode != "" {
-			return productCode
-		}
-		return "Unknown Save"
-	}
-
-	end := offset + 256
-	if end > len(payload) {
-		end = len(payload)
-	}
-	header := payload[offset:end]
-	title := extractLongestReadableASCII(header)
-	if title == "" {
-		if productCode != "" {
-			return productCode
-		}
-		return "Save Slot " + strconv.Itoa(slot)
-	}
-	return title
-}
 
 func extractLongestReadableASCII(data []byte) string {
 	best := ""
@@ -628,16 +556,16 @@ func extractPrintableASCII(data []byte) string {
 }
 
 func regionFromProductCode(code string) string {
-	normalized := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(code), "_", ""))
+	normalized := strings.ToUpper(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(code), "_", ""), "-", ""))
 	if normalized == "" {
 		return regionUnknown
 	}
 	switch {
-	case strings.HasPrefix(normalized, "SCUS"), strings.HasPrefix(normalized, "SLUS"):
+	case strings.HasPrefix(normalized, "SCUS"), strings.HasPrefix(normalized, "SLUS"), strings.HasPrefix(normalized, "BASLUS"), strings.HasPrefix(normalized, "BASCUS"):
 		return regionUS
-	case strings.HasPrefix(normalized, "SLES"), strings.HasPrefix(normalized, "SCES"), strings.HasPrefix(normalized, "SLED"), strings.HasPrefix(normalized, "SCED"):
+	case strings.HasPrefix(normalized, "SLES"), strings.HasPrefix(normalized, "SCES"), strings.HasPrefix(normalized, "SLED"), strings.HasPrefix(normalized, "SCED"), strings.HasPrefix(normalized, "BESLES"), strings.HasPrefix(normalized, "BESCES"):
 		return regionEU
-	case strings.HasPrefix(normalized, "SLPS"), strings.HasPrefix(normalized, "SCPS"), strings.HasPrefix(normalized, "SLPM"), strings.HasPrefix(normalized, "SCPM"), strings.HasPrefix(normalized, "PAPX"):
+	case strings.HasPrefix(normalized, "SLPS"), strings.HasPrefix(normalized, "SCPS"), strings.HasPrefix(normalized, "SLPM"), strings.HasPrefix(normalized, "SCPM"), strings.HasPrefix(normalized, "PAPX"), strings.HasPrefix(normalized, "BISLPS"), strings.HasPrefix(normalized, "BASLPM"):
 		return regionJP
 	default:
 		return regionUnknown

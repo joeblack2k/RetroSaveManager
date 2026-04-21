@@ -470,7 +470,7 @@ func canonicalSummaryForRecord(record saveRecord) saveSummary {
 	summary.Game.RegionFlag = summary.RegionFlag
 	summary.Game.LanguageCodes = summary.LanguageCodes
 	summary.Game.System = track.System
-	if !track.IsPS1Card {
+	if !track.IsMemoryCard {
 		summary.MemoryCard = nil
 	}
 	if strings.TrimSpace(summary.CoverArtURL) == "" {

@@ -39,11 +39,14 @@ type game struct {
 }
 
 type memoryCardEntry struct {
-	Title       string `json:"title"`
-	Slot        int    `json:"slot"`
-	Blocks      int    `json:"blocks"`
-	ProductCode string `json:"productCode,omitempty"`
-	RegionCode  string `json:"regionCode,omitempty"`
+	Title         string `json:"title"`
+	Slot          int    `json:"slot"`
+	Blocks        int    `json:"blocks"`
+	ProductCode   string `json:"productCode,omitempty"`
+	RegionCode    string `json:"regionCode,omitempty"`
+	DirectoryName string `json:"directoryName,omitempty"`
+	IconDataURL   string `json:"iconDataUrl,omitempty"`
+	SizeBytes     int    `json:"sizeBytes,omitempty"`
 }
 
 type memoryCardDetails struct {

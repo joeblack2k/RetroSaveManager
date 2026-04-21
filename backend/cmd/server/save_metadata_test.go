@@ -49,9 +49,12 @@ func TestParsePlayStationMemoryCard(t *testing.T) {
 	copy(payload[dirOffset+0x0a:dirOffset+0x16], []byte("SCUS_941.63"))
 
 	blockOffset := psMemoryCardBlockSize
+	payload[blockOffset+0x60] = 0x1F
+	payload[blockOffset+0x61] = 0x00
+	payload[blockOffset+0x80] = 0x11
 	copy(payload[blockOffset+16:blockOffset+64], []byte("Final Fantasy VII Save"))
 
-	card := parsePlayStationMemoryCard(payload, "memory_card_1.mcr", "Memory Card 1")
+	card := parsePlayStationMemoryCard(supportedSystemFromSlug("psx"), payload, "memory_card_1.mcr", "Memory Card 1")
 	if card == nil {
 		t.Fatal("expected memory card details")
 	}
@@ -71,6 +74,9 @@ func TestParsePlayStationMemoryCard(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(entry.Title), "final") {
 		t.Fatalf("unexpected title: %q", entry.Title)
+	}
+	if entry.IconDataURL == "" {
+		t.Fatal("expected PS1 entry icon thumbnail")
 	}
 }
 
@@ -128,6 +134,51 @@ func TestNormalizeSaveInputDoesNotTreatNonPS1SonySaveAsMemoryCard(t *testing.T) 
 	}
 	if normalized.DisplayTitle == "Memory Card 1" {
 		t.Fatalf("unexpected memory card title for non-PS1 save")
+	}
+}
+
+func TestNormalizeSaveInputRejectsPlayStationSaveStateNoise(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:   "Castlevania - Symphony of the Night (USA)_1.ss",
+		Payload:    make([]byte, 4*1024*1024),
+		Game:       game{Name: "Castlevania - Symphony of the Night"},
+		SystemSlug: "psx",
+	})
+	if !result.Rejected {
+		t.Fatal("expected PS1 save state to be rejected")
+	}
+	if result.RejectReason == "" {
+		t.Fatal("expected PS1 save state rejection reason")
+	}
+}
+
+func TestNormalizeSaveInputAcceptsRawPS1CardWithSavExtension(t *testing.T) {
+	a := &app{}
+	payload := make([]byte, ps1MemoryCardTotalSize)
+	copy(payload[:2], []byte("MC"))
+	dirOffset := psDirectoryEntrySize
+	payload[dirOffset] = 0x51
+	copy(payload[dirOffset+0x0a:dirOffset+0x16], []byte("SCUS_941.63"))
+	blockOffset := psMemoryCardBlockSize
+	payload[blockOffset+2] = 0x11
+	payload[blockOffset+0x60] = 0x1F
+	payload[blockOffset+0x61] = 0x00
+	payload[blockOffset+0x80] = 0x11
+	copy(payload[blockOffset+4:blockOffset+4+len("Final Fantasy VII")], []byte("Final Fantasy VII"))
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename: "psx.sav",
+		Payload:  payload,
+		Game:     game{Name: "PlayStation Save"},
+	})
+	if result.Rejected {
+		t.Fatalf("expected raw PS1 card to be accepted, got reject=%q", result.RejectReason)
+	}
+	if result.Input.SystemSlug != "psx" {
+		t.Fatalf("expected PS1 card system slug, got %q", result.Input.SystemSlug)
+	}
+	if result.Input.MemoryCard == nil || len(result.Input.MemoryCard.Entries) != 1 {
+		t.Fatalf("expected parsed PS1 memory card entries, got %#v", result.Input.MemoryCard)
 	}
 }
 
