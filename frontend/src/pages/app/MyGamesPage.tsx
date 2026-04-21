@@ -185,7 +185,6 @@ export function MyGamesPage(): JSX.Element {
               <th>Game</th>
               <th>#</th>
               <th>Size</th>
-              <th>Version</th>
               <th>Date</th>
               <th>Download</th>
             </tr>
@@ -202,18 +201,18 @@ export function MyGamesPage(): JSX.Element {
                     <div>
                       <strong>{row.gameName}</strong>
                       <p>
-                        {row.systemName} · {row.saveCount} save{row.saveCount === 1 ? "" : "s"}
+                        {row.systemName} · v{row.latestVersion}
                       </p>
                     </div>
                   </div>
                 </td>
                 <td>{row.saveCount}</td>
                 <td>{formatBytes(row.totalBytes)}</td>
-                <td>v{row.latestVersion}</td>
                 <td>{formatRelativeDate(row.latestCreatedAt)}</td>
                 <td>
                   <a className="saves-download-btn" href={row.downloadUrl}>
-                    Download
+                    <span aria-hidden="true">⇩</span>
+                    <span className="sr-only">Download {row.gameName}</span>
                   </a>
                 </td>
               </tr>

@@ -4,7 +4,6 @@ import { TopNav } from "../../components/TopNav";
 const publicNav = [
   { label: "Download", to: "/download" },
   { label: "Getting Started", to: "/getting-started" },
-  { label: "Roadmap", to: "/roadmap" },
   { label: "About", to: "/about" },
   { label: "Privacy", to: "/privacy" },
   { label: "Login", to: "/login" }
@@ -16,11 +15,11 @@ export function PublicLayout(): JSX.Element {
       <header className="hero-header">
         <div className="brand-row">
           <Link to="/" className="brand-link">
-            RetroSaveManager
+            1Retro
           </Link>
           <TopNav items={publicNav} />
         </div>
-        <p className="hero-subtitle">Self-hosted save synchronization for MiSTer, RetroArch, OnionOS, OpenEmu and more.</p>
+        <p className="hero-subtitle">Self-hosted save sync for MiSTer, RetroArch, OnionOS, OpenEmu and more.</p>
       </header>
       <main className="content-wrap">
         <Outlet />

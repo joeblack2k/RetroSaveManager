@@ -7,6 +7,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+ARG VITE_AUTH_REQUIRED=false
+ENV VITE_AUTH_REQUIRED=${VITE_AUTH_REQUIRED}
 RUN npm run build
 
 FROM nginx:1.27-alpine
