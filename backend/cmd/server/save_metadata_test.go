@@ -42,7 +42,8 @@ func TestCleanupDisplayTitleRegionAndLanguagesStripsTrailingCounterNoise(t *test
 }
 
 func TestParsePlayStationMemoryCard(t *testing.T) {
-	payload := make([]byte, psMemoryCardBlockSize*2)
+	payload := make([]byte, ps1MemoryCardTotalSize)
+	copy(payload[:2], []byte("MC"))
 	dirOffset := psDirectoryEntrySize // slot 1
 	payload[dirOffset] = 0x51
 	copy(payload[dirOffset+0x0a:dirOffset+0x16], []byte("SCUS_941.63"))
@@ -50,7 +51,7 @@ func TestParsePlayStationMemoryCard(t *testing.T) {
 	blockOffset := psMemoryCardBlockSize
 	copy(payload[blockOffset+16:blockOffset+64], []byte("Final Fantasy VII Save"))
 
-	card := parsePlayStationMemoryCard(payload, "Memory Card 1")
+	card := parsePlayStationMemoryCard(payload, "memory_card_1.mcr", "Memory Card 1")
 	if card == nil {
 		t.Fatal("expected memory card details")
 	}
@@ -93,7 +94,8 @@ func TestNormalizeSaveInputSetsDisplayAndCardPath(t *testing.T) {
 		t.Fatalf("unexpected game path: %q", regular.GamePath)
 	}
 
-	cardPayload := make([]byte, psMemoryCardBlockSize*2)
+	cardPayload := make([]byte, ps1MemoryCardTotalSize)
+	copy(cardPayload[:2], []byte("MC"))
 	cardOffset := psDirectoryEntrySize
 	cardPayload[cardOffset] = 0x51
 	copy(cardPayload[cardOffset+0x0a:cardOffset+0x16], []byte("SLES_123.45"))
@@ -110,6 +112,22 @@ func TestNormalizeSaveInputSetsDisplayAndCardPath(t *testing.T) {
 	}
 	if ps.MemoryCard.Name != "Memory Card 1" {
 		t.Fatalf("unexpected memory card name: %q", ps.MemoryCard.Name)
+	}
+}
+
+func TestNormalizeSaveInputDoesNotTreatNonPS1SonySaveAsMemoryCard(t *testing.T) {
+	a := &app{}
+	normalized := a.normalizeSaveInput(saveCreateInput{
+		Filename:   "PS3LOGO.DAT",
+		Payload:    []byte{0x01, 0x02, 0x03, 0x04},
+		Game:       game{Name: "PS3LOGO"},
+		SystemSlug: "ps3",
+	})
+	if normalized.MemoryCard != nil {
+		t.Fatalf("expected non-PS1 save to avoid memory card metadata, got %#v", normalized.MemoryCard)
+	}
+	if normalized.DisplayTitle == "Memory Card 1" {
+		t.Fatalf("unexpected memory card title for non-PS1 save")
 	}
 }
 
@@ -131,17 +149,17 @@ func TestNormalizeSaveInputDetectsLanguageAndRegionFromPayload(t *testing.T) {
 	}
 }
 
-func TestDetectSaveSystemArcadeExamples(t *testing.T) {
+func TestDetectSaveSystemDoesNotPromoteArcadeFromTitleOnly(t *testing.T) {
 	daytona := detectSaveSystem(saveSystemDetectionInput{
 		Filename:     "daytona.ram",
 		DisplayTitle: "Daytona USA",
 		Payload:      []byte{0x01, 0x02, 0x03, 0x04, 0x05},
 	})
-	if daytona.Slug != "arcade" {
-		t.Fatalf("expected arcade for daytona.ram, got %q", daytona.Slug)
+	if daytona.System != nil {
+		t.Fatalf("expected no trusted system for title-only arcade hint, got %q", daytona.Slug)
 	}
-	if daytona.System == nil || daytona.System.Slug != "arcade" {
-		t.Fatalf("expected arcade system details, got %#v", daytona.System)
+	if !daytona.Noise {
+		t.Fatalf("expected title-only generic ram file to be rejected as noise")
 	}
 
 	ghostHouse := detectSaveSystem(saveSystemDetectionInput{
@@ -149,7 +167,149 @@ func TestDetectSaveSystemArcadeExamples(t *testing.T) {
 		DisplayTitle: "Ghost House",
 		Payload:      []byte{0x12, 0x99, 0x44, 0x88},
 	})
-	if ghostHouse.Slug != "arcade" {
-		t.Fatalf("expected arcade for Ghost House.sav, got %q", ghostHouse.Slug)
+	if ghostHouse.System != nil {
+		t.Fatalf("expected no trusted system for title-only arcade hint, got %q", ghostHouse.Slug)
+	}
+}
+
+func TestDetectSaveSystemKeepsDeclaredSNESForGenericExtension(t *testing.T) {
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:           "The Legend of Zelda - A Link to the Past (USA).sav",
+		DisplayTitle:       "The Legend of Zelda - A Link to the Past",
+		Payload:            []byte{0x01, 0x00, 0x01, 0x00},
+		DeclaredSystemSlug: "snes",
+	})
+	if detected.Slug != "snes" {
+		t.Fatalf("expected declared SNES system to win, got %q", detected.Slug)
+	}
+	if detected.System == nil || detected.System.Slug != "snes" {
+		t.Fatalf("expected SNES system details, got %#v", detected.System)
+	}
+}
+
+func TestDetectSaveSystemUsesNintendoDSTitleHintWhenStoredSystemFallsBack(t *testing.T) {
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:             "New Super Mario Bros. (USA).sav",
+		DisplayTitle:         "New Super Mario Bros.",
+		Payload:              make([]byte, 8192),
+		DeclaredSystemSlug:   "gameboy",
+		DeclaredSystem:       &system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"},
+		DeclaredFallbackOnly: true,
+	})
+	if detected.Slug != "nds" {
+		t.Fatalf("expected Nintendo DS title hint to win over stored fallback, got %q", detected.Slug)
+	}
+	if detected.System == nil || detected.System.Slug != "nds" {
+		t.Fatalf("expected Nintendo DS system details, got %#v", detected.System)
+	}
+}
+
+func TestDetectSaveSystemRejectsGenericFallbackSlotTitles(t *testing.T) {
+	tests := []struct {
+		filename string
+		title    string
+	}{
+		{filename: "Autosave6.sav", title: "Autosave6"},
+		{filename: "01 - Channel 9 Headquarters.sav", title: "01 - Channel 9 Headquarters"},
+	}
+
+	for _, tc := range tests {
+		detected := detectSaveSystem(saveSystemDetectionInput{
+			Filename:             tc.filename,
+			DisplayTitle:         tc.title,
+			Payload:              make([]byte, 8192),
+			DeclaredSystemSlug:   "nds",
+			DeclaredSystem:       &system{ID: 900004, Name: "Nintendo DS", Slug: "nds"},
+			DeclaredFallbackOnly: true,
+		})
+		if detected.System != nil || detected.Slug != "unknown-system" {
+			t.Fatalf("expected %q to be rejected as fallback noise, got slug=%q system=%#v", tc.filename, detected.Slug, detected.System)
+		}
+		if !detected.Noise {
+			t.Fatalf("expected %q to be flagged as noise", tc.filename)
+		}
+	}
+}
+
+func TestDetectSaveSystemRejectsStoredFallbackArcadeWithoutMachineEvidence(t *testing.T) {
+	tests := []struct {
+		filename string
+		title    string
+	}{
+		{filename: "daytona.ram", title: "daytona"},
+		{filename: "Ghost House.sav", title: "Ghost House"},
+		{filename: "Arcade.sav", title: "Arcade"},
+	}
+
+	for _, tc := range tests {
+		detected := detectSaveSystem(saveSystemDetectionInput{
+			Filename:             tc.filename,
+			DisplayTitle:         tc.title,
+			Payload:              make([]byte, 16384),
+			DeclaredSystemSlug:   "arcade",
+			DeclaredSystem:       &system{ID: 900001, Name: "Arcade", Slug: "arcade"},
+			DeclaredFallbackOnly: true,
+		})
+		if detected.System != nil || detected.Slug != "unknown-system" {
+			t.Fatalf("expected %q to be rejected without arcade machine evidence, got slug=%q system=%#v", tc.filename, detected.Slug, detected.System)
+		}
+		if !detected.Noise {
+			t.Fatalf("expected %q to be flagged as noise", tc.filename)
+		}
+	}
+}
+
+func TestDetectSaveSystemRecognizesStrictNeoGeoSave(t *testing.T) {
+	payload := make([]byte, neoGeoCompoundSaveSize)
+	for i := 0; i < neoGeoSaveRAMSize; i++ {
+		payload[i] = 0xff
+	}
+	for i := neoGeoSaveRAMSize; i < len(payload); i += 2 {
+		payload[i] = byte((i / 2) % 251)
+	}
+
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:     "doubledr.sav",
+		DisplayTitle: "doubledr",
+		Payload:      payload,
+	})
+	if detected.Slug != "neogeo" {
+		t.Fatalf("expected strict neo geo detection, got %q", detected.Slug)
+	}
+	if detected.System == nil || detected.System.Slug != "neogeo" {
+		t.Fatalf("expected neo geo system details, got %#v", detected.System)
+	}
+}
+
+func TestDetectSaveSystemDoesNotPromoteNeoGeoWithoutKnownSetName(t *testing.T) {
+	payload := make([]byte, neoGeoCompoundSaveSize)
+	for i := 0; i < neoGeoSaveRAMSize; i++ {
+		payload[i] = 0xff
+	}
+	for i := neoGeoSaveRAMSize; i < len(payload); i += 2 {
+		payload[i] = byte((i / 2) % 251)
+	}
+
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:     "mystery.sav",
+		DisplayTitle: "mystery",
+		Payload:      payload,
+	})
+	if detected.System != nil || detected.Slug != "unknown-system" {
+		t.Fatalf("expected unknown system without trusted neo geo set-name, got slug=%q system=%#v", detected.Slug, detected.System)
+	}
+}
+
+func TestDetectSaveSystemKeepsDedicatedArcadeExtension(t *testing.T) {
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:     "outrun.nvram",
+		DisplayTitle: "OutRun",
+		Payload:      make([]byte, 8192),
+	})
+	if detected.Slug != "arcade" {
+		t.Fatalf("expected arcade for dedicated arcade extension, got %q", detected.Slug)
+	}
+	if detected.System == nil || detected.System.Slug != "arcade" {
+		t.Fatalf("expected arcade system details, got %#v", detected.System)
 	}
 }
