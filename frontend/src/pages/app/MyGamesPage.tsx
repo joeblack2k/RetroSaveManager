@@ -155,7 +155,7 @@ export function MyGamesPage(): JSX.Element {
           </div>
         </div>
         <div className="saves-board__actions">
-          <select className="saves-system-select" value={systemFilter} onChange={handleSystemFilterChange} aria-label="System filter">
+          <select className="saves-system-select" value={systemFilter} onChange={handleSystemFilterChange} aria-label="System filter" name="systemFilter">
             <option value="all">All systems</option>
             {systemOptions.map((option) => (
               <option key={option.slug} value={option.slug}>
@@ -180,7 +180,7 @@ export function MyGamesPage(): JSX.Element {
           <thead>
             <tr>
               <th className="saves-table__check">
-                <input type="checkbox" aria-label="Select all rows" />
+                <input type="checkbox" aria-label="Select all rows" name="selectAllSaves" />
               </th>
               <th>Game</th>
               <th>#</th>
@@ -194,7 +194,7 @@ export function MyGamesPage(): JSX.Element {
             {rows.map((row) => (
               <tr key={row.key}>
                 <td className="saves-table__check">
-                  <input type="checkbox" aria-label={`Select ${row.gameName}`} />
+                  <input type="checkbox" aria-label={`Select ${row.gameName}`} name={`select-${row.key}`} />
                 </td>
                 <td>
                   <div className="saves-game-cell">
