@@ -25,7 +25,7 @@ export function AppLayout(): JSX.Element {
     <div className="app-shell">
       <aside className="app-sidebar">
         <Link to="/" className="sidebar-brand">
-          <span className="sidebar-brand__glyph">1</span>
+          <span className="sidebar-brand__glyph">R</span>
           <span>RSM</span>
         </Link>
 
