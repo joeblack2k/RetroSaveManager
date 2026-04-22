@@ -159,6 +159,21 @@ func canonicalHistoryKeyForRecord(record saveRecord) string {
 	return canonicalTrackKey(canonicalTrackFromRecord(record))
 }
 
+func canonicalListKeyForRecord(record saveRecord) string {
+	if runtimeProfile, cardSlot, _, ok := playStationProjectionInfoFromRecord(record); ok {
+		_ = runtimeProfile
+		systemSlug := canonicalOptionalSegment(saveRecordSystemSlug(record))
+		if systemSlug == "" {
+			systemSlug = canonicalOptionalSegment(record.Summary.SystemSlug)
+		}
+		if systemSlug == "" {
+			systemSlug = "unknown-system"
+		}
+		return canonicalSegment(systemSlug, "unknown-system") + "::card::" + canonicalSegment(cardSlot, "memory-card-1")
+	}
+	return canonicalHistoryKeyForRecord(record)
+}
+
 func canonicalVersionKeyForRecord(record saveRecord) string {
 	if rom := strings.TrimSpace(record.ROMSHA1); rom != "" {
 		return "rom:" + rom + "::slot:" + normalizedSlot(record.SlotName)

@@ -10,21 +10,21 @@ import (
 )
 
 type playStationBackfillOptions struct {
-	DryRun               bool
-	ReplaceRaw           bool
-	PSXProfile           string
-	PS2Profile           string
-	DefaultPSXCardSlot   string
-	DefaultPS2CardSlot   string
+	DryRun             bool
+	ReplaceRaw         bool
+	PSXProfile         string
+	PS2Profile         string
+	DefaultPSXCardSlot string
+	DefaultPS2CardSlot string
 }
 
 type playStationBackfillResult struct {
-	Scanned   int                           `json:"scanned"`
+	Scanned    int                          `json:"scanned"`
 	Candidates int                          `json:"candidates"`
-	Migrated  int                           `json:"migrated"`
-	Removed   int                           `json:"removed"`
-	Skipped   int                           `json:"skipped"`
-	Failures  []playStationBackfillFailure  `json:"failures,omitempty"`
+	Migrated   int                          `json:"migrated"`
+	Removed    int                          `json:"removed"`
+	Skipped    int                          `json:"skipped"`
+	Failures   []playStationBackfillFailure `json:"failures,omitempty"`
 }
 
 type playStationBackfillFailure struct {

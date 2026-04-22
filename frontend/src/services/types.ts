@@ -36,6 +36,7 @@ export type SaveGame = {
 };
 
 export type MemoryCardEntry = {
+  logicalKey?: string;
   title: string;
   slot: number;
   blocks: number;
@@ -44,6 +45,12 @@ export type MemoryCardEntry = {
   directoryName?: string;
   iconDataUrl?: string;
   sizeBytes?: number;
+  saveCount?: number;
+  latestVersion?: number;
+  latestSizeBytes?: number;
+  totalSizeBytes?: number;
+  latestCreatedAt?: string;
+  portable?: boolean;
 };
 
 export type MemoryCardDetails = {

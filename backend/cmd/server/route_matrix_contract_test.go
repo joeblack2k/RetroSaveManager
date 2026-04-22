@@ -170,6 +170,7 @@ func buildCompatRequest(t *testing.T, h *contractHarness, prefix string, route c
 			body, contentType := multipartBody(t, map[string]string{
 				"app_password": helperKey,
 				"rom_sha1":     "compat-rom",
+				"system":       "gameboy",
 				"slotName":     "default",
 				"device_type":  "retroarch",
 				"fingerprint":  "seed-1",

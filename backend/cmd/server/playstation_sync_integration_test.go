@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -87,6 +88,125 @@ func TestPlayStationProjectionImportBuildsPS2Projection(t *testing.T) {
 	}
 	if projection.SaveRecordID != record.Summary.ID {
 		t.Fatalf("unexpected PS2 projection save record id: %q", projection.SaveRecordID)
+	}
+}
+
+func TestPlayStationLogicalHistoryDownloadAndDeletePS2Entry(t *testing.T) {
+	h := newContractHarness(t)
+	payload := mustDecodePS2Fixture(t)
+	input := saveCreateInput{
+		Filename: "Mcd001.ps2",
+		Payload:  payload,
+		Game:     game{Name: "PCSX2 Card", System: supportedSystemFromSlug("ps2")},
+		Format:   "ps2",
+		SlotName: "Memory Card 1",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "pcsx2", "deck-ps2")
+	if err != nil {
+		t.Fatalf("create ps2 projection: %v", err)
+	}
+	if record.Summary.MemoryCard == nil || len(record.Summary.MemoryCard.Entries) < 2 {
+		t.Fatalf("expected ps2 logical entries on projection, got %#v", record.Summary.MemoryCard)
+	}
+	logicalKey := strings.TrimSpace(record.Summary.MemoryCard.Entries[0].LogicalKey)
+	if logicalKey == "" {
+		t.Fatal("expected first ps2 entry to expose logicalKey")
+	}
+
+	historyPath := "/save?saveId=" + url.QueryEscape(record.Summary.ID) + "&psLogicalKey=" + url.QueryEscape(logicalKey)
+	history := h.request(http.MethodGet, historyPath, nil)
+	assertStatus(t, history, http.StatusOK)
+	historyBody := decodeJSONMap(t, history.Body)
+	if mustString(t, historyBody["displayTitle"], "displayTitle") != "Burnout 3" {
+		t.Fatalf("expected Burnout 3 logical history, got %s", prettyJSON(historyBody))
+	}
+	versions := mustArray(t, historyBody["versions"], "versions")
+	if len(versions) != 1 {
+		t.Fatalf("expected 1 logical version, got %d", len(versions))
+	}
+
+	download := h.request(http.MethodGet, "/saves/download?id="+url.QueryEscape(record.Summary.ID)+"&psLogicalKey="+url.QueryEscape(logicalKey), nil)
+	assertStatus(t, download, http.StatusOK)
+	if got := download.Header().Get("Content-Type"); !strings.Contains(got, "application/zip") {
+		t.Fatalf("expected zip download for ps2 logical save, got %q", got)
+	}
+
+	deleted := h.request(http.MethodDelete, "/save?id="+url.QueryEscape(record.Summary.ID)+"&psLogicalKey="+url.QueryEscape(logicalKey), nil)
+	assertStatus(t, deleted, http.StatusOK)
+
+	store := h.app.playStationSyncStore()
+	latestID, _, ok := store.latestProjectionSaveRecord("ps2/pcsx2", "Memory Card 1")
+	if !ok {
+		t.Fatal("expected latest ps2 projection after logical delete")
+	}
+	latest, ok := h.app.findSaveRecordByID(latestID)
+	if !ok {
+		t.Fatalf("expected latest ps2 projection save record %q", latestID)
+	}
+	if latest.Summary.MemoryCard == nil || len(latest.Summary.MemoryCard.Entries) != 1 {
+		t.Fatalf("expected deleted logical save to disappear from projection, got %#v", latest.Summary.MemoryCard)
+	}
+	if latest.Summary.MemoryCard.Entries[0].Title != "Mortal Kombat Shaolin Monks" {
+		t.Fatalf("unexpected remaining ps2 entry after logical delete: %#v", latest.Summary.MemoryCard.Entries)
+	}
+}
+
+func TestPlayStationLogicalRollbackPromotesHistoricalRevision(t *testing.T) {
+	h := newContractHarness(t)
+	firstPayload := makeTestPS1Card(t, "SCUS_941.63", "Final Fantasy VII Save")
+	secondPayload := append([]byte(nil), firstPayload...)
+	secondPayload[psMemoryCardBlockSize+0x90] = 0x7A
+
+	input := saveCreateInput{
+		Filename: "memory_card_1.mcr",
+		Payload:  firstPayload,
+		Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+		Format:   "mcr",
+		SlotName: "Memory Card 1",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "deck-psx")
+	if err != nil {
+		t.Fatalf("create first ps1 projection: %v", err)
+	}
+
+	secondInput := input
+	secondInput.Payload = secondPayload
+	secondPreview := h.app.normalizeSaveInputDetailed(secondInput)
+	record, _, err = h.app.createPlayStationProjectionSave(secondInput, secondPreview, "retroarch", "deck-psx")
+	if err != nil {
+		t.Fatalf("create second ps1 projection: %v", err)
+	}
+
+	logicalKey := strings.TrimSpace(record.Summary.MemoryCard.Entries[0].LogicalKey)
+	if logicalKey == "" {
+		t.Fatal("expected ps1 entry logicalKey")
+	}
+
+	historyPath := "/save?saveId=" + url.QueryEscape(record.Summary.ID) + "&psLogicalKey=" + url.QueryEscape(logicalKey)
+	before := h.request(http.MethodGet, historyPath, nil)
+	assertStatus(t, before, http.StatusOK)
+	beforeBody := decodeJSONMap(t, before.Body)
+	beforeVersions := mustArray(t, beforeBody["versions"], "versions")
+	if len(beforeVersions) != 2 {
+		t.Fatalf("expected 2 ps1 logical versions before rollback, got %d", len(beforeVersions))
+	}
+	rollbackRevisionID := mustString(t, mustObject(t, beforeVersions[1], "versions[1]")["id"], "versions[1].id")
+	rollbackReq := `{"saveId":"` + record.Summary.ID + `","psLogicalKey":"` + logicalKey + `","revisionId":"` + rollbackRevisionID + `"}`
+	rollback := h.json(http.MethodPost, "/save/rollback", strings.NewReader(rollbackReq))
+	assertStatus(t, rollback, http.StatusOK)
+
+	after := h.request(http.MethodGet, historyPath, nil)
+	assertStatus(t, after, http.StatusOK)
+	afterBody := decodeJSONMap(t, after.Body)
+	afterVersions := mustArray(t, afterBody["versions"], "versions")
+	if len(afterVersions) != 3 {
+		t.Fatalf("expected 3 ps1 logical versions after rollback, got %d", len(afterVersions))
+	}
+	newest := mustObject(t, afterVersions[0], "versions[0]")
+	if mustNumber(t, newest["version"], "versions[0].version") != 3 {
+		t.Fatalf("expected rollback to create logical version 3, got %s", prettyJSON(newest))
 	}
 }
 

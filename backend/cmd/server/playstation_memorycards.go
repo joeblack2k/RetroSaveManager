@@ -20,7 +20,7 @@ import (
 type saveArtifactKind string
 
 const (
-	saveArtifactGeneric        saveArtifactKind = "generic"
+	saveArtifactGeneric       saveArtifactKind = "generic"
 	saveArtifactPS1MemoryCard saveArtifactKind = "ps1-memory-card"
 	saveArtifactPS2MemoryCard saveArtifactKind = "ps2-memory-card"
 	saveArtifactUnsupported   saveArtifactKind = "unsupported"

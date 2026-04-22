@@ -70,6 +70,7 @@ export async function getSaveHistory(params: {
   gameId?: number;
   systemSlug?: string;
   displayTitle?: string;
+  psLogicalKey?: string;
 }): Promise<SaveHistoryResponse> {
   const search = new URLSearchParams();
   if (params.saveId) {
@@ -84,20 +85,31 @@ export async function getSaveHistory(params: {
   if (params.displayTitle) {
     search.set("displayTitle", params.displayTitle);
   }
+  if (params.psLogicalKey) {
+    search.set("psLogicalKey", params.psLogicalKey);
+  }
   const suffix = search.toString();
   return apiFetchJSON<SaveHistoryResponse>(`/save${suffix ? `?${suffix}` : ""}`);
 }
 
-export function rollbackSave(saveId: string): Promise<{ success: boolean; sourceSaveId: string; save: SaveSummary }> {
+export function rollbackSave(params: {
+  saveId: string;
+  psLogicalKey?: string;
+  revisionId?: string;
+}): Promise<{ success: boolean; sourceSaveId: string; save: SaveSummary }> {
   return apiFetchJSON("/save/rollback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ saveId })
+    body: JSON.stringify(params)
   });
 }
 
-export function deleteSave(id: string): Promise<{ success: boolean; remainingVersions: number }> {
-  return apiFetchJSON(`/save?id=${encodeURIComponent(id)}`, {
+export function deleteSave(id: string, options?: { psLogicalKey?: string }): Promise<{ success: boolean; remainingVersions: number }> {
+  const search = new URLSearchParams({ id });
+  if (options?.psLogicalKey) {
+    search.set("psLogicalKey", options.psLogicalKey);
+  }
+  return apiFetchJSON(`/save?${search.toString()}`, {
     method: "DELETE"
   });
 }

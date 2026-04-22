@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { apiDownloadURL } from "../../services/apiClient";
-import { deleteManySaves, getCurrentUser, listSaves } from "../../services/retrosaveApi";
+import { deleteManySaves, deleteSave, getCurrentUser, listSaves } from "../../services/retrosaveApi";
 import type { SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
 
@@ -12,6 +12,7 @@ type SaveRow = {
   gameID: number;
   primarySaveID: string;
   gameName: string;
+  coverArtUrl: string | null;
   regionCode: string;
   regionFlag: string;
   languageCodes: string[];
@@ -24,6 +25,9 @@ type SaveRow = {
   latestCreatedAt: string;
   latestVersion: number;
   downloadUrl: string;
+  isPlayStationEntry: boolean;
+  psLogicalKey?: string;
+  sourceCardName?: string;
 };
 
 type ConsoleGroup = {
@@ -51,85 +55,7 @@ export function MyGamesPage(): JSX.Element {
     if (!data) {
       return [];
     }
-    const grouped = new Map<string, SaveRow & { saveIDs: string[] }>();
-
-    for (const save of data.saves) {
-      const systemInfo = detectConsoleForSave(save);
-      const systemSlug = systemInfo.slug;
-      const systemName = systemInfo.name;
-      const rawName = save.displayTitle?.trim() || save.game.displayTitle?.trim() || save.game.name?.trim() || "Unknown game";
-      const gameName = cleanGameTitle(rawName);
-      const regionCode = normalizeRegionCode((save.regionCode || save.game.regionCode || "UNKNOWN").toString());
-      const languageCodes = mergeLanguageCodes(save.languageCodes, save.game.languageCodes, extractLanguageCodes(rawName));
-      const key = `${systemSlug}:${save.game.id}:${gameName}`;
-      const createdAt = save.createdAt || new Date(0).toISOString();
-
-      const existing = grouped.get(key);
-      if (!existing) {
-        const saveCount = save.saveCount && save.saveCount > 0 ? save.saveCount : 1;
-        const latestSizeBytes = save.latestSizeBytes && save.latestSizeBytes > 0 ? save.latestSizeBytes : save.fileSize;
-        const totalBytes = save.totalSizeBytes && save.totalSizeBytes > 0 ? save.totalSizeBytes : save.fileSize;
-        const latestVersion = save.latestVersion && save.latestVersion > 0 ? save.latestVersion : save.version;
-
-        grouped.set(key, {
-          key,
-          gameID: save.game.id,
-          primarySaveID: save.id,
-          gameName,
-          regionCode,
-          regionFlag: regionToFlagEmoji(regionCode),
-          languageCodes,
-          systemName,
-          systemSlug,
-          saveCount,
-          latestSizeBytes,
-          totalBytes,
-          latestCreatedAt: createdAt,
-          latestVersion,
-          saveIDs: [save.id],
-          downloadUrl: ""
-        });
-        continue;
-      }
-
-      existing.saveCount = Math.max(existing.saveCount, save.saveCount && save.saveCount > 0 ? save.saveCount : existing.saveCount + 1);
-      existing.latestSizeBytes = Math.max(existing.latestSizeBytes, save.latestSizeBytes && save.latestSizeBytes > 0 ? save.latestSizeBytes : save.fileSize);
-      existing.totalBytes = Math.max(existing.totalBytes, save.totalSizeBytes && save.totalSizeBytes > 0 ? save.totalSizeBytes : existing.totalBytes + save.fileSize);
-      existing.latestVersion = Math.max(existing.latestVersion, save.latestVersion && save.latestVersion > 0 ? save.latestVersion : save.version);
-      existing.regionCode = pickPreferredRegionCode(existing.regionCode, regionCode);
-      existing.regionFlag = regionToFlagEmoji(existing.regionCode);
-      existing.languageCodes = mergeLanguageCodes(existing.languageCodes, languageCodes);
-
-      if (new Date(createdAt).getTime() > new Date(existing.latestCreatedAt).getTime()) {
-        existing.latestCreatedAt = createdAt;
-        existing.primarySaveID = save.id;
-      }
-      existing.saveIDs.push(save.id);
-    }
-
-    const list = [...grouped.values()].map((row) => ({
-      key: row.key,
-      gameID: row.gameID,
-      primarySaveID: row.primarySaveID,
-      gameName: row.gameName,
-      regionCode: row.regionCode,
-      regionFlag: row.regionFlag,
-      languageCodes: row.languageCodes,
-      systemName: row.systemName,
-      systemSlug: row.systemSlug,
-      saveIDs: row.saveIDs,
-      saveCount: row.saveCount,
-      latestSizeBytes: row.latestSizeBytes,
-      totalBytes: row.totalBytes,
-      latestCreatedAt: row.latestCreatedAt,
-      latestVersion: row.latestVersion,
-      downloadUrl: row.saveIDs.length === 1
-        ? apiDownloadURL(`/saves/download?id=${encodeURIComponent(row.saveIDs[0])}`)
-        : apiDownloadURL(`/saves/download_many?ids=${encodeURIComponent(row.saveIDs.join(","))}`)
-    }));
-
-    list.sort((a, b) => new Date(b.latestCreatedAt).getTime() - new Date(a.latestCreatedAt).getTime());
-    return list;
+    return buildSaveRows(data.saves);
   }, [data]);
 
   const consoleGroups = useMemo<ConsoleGroup[]>(() => {
@@ -181,7 +107,11 @@ export function MyGamesPage(): JSX.Element {
     setDeleteError(null);
     setDeletingKeys((current) => (current.includes(row.key) ? current : [...current, row.key]));
     try {
-      await deleteManySaves(row.saveIDs);
+      if (row.psLogicalKey) {
+        await deleteSave(row.primarySaveID, { psLogicalKey: row.psLogicalKey });
+      } else {
+        await deleteManySaves(row.saveIDs);
+      }
       reload();
     } catch (err: unknown) {
       setDeleteError(err instanceof Error ? err.message : "Delete mislukt");
@@ -247,13 +177,26 @@ export function MyGamesPage(): JSX.Element {
               <tbody>
                 {group.rows.map((row) => {
                   const isDeleting = deletingKeys.includes(row.key);
-                  const detailsHref = `/app/saves/${encodeURIComponent(row.primarySaveID)}`;
+                  const detailsHref = row.psLogicalKey
+                    ? `/app/saves/${encodeURIComponent(row.primarySaveID)}?psLogicalKey=${encodeURIComponent(row.psLogicalKey)}`
+                    : `/app/saves/${encodeURIComponent(row.primarySaveID)}`;
                   return (
                     <tr key={row.key}>
                       <td>
                         <div className="saves-game-cell">
+                          {row.coverArtUrl ? (
+                            <img
+                              className="saves-cover-art"
+                              src={row.coverArtUrl}
+                              alt=""
+                              loading="lazy"
+                              width={44}
+                              height={44}
+                            />
+                          ) : null}
                           <div>
                             <strong>{row.gameName}</strong>
+                            {row.sourceCardName ? <p>{row.sourceCardName}</p> : null}
                             {row.languageCodes.length > 0 ? <p>{row.languageCodes.join(", ")}</p> : null}
                           </div>
                         </div>
@@ -434,7 +377,7 @@ function mergeLanguageCodes(...sources: Array<string[] | undefined>): string[] {
   return out;
 }
 
-function detectConsoleForSave(save: SaveSummary): { slug: string; name: string } {
+export function detectConsoleForSave(save: SaveSummary): { slug: string; name: string } {
   const knownSystem = save.game.system?.name?.trim() || "";
   const knownSlug = save.game.system?.slug?.trim().toLowerCase() || "";
   const summarySlug = (save.systemSlug || "").trim().toLowerCase();
@@ -446,84 +389,47 @@ function detectConsoleForSave(save: SaveSummary): { slug: string; name: string }
     return normalizeConsoleLabel(knownSlug, knownSystem);
   }
   if (knownSystem !== "" && !isUnknownSystemLabel(knownSystem)) {
-    return normalizeConsoleLabel(knownSlug, knownSystem);
-  }
-
-  const filename = save.filename.toLowerCase();
-  const ext = filename.includes(".") ? filename.split(".").pop() || "" : "";
-  const title = (save.displayTitle || save.game.displayTitle || save.game.name || "").toLowerCase();
-  const format = (save.format || "").toLowerCase();
-
-  if (["mcr", "mcd", "gme", "mc"].includes(ext) || format.includes("mcr") || title.includes("memory card")) {
-    return { slug: "psx", name: "PlayStation" };
-  }
-  if (["dsv"].includes(ext)) {
-    return { slug: "nds", name: "Nintendo DS" };
-  }
-  if (["eep", "fla", "mpk", "sra"].includes(ext)) {
-    return { slug: "n64", name: "Nintendo 64" };
-  }
-  if (["ps2"].includes(ext)) {
-    return { slug: "ps2", name: "PlayStation 2" };
-  }
-  if (["nv", "nvram", "hi", "eeprom"].includes(ext) || isArcadeHint(`${filename} ${title}`)) {
-    return { slug: "arcade", name: "Arcade" };
-  }
-  if (["srm", "smc", "sfc"].includes(ext)) {
-    return { slug: "snes", name: "Super Nintendo" };
-  }
-  if (["ram"].includes(ext) && isArcadeHint(`${filename} ${title}`)) {
-    return { slug: "arcade", name: "Arcade" };
+    return normalizeConsoleLabel(knownSystem, knownSystem);
   }
   return { slug: "other", name: "Other" };
 }
 
-function normalizeConsoleLabel(slug: string, name: string): { slug: string; name: string } {
-  const combined = `${slug} ${name}`.toLowerCase();
-  if (combined.includes("arcade") || combined.includes("mame") || combined.includes("fbneo") || combined.includes("finalburn")) {
-    return { slug: "arcade", name: "Arcade" };
+export function normalizeConsoleLabel(slug: string, name: string): { slug: string; name: string } {
+  const normalizedSlug = normalizeConsoleKey(slug);
+  const normalizedName = normalizeConsoleKey(name);
+  const aliases: Record<string, { slug: string; name: string }> = {
+    arcade: { slug: "arcade", name: "Arcade" },
+    "game-gear": { slug: "game-gear", name: "Game Gear" },
+    gameboy: { slug: "gameboy", name: "Nintendo Game Boy" },
+    "nintendo-game-boy": { slug: "gameboy", name: "Nintendo Game Boy" },
+    gba: { slug: "gba", name: "Game Boy Advance" },
+    "game-boy-advance": { slug: "gba", name: "Game Boy Advance" },
+    genesis: { slug: "genesis", name: "Sega Genesis" },
+    "sega-genesis-mega-drive": { slug: "genesis", name: "Sega Genesis" },
+    "master-system": { slug: "master-system", name: "Master System" },
+    "n64": { slug: "n64", name: "Nintendo 64" },
+    "nintendo-64": { slug: "n64", name: "Nintendo 64" },
+    nds: { slug: "nds", name: "Nintendo DS" },
+    "nintendo-ds": { slug: "nds", name: "Nintendo DS" },
+    neogeo: { slug: "neogeo", name: "Neo Geo" },
+    nes: { slug: "nes", name: "Nintendo Entertainment System" },
+    "nintendo-entertainment-system": { slug: "nes", name: "Nintendo Entertainment System" },
+    psx: { slug: "psx", name: "PlayStation" },
+    playstation: { slug: "psx", name: "PlayStation" },
+    ps2: { slug: "ps2", name: "PlayStation 2" },
+    "playstation-2": { slug: "ps2", name: "PlayStation 2" },
+    psp: { slug: "psp", name: "PlayStation Portable" },
+    psvita: { slug: "psvita", name: "PlayStation Vita" },
+    snes: { slug: "snes", name: "Super Nintendo" },
+    "super-nintendo": { slug: "snes", name: "Super Nintendo" },
+    "nintendo-super-nintendo-entertainment-system": { slug: "snes", name: "Super Nintendo" }
+  };
+
+  if (normalizedSlug && aliases[normalizedSlug]) {
+    return aliases[normalizedSlug];
   }
-  if (combined.includes("nds") || combined.includes("nintendo ds")) {
-    return { slug: "nds", name: "Nintendo DS" };
-  }
-  if (combined.includes("nes") || combined.includes("famicom")) {
-    return { slug: "nes", name: "Nintendo Entertainment System" };
-  }
-  if (combined.includes("snes") || combined.includes("super nintendo")) {
-    return { slug: "snes", name: "Super Nintendo" };
-  }
-  if (combined.includes("n64") || combined.includes("nintendo 64")) {
-    return { slug: "n64", name: "Nintendo 64" };
-  }
-  if (combined.includes("neogeo") || combined.includes("neo geo")) {
-    return { slug: "neogeo", name: "Neo Geo" };
-  }
-  if (combined.includes("ps2") || combined.includes("playstation 2")) {
-    return { slug: "ps2", name: "PlayStation 2" };
-  }
-  if (combined.includes("psp") || combined.includes("playstation portable")) {
-    return { slug: "psp", name: "PlayStation Portable" };
-  }
-  if (combined.includes("psvita") || combined.includes("ps vita")) {
-    return { slug: "psvita", name: "PlayStation Vita" };
-  }
-  if (combined.includes("playstation") || combined.includes("psx") || combined.includes("ps1")) {
-    return { slug: "psx", name: "PlayStation" };
-  }
-  if (combined.includes("master system") || combined.includes("sms")) {
-    return { slug: "master-system", name: "Master System" };
-  }
-  if (combined.includes("game gear")) {
-    return { slug: "game-gear", name: "Game Gear" };
-  }
-  if (combined.includes("game boy") || combined.includes("gameboy")) {
-    return { slug: "gameboy", name: "Nintendo Game Boy" };
-  }
-  if (combined.includes("gba")) {
-    return { slug: "gba", name: "Game Boy Advance" };
-  }
-  if (combined.includes("genesis") || combined.includes("mega drive")) {
-    return { slug: "genesis", name: "Sega Genesis" };
+  if (normalizedName && aliases[normalizedName]) {
+    return aliases[normalizedName];
   }
 
   const cleaned = name.trim();
@@ -536,12 +442,157 @@ function normalizeConsoleLabel(slug: string, name: string): { slug: string; name
   };
 }
 
-function isArcadeHint(raw: string): boolean {
-  const value = raw.toLowerCase();
-  return ["arcade", "mame", "fbneo", "finalburn", "model2", "naomi", "daytona", "ghost house"].some((hint) => value.includes(hint));
-}
-
 function isUnknownSystemLabel(value: string): boolean {
   const normalized = value.trim().toLowerCase();
   return normalized === "" || normalized === "unknown" || normalized === "unknown-system" || normalized === "unknown system";
+}
+
+function normalizeConsoleKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function buildSaveRows(saves: SaveSummary[]): SaveRow[] {
+  const grouped = new Map<string, SaveRow>();
+
+  for (const save of saves) {
+    for (const row of expandSaveRows(save)) {
+      const existing = grouped.get(row.key);
+      if (!existing) {
+        grouped.set(row.key, row);
+        continue;
+      }
+
+      existing.saveCount = Math.max(existing.saveCount, row.saveCount);
+      existing.latestSizeBytes = Math.max(existing.latestSizeBytes, row.latestSizeBytes);
+      existing.totalBytes = Math.max(existing.totalBytes, row.totalBytes);
+      existing.latestVersion = Math.max(existing.latestVersion, row.latestVersion);
+      existing.regionCode = pickPreferredRegionCode(existing.regionCode, row.regionCode);
+      existing.regionFlag = regionToFlagEmoji(existing.regionCode);
+      existing.languageCodes = mergeLanguageCodes(existing.languageCodes, row.languageCodes);
+      existing.coverArtUrl = existing.coverArtUrl || row.coverArtUrl;
+
+      if (new Date(row.latestCreatedAt).getTime() > new Date(existing.latestCreatedAt).getTime()) {
+        existing.latestCreatedAt = row.latestCreatedAt;
+        existing.primarySaveID = row.primarySaveID;
+        existing.downloadUrl = row.downloadUrl;
+        existing.sourceCardName = row.sourceCardName;
+      }
+
+      for (const saveID of row.saveIDs) {
+        if (!existing.saveIDs.includes(saveID)) {
+          existing.saveIDs.push(saveID);
+        }
+      }
+    }
+  }
+
+  const rows = [...grouped.values()];
+  rows.sort((a, b) => new Date(b.latestCreatedAt).getTime() - new Date(a.latestCreatedAt).getTime());
+  return rows;
+}
+
+function expandSaveRows(save: SaveSummary): SaveRow[] {
+  const systemInfo = detectConsoleForSave(save);
+  if ((systemInfo.slug === "psx" || systemInfo.slug === "ps2") && (save.memoryCard?.entries?.length ?? 0) > 0) {
+    return buildPlayStationEntryRows(save, systemInfo);
+  }
+  return [buildStandardSaveRow(save, systemInfo)];
+}
+
+function buildStandardSaveRow(save: SaveSummary, systemInfo: { slug: string; name: string }): SaveRow {
+  const rawName = save.displayTitle?.trim() || save.game.displayTitle?.trim() || save.game.name?.trim() || "Unknown game";
+  const gameName = cleanGameTitle(rawName);
+  const regionCode = normalizeRegionCode((save.regionCode || save.game.regionCode || "UNKNOWN").toString());
+  const createdAt = save.createdAt || new Date(0).toISOString();
+  const saveCount = save.saveCount && save.saveCount > 0 ? save.saveCount : 1;
+  const latestSizeBytes = save.latestSizeBytes && save.latestSizeBytes > 0 ? save.latestSizeBytes : save.fileSize;
+  const totalBytes = save.totalSizeBytes && save.totalSizeBytes > 0 ? save.totalSizeBytes : save.fileSize;
+  const latestVersion = save.latestVersion && save.latestVersion > 0 ? save.latestVersion : save.version;
+
+  return {
+    key: `${systemInfo.slug}:${save.game.id}:${gameName}`,
+    gameID: save.game.id,
+    primarySaveID: save.id,
+    gameName,
+    coverArtUrl: save.coverArtUrl || save.game.coverArtUrl || save.game.boxartThumb || save.game.boxart || null,
+    regionCode,
+    regionFlag: regionToFlagEmoji(regionCode),
+    languageCodes: mergeLanguageCodes(save.languageCodes, save.game.languageCodes, extractLanguageCodes(rawName)),
+    systemName: systemInfo.name,
+    systemSlug: systemInfo.slug,
+    saveIDs: [save.id],
+    saveCount,
+    latestSizeBytes,
+    totalBytes,
+    latestCreatedAt: createdAt,
+    latestVersion,
+    downloadUrl: apiDownloadURL(`/saves/download?id=${encodeURIComponent(save.id)}`),
+    isPlayStationEntry: false
+  };
+}
+
+function buildPlayStationEntryRows(save: SaveSummary, systemInfo: { slug: string; name: string }): SaveRow[] {
+  const cardName = save.memoryCard?.name?.trim() || save.displayTitle?.trim() || "Memory Card";
+  const rows: SaveRow[] = [];
+
+  for (const [index, entry] of (save.memoryCard?.entries ?? []).entries()) {
+    const rawName = entry.title?.trim() || `Save ${index + 1}`;
+    const gameName = cleanGameTitle(rawName);
+    const regionCode = normalizeRegionCode((entry.regionCode || save.regionCode || save.game.regionCode || "UNKNOWN").toString());
+    const latestCreatedAt = entry.latestCreatedAt || save.createdAt || new Date(0).toISOString();
+    const latestSizeBytes = entry.latestSizeBytes && entry.latestSizeBytes > 0
+      ? entry.latestSizeBytes
+      : entry.sizeBytes && entry.sizeBytes > 0
+        ? entry.sizeBytes
+        : save.latestSizeBytes && save.latestSizeBytes > 0
+          ? save.latestSizeBytes
+          : save.fileSize;
+    const totalBytes = entry.totalSizeBytes && entry.totalSizeBytes > 0
+      ? entry.totalSizeBytes
+      : entry.sizeBytes && entry.sizeBytes > 0
+        ? entry.sizeBytes
+        : save.totalSizeBytes && save.totalSizeBytes > 0
+          ? save.totalSizeBytes
+          : save.fileSize;
+    const saveCount = entry.saveCount && entry.saveCount > 0
+      ? entry.saveCount
+      : save.saveCount && save.saveCount > 0
+        ? save.saveCount
+        : 1;
+    const latestVersion = entry.latestVersion && entry.latestVersion > 0
+      ? entry.latestVersion
+      : save.latestVersion && save.latestVersion > 0
+        ? save.latestVersion
+        : save.version;
+    const stableID = entry.directoryName || entry.productCode || `${gameName}:${entry.slot}:${index}`;
+
+    rows.push({
+      key: `${systemInfo.slug}:${entry.logicalKey || stableID}:${regionCode}`,
+      gameID: save.game.id,
+      primarySaveID: save.id,
+      gameName,
+      coverArtUrl: entry.iconDataUrl || save.coverArtUrl || save.game.coverArtUrl || save.game.boxartThumb || save.game.boxart || null,
+      regionCode,
+      regionFlag: regionToFlagEmoji(regionCode),
+      languageCodes: mergeLanguageCodes(save.languageCodes, save.game.languageCodes),
+      systemName: systemInfo.name,
+      systemSlug: systemInfo.slug,
+      saveIDs: [save.id],
+      saveCount,
+      latestSizeBytes,
+      totalBytes,
+      latestCreatedAt,
+      latestVersion,
+      downloadUrl: apiDownloadURL(
+        entry.logicalKey
+          ? `/saves/download?id=${encodeURIComponent(save.id)}&psLogicalKey=${encodeURIComponent(entry.logicalKey)}`
+          : `/saves/download?id=${encodeURIComponent(save.id)}`
+      ),
+      isPlayStationEntry: true,
+      psLogicalKey: entry.logicalKey,
+      sourceCardName: cardName
+    });
+  }
+
+  return rows;
 }

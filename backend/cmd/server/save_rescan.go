@@ -181,6 +181,7 @@ func applyNormalizedSaveToRecord(record saveRecord, normalized saveCreateInput) 
 	updated.Summary.RegionFlag = regionFlagFromCode(normalized.RegionCode)
 	updated.Summary.LanguageCodes = normalized.LanguageCodes
 	updated.Summary.CoverArtURL = normalized.CoverArtURL
+	updated.Summary.Metadata = normalized.Metadata
 	updated.Summary.MemoryCard = normalized.MemoryCard
 	updated.Summary.RuntimeProfile = strings.TrimSpace(normalized.RuntimeProfile)
 	updated.Summary.CardSlot = strings.TrimSpace(normalized.CardSlot)

@@ -192,17 +192,18 @@ func (a *app) initSaveStore() error {
 func (a *app) bootstrapSeedSave() error {
 	gbc := system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"}
 	_, err := a.createSave(saveCreateInput{
-		Filename:   "Wario Land II.srm",
-		Payload:    []byte("seed-save-content"),
-		Game:       game{ID: 281, Name: "Wario Land II", Boxart: nil, BoxartThumb: nil, HasParser: false, System: &gbc},
-		Format:     "sram",
-		Metadata:   nil,
-		ROMSHA1:    "",
-		ROMMD5:     "",
-		SlotName:   "default",
-		SystemSlug: gbc.Slug,
-		GameSlug:   "wario-land-ii",
-		CreatedAt:  time.Unix(1700000000, 0).UTC(),
+		Filename:            "Wario Land II.srm",
+		Payload:             []byte("seed-save-content"),
+		Game:                game{ID: 281, Name: "Wario Land II", Boxart: nil, BoxartThumb: nil, HasParser: false, System: &gbc},
+		Format:              "sram",
+		Metadata:            nil,
+		ROMSHA1:             "",
+		ROMMD5:              "",
+		SlotName:            "default",
+		SystemSlug:          gbc.Slug,
+		GameSlug:            "wario-land-ii",
+		TrustedHelperSystem: true,
+		CreatedAt:           time.Unix(1700000000, 0).UTC(),
 	})
 	return err
 }

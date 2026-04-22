@@ -43,12 +43,12 @@ type playStationStore struct {
 }
 
 type playStationState struct {
-	Imports         map[string]psImportArtifact   `json:"imports,omitempty"`
-	LogicalSaves    map[string]psLogicalSave      `json:"logicalSaves,omitempty"`
-	ProjectionLines map[string]psProjectionLine   `json:"projectionLines,omitempty"`
-	Projections     map[string]psProjection       `json:"projections,omitempty"`
-	Tombstones      map[string]psTombstone        `json:"tombstones,omitempty"`
-	DeviceLines     map[string]psDeviceLineState  `json:"deviceLines,omitempty"`
+	Imports         map[string]psImportArtifact  `json:"imports,omitempty"`
+	LogicalSaves    map[string]psLogicalSave     `json:"logicalSaves,omitempty"`
+	ProjectionLines map[string]psProjectionLine  `json:"projectionLines,omitempty"`
+	Projections     map[string]psProjection      `json:"projections,omitempty"`
+	Tombstones      map[string]psTombstone       `json:"tombstones,omitempty"`
+	DeviceLines     map[string]psDeviceLineState `json:"deviceLines,omitempty"`
 }
 
 type psImportArtifact struct {
@@ -95,13 +95,13 @@ type psLogicalSave struct {
 }
 
 type psLogicalSaveRevision struct {
-	ID          string                 `json:"id"`
-	ImportID    string                 `json:"importId"`
-	CreatedAt   time.Time              `json:"createdAt"`
-	SHA256      string                 `json:"sha256"`
-	MemoryEntry memoryCardEntry        `json:"memoryEntry"`
-	PS1         *ps1LogicalRevision    `json:"ps1,omitempty"`
-	PS2         *ps2LogicalRevision    `json:"ps2,omitempty"`
+	ID          string              `json:"id"`
+	ImportID    string              `json:"importId"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	SHA256      string              `json:"sha256"`
+	MemoryEntry memoryCardEntry     `json:"memoryEntry"`
+	PS1         *ps1LogicalRevision `json:"ps1,omitempty"`
+	PS2         *ps2LogicalRevision `json:"ps2,omitempty"`
 }
 
 type ps1LogicalRevision struct {
@@ -110,8 +110,8 @@ type ps1LogicalRevision struct {
 }
 
 type ps2LogicalRevision struct {
-	DirectoryName string                `json:"directoryName,omitempty"`
-	Nodes         []ps2LogicalFSNode    `json:"nodes,omitempty"`
+	DirectoryName string             `json:"directoryName,omitempty"`
+	Nodes         []ps2LogicalFSNode `json:"nodes,omitempty"`
 }
 
 type ps2LogicalFSNode struct {
@@ -132,19 +132,19 @@ type psProjectionLine struct {
 }
 
 type psProjection struct {
-	ID                string            `json:"id"`
-	ProjectionLineKey string            `json:"projectionLineKey"`
-	SystemSlug        string            `json:"systemSlug"`
-	RuntimeProfile    string            `json:"runtimeProfile"`
-	CardSlot          string            `json:"cardSlot"`
-	Filename          string            `json:"filename"`
-	SHA256            string            `json:"sha256"`
-	PayloadPath       string            `json:"payloadPath"`
-	CreatedAt         time.Time         `json:"createdAt"`
-	SaveRecordID      string            `json:"saveRecordId,omitempty"`
-	SourceImportID    string            `json:"sourceImportId,omitempty"`
-	Portable          bool              `json:"portable"`
-	Manifest          []psManifestEntry `json:"manifest,omitempty"`
+	ID                string             `json:"id"`
+	ProjectionLineKey string             `json:"projectionLineKey"`
+	SystemSlug        string             `json:"systemSlug"`
+	RuntimeProfile    string             `json:"runtimeProfile"`
+	CardSlot          string             `json:"cardSlot"`
+	Filename          string             `json:"filename"`
+	SHA256            string             `json:"sha256"`
+	PayloadPath       string             `json:"payloadPath"`
+	CreatedAt         time.Time          `json:"createdAt"`
+	SaveRecordID      string             `json:"saveRecordId,omitempty"`
+	SourceImportID    string             `json:"sourceImportId,omitempty"`
+	Portable          bool               `json:"portable"`
+	Manifest          []psManifestEntry  `json:"manifest,omitempty"`
 	MemoryCard        *memoryCardDetails `json:"memoryCard,omitempty"`
 }
 
@@ -158,37 +158,37 @@ type psTombstone struct {
 }
 
 type psDeviceLineState struct {
-	Key                       string    `json:"key"`
-	ProjectionLineKey         string    `json:"projectionLineKey"`
-	Fingerprint               string    `json:"fingerprint"`
-	LastDownloadedProjection  string    `json:"lastDownloadedProjectionId,omitempty"`
-	LastImportedArtifact      string    `json:"lastImportedArtifactId,omitempty"`
-	UpdatedAt                 time.Time `json:"updatedAt"`
+	Key                      string    `json:"key"`
+	ProjectionLineKey        string    `json:"projectionLineKey"`
+	Fingerprint              string    `json:"fingerprint"`
+	LastDownloadedProjection string    `json:"lastDownloadedProjectionId,omitempty"`
+	LastImportedArtifact     string    `json:"lastImportedArtifactId,omitempty"`
+	UpdatedAt                time.Time `json:"updatedAt"`
 }
 
 type psImportRequest struct {
-	Payload         []byte
-	Filename        string
-	ArtifactKind    saveArtifactKind
-	RuntimeProfile  string
-	SystemSlug      string
-	CardSlot        string
-	Fingerprint     string
-	CreatedAt       time.Time
-	HelperDevice    string
+	Payload        []byte
+	Filename       string
+	ArtifactKind   saveArtifactKind
+	RuntimeProfile string
+	SystemSlug     string
+	CardSlot       string
+	Fingerprint    string
+	CreatedAt      time.Time
+	HelperDevice   string
 }
 
 type psBuiltProjection struct {
-	ProjectionID     string
+	ProjectionID      string
 	ProjectionLineKey string
-	SystemSlug       string
-	RuntimeProfile   string
-	CardSlot         string
-	Filename         string
-	Payload          []byte
-	MemoryCard       *memoryCardDetails
-	SourceImportID   string
-	Portable         bool
+	SystemSlug        string
+	RuntimeProfile    string
+	CardSlot          string
+	Filename          string
+	Payload           []byte
+	MemoryCard        *memoryCardDetails
+	SourceImportID    string
+	Portable          bool
 }
 
 type psImportResult struct {
@@ -198,10 +198,10 @@ type psImportResult struct {
 }
 
 type psImportConflict struct {
-	ConflictKey    string
+	ConflictKey     string
 	CloudProjection string
-	LocalSHA256    string
-	CloudSHA256    string
+	LocalSHA256     string
+	CloudSHA256     string
 }
 
 type psExtractedEntry struct {
@@ -431,19 +431,19 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	}
 	importID := "ps-import-" + now.Format("20060102150405.000000000") + "-" + shaHex[:12]
 	artifact := psImportArtifact{
-		ID:                 importID,
-		SystemSlug:         req.SystemSlug,
-		RuntimeProfile:     req.RuntimeProfile,
-		CardSlot:           req.CardSlot,
-		ProjectionLineKey:  lineKey,
-		SyncLineKey:        scopeKey,
-		Fingerprint:        strings.TrimSpace(req.Fingerprint),
-		Filename:           safeFilename(req.Filename),
-		ArtifactKind:       req.ArtifactKind,
-		SHA256:             shaHex,
-		PayloadPath:        payloadPath,
-		CreatedAt:          now,
-		Manifest:           manifest,
+		ID:                importID,
+		SystemSlug:        req.SystemSlug,
+		RuntimeProfile:    req.RuntimeProfile,
+		CardSlot:          req.CardSlot,
+		ProjectionLineKey: lineKey,
+		SyncLineKey:       scopeKey,
+		Fingerprint:       strings.TrimSpace(req.Fingerprint),
+		Filename:          safeFilename(req.Filename),
+		ArtifactKind:      req.ArtifactKind,
+		SHA256:            shaHex,
+		PayloadPath:       payloadPath,
+		CreatedAt:         now,
+		Manifest:          manifest,
 	}
 
 	line := state.ProjectionLines[lineKey]
@@ -483,10 +483,10 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 					}
 				} else {
 					conflict = &psImportConflict{
-						ConflictKey:    projectionConflictKey(req.RuntimeProfile, req.CardSlot),
+						ConflictKey:     projectionConflictKey(req.RuntimeProfile, req.CardSlot),
 						CloudProjection: dev.LastDownloadedProjection,
-						LocalSHA256:    shaHex,
-						CloudSHA256:    baseline.SHA256,
+						LocalSHA256:     shaHex,
+						CloudSHA256:     baseline.SHA256,
 					}
 				}
 			}
@@ -656,6 +656,7 @@ func extractPS1LogicalEntries(runtimeProfile, cardSlot, filename string, payload
 			logicalKey = nonPortablePSLogicalKey("psx", projectionKey, dirIndex, displayTitle)
 		}
 		memoryEntry := entryBySlot[dirIndex]
+		memoryEntry.LogicalKey = logicalKey
 		memoryEntry.Title = displayTitle
 		memoryEntry.ProductCode = productCode
 		memoryEntry.RegionCode = regionCode
@@ -794,6 +795,7 @@ func extractPS2LogicalEntries(runtimeProfile, cardSlot, filename string, payload
 			logicalKey = nonPortablePSLogicalKey("ps2", projectionKey, len(out)+1, displayTitle)
 		}
 		memoryEntry := detailByDir[dirEntry.Name]
+		memoryEntry.LogicalKey = logicalKey
 		memoryEntry.Title = displayTitle
 		memoryEntry.DirectoryName = dirEntry.Name
 		memoryEntry.ProductCode = productCode
@@ -1075,12 +1077,19 @@ func buildPS1Projection(runtimeProfile, cardSlot, filename string, saves []psLog
 			copy(raw[dirOffset:dirOffset+psDirectoryEntrySize], dir)
 		}
 		entries = append(entries, memoryCardEntry{
-			Title:       rev.MemoryEntry.Title,
-			Slot:        nextFreeSlot,
-			Blocks:      blockCount,
-			ProductCode: rev.MemoryEntry.ProductCode,
-			RegionCode:  rev.MemoryEntry.RegionCode,
-			IconDataURL: rev.MemoryEntry.IconDataURL,
+			LogicalKey:      logical.Key,
+			Title:           rev.MemoryEntry.Title,
+			Slot:            nextFreeSlot,
+			Blocks:          blockCount,
+			ProductCode:     rev.MemoryEntry.ProductCode,
+			RegionCode:      rev.MemoryEntry.RegionCode,
+			IconDataURL:     rev.MemoryEntry.IconDataURL,
+			SizeBytes:       psLogicalSaveLatestSize(logical),
+			SaveCount:       len(logical.Revisions),
+			LatestVersion:   len(logical.Revisions),
+			LatestSizeBytes: psLogicalSaveLatestSize(logical),
+			TotalSizeBytes:  psLogicalSaveTotalSize(logical),
+			LatestCreatedAt: rev.CreatedAt.Format(time.RFC3339Nano),
 		})
 		if !logical.Portable {
 			allPortable = false
@@ -1102,6 +1111,8 @@ func buildPS1Projection(runtimeProfile, cardSlot, filename string, saves []psLog
 	card := parsePS1MemoryCard(wrapped, filename, cardSlot)
 	if card == nil {
 		card = &memoryCardDetails{Name: cardSlot, Entries: entries}
+	} else {
+		card.Entries = mergeProjectionEntryStats(card.Entries, entries)
 	}
 	return wrapped, card, allPortable, nil
 }
@@ -1163,6 +1174,7 @@ func buildPS2Projection(runtimeProfile, cardSlot, filename string, saves []psLog
 	}
 
 	root := &ps2FSDir{name: "", root: true}
+	entries := make([]memoryCardEntry, 0, len(saves))
 	allPortable := true
 	for _, logical := range saves {
 		rev, ok := logical.latestRevision()
@@ -1177,6 +1189,22 @@ func buildPS2Projection(runtimeProfile, cardSlot, filename string, saves []psLog
 			dirName = sanitizePS2DirectoryName(firstNonEmpty(logical.ProductCode, logical.DisplayTitle))
 		}
 		root.addRevision(dirName, rev)
+		entries = append(entries, memoryCardEntry{
+			LogicalKey:      logical.Key,
+			Title:           rev.MemoryEntry.Title,
+			Slot:            rev.MemoryEntry.Slot,
+			Blocks:          rev.MemoryEntry.Blocks,
+			ProductCode:     rev.MemoryEntry.ProductCode,
+			RegionCode:      rev.MemoryEntry.RegionCode,
+			DirectoryName:   dirName,
+			IconDataURL:     rev.MemoryEntry.IconDataURL,
+			SizeBytes:       psLogicalSaveLatestSize(logical),
+			SaveCount:       len(logical.Revisions),
+			LatestVersion:   len(logical.Revisions),
+			LatestSizeBytes: psLogicalSaveLatestSize(logical),
+			TotalSizeBytes:  psLogicalSaveTotalSize(logical),
+			LatestCreatedAt: rev.CreatedAt.Format(time.RFC3339Nano),
+		})
 	}
 
 	fat := make([]uint32, allocEnd)
@@ -1192,7 +1220,9 @@ func buildPS2Projection(runtimeProfile, cardSlot, filename string, saves []psLog
 	}
 	card := parsePS2MemoryCard(payload, cardSlot)
 	if card == nil {
-		card = &memoryCardDetails{Name: cardSlot}
+		card = &memoryCardDetails{Name: cardSlot, Entries: entries}
+	} else {
+		card.Entries = mergeProjectionEntryStats(card.Entries, entries)
 	}
 	return payload, card, allPortable, nil
 }
@@ -1668,6 +1698,118 @@ func (logical psLogicalSave) latestRevision() (psLogicalSaveRevision, bool) {
 		return psLogicalSaveRevision{}, false
 	}
 	return logical.Revisions[len(logical.Revisions)-1], true
+}
+
+func psLogicalSaveLatestSize(logical psLogicalSave) int {
+	latest, ok := logical.latestRevision()
+	if !ok {
+		return 0
+	}
+	return psLogicalRevisionSize(latest)
+}
+
+func psLogicalSaveTotalSize(logical psLogicalSave) int {
+	total := 0
+	for _, revision := range logical.Revisions {
+		total += psLogicalRevisionSize(revision)
+	}
+	return total
+}
+
+func psLogicalRevisionSize(revision psLogicalSaveRevision) int {
+	if revision.MemoryEntry.SizeBytes > 0 {
+		return revision.MemoryEntry.SizeBytes
+	}
+	if revision.PS1 != nil {
+		size := 0
+		for _, block := range revision.PS1.Blocks {
+			size += len(block)
+		}
+		return size
+	}
+	if revision.PS2 != nil {
+		size := 0
+		for _, node := range revision.PS2.Nodes {
+			if node.Directory {
+				continue
+			}
+			size += len(node.Data)
+		}
+		return size
+	}
+	return 0
+}
+
+func mergeProjectionEntryStats(existing []memoryCardEntry, enriched []memoryCardEntry) []memoryCardEntry {
+	if len(existing) == 0 {
+		return enriched
+	}
+	indexByKey := make(map[string]memoryCardEntry, len(enriched))
+	for _, entry := range enriched {
+		indexByKey[memoryCardEntryMergeKey(entry)] = entry
+	}
+	merged := make([]memoryCardEntry, 0, len(existing))
+	for _, entry := range existing {
+		if enrichedEntry, ok := indexByKey[memoryCardEntryMergeKey(entry)]; ok {
+			merged = append(merged, mergeMemoryCardEntry(entry, enrichedEntry))
+			continue
+		}
+		merged = append(merged, entry)
+	}
+	return merged
+}
+
+func mergeMemoryCardEntry(existing, enriched memoryCardEntry) memoryCardEntry {
+	merged := existing
+	if strings.TrimSpace(merged.Title) == "" {
+		merged.Title = enriched.Title
+	}
+	if strings.TrimSpace(merged.LogicalKey) == "" {
+		merged.LogicalKey = enriched.LogicalKey
+	}
+	if merged.Slot == 0 {
+		merged.Slot = enriched.Slot
+	}
+	if merged.Blocks == 0 {
+		merged.Blocks = enriched.Blocks
+	}
+	if strings.TrimSpace(merged.ProductCode) == "" {
+		merged.ProductCode = enriched.ProductCode
+	}
+	if strings.TrimSpace(merged.RegionCode) == "" {
+		merged.RegionCode = enriched.RegionCode
+	}
+	if strings.TrimSpace(merged.DirectoryName) == "" {
+		merged.DirectoryName = enriched.DirectoryName
+	}
+	if strings.TrimSpace(merged.IconDataURL) == "" {
+		merged.IconDataURL = enriched.IconDataURL
+	}
+	if merged.SizeBytes == 0 {
+		merged.SizeBytes = enriched.SizeBytes
+	}
+	merged.SaveCount = enriched.SaveCount
+	merged.LatestVersion = enriched.LatestVersion
+	merged.LatestSizeBytes = enriched.LatestSizeBytes
+	merged.TotalSizeBytes = enriched.TotalSizeBytes
+	merged.LatestCreatedAt = enriched.LatestCreatedAt
+	if enriched.Portable != nil {
+		merged.Portable = enriched.Portable
+	}
+	return merged
+}
+
+func memoryCardEntryMergeKey(entry memoryCardEntry) string {
+	if directory := strings.TrimSpace(entry.DirectoryName); directory != "" {
+		return "dir:" + strings.ToUpper(directory)
+	}
+	if productCode := strings.TrimSpace(entry.ProductCode); productCode != "" {
+		return "product:" + strings.ToUpper(productCode) + "::" + canonicalTrackTitleKey(entry.Title)
+	}
+	if entry.Slot > 0 {
+		return "slot:" + strconv.Itoa(entry.Slot) + "::" + canonicalTrackTitleKey(entry.Title)
+	}
+	return "title:" + canonicalTrackTitleKey(entry.Title)
 }
 
 func hash12(raw string) string {

@@ -93,7 +93,7 @@ func TestContractSaveLatestMissingAndSuccessShape(t *testing.T) {
 		}
 	}
 
-	uploadSave(t, h, "/saves", map[string]string{"rom_sha1": "rom-success", "slotName": "default"}, "slot1.srm", []byte("save-latest-success"))
+	uploadSave(t, h, "/saves", map[string]string{"rom_sha1": "rom-success", "slotName": "default", "system": "n64"}, "slot1.eep", []byte("save-latest-success"))
 	success := h.request(http.MethodGet, "/save/latest?romSha1=rom-success&slotName=default", nil)
 	assertStatus(t, success, http.StatusOK)
 	successBody := decodeJSONMap(t, success.Body)
@@ -117,9 +117,10 @@ func TestContractSavesMultipartSuccessAndMissingFileFailure(t *testing.T) {
 
 	okBody := uploadSave(t, h, "/saves", map[string]string{
 		"app_password": helperKey,
-		"rom_sha1":    "upload-rom",
-		"device_type": "web",
-		"fingerprint": "abcdef12",
+		"rom_sha1":     "upload-rom",
+		"system":       "gameboy",
+		"device_type":  "web",
+		"fingerprint":  "abcdef12",
 	}, "Wario Land II.srm", []byte("multipart-upload"))
 	save := mustObject(t, okBody["save"], "save")
 	if _, ok := save["id"]; !ok {
@@ -143,9 +144,9 @@ func TestContractSavesMultipartRejectsUnknownSystemNoise(t *testing.T) {
 
 	rejected := h.multipart("/saves", map[string]string{
 		"app_password": helperKey,
-		"rom_sha1":    "noise-rom",
-		"device_type": "linux-x86",
-		"fingerprint": "noise-device",
+		"rom_sha1":     "noise-rom",
+		"device_type":  "linux-x86",
+		"fingerprint":  "noise-device",
 	}, "file", "notes.txt", []byte("this is plain text and not a valid save"))
 	assertStatus(t, rejected, http.StatusUnprocessableEntity)
 	assertJSONContentType(t, rejected)
@@ -363,7 +364,7 @@ func TestContractEventsPreludeAndContentType(t *testing.T) {
 }
 
 func TestContractBatchUploadRootAndV1AliasParity(t *testing.T) {
-	payload := `{"items":[{"filename":"Wario Land II.srm","game":{"type":"name","value":{"name":"Wario Land II"}},"data":"` + base64.StdEncoding.EncodeToString([]byte("batch-save")) + `"}]}`
+	payload := `{"items":[{"filename":"Wario Land II.srm","game":{"type":"gameId","value":281},"data":"` + base64.StdEncoding.EncodeToString([]byte("batch-save")) + `"}]}`
 
 	rootHarness := newContractHarness(t)
 	rootResp := rootHarness.json(http.MethodPost, "/saves", bytes.NewBufferString(payload))

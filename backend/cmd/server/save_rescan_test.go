@@ -226,19 +226,20 @@ func TestRescanSavesPrunesPlayStationSaveStateNoise(t *testing.T) {
 	}
 }
 
-func TestRescanSavesCorrectsNintendoDSFromStoredFallbackMetadata(t *testing.T) {
+func TestRescanSavesPrunesNintendoDSStoredFallbackMetadataWithoutTrustedEvidence(t *testing.T) {
 	h := newContractHarness(t)
 
 	record, err := h.app.createSave(saveCreateInput{
-		Filename:   "New Super Mario Bros. (USA).sav",
-		Payload:    make([]byte, 8192),
-		Game:       game{Name: "New Super Mario Bros."},
-		Format:     "sram",
-		ROMSHA1:    "nds-rom-sha1",
-		ROMMD5:     "nds-rom-md5",
-		SlotName:   "default",
-		SystemSlug: "gameboy",
-		GameSlug:   "new-super-mario-bros",
+		Filename:            "New Super Mario Bros. (USA).sav",
+		Payload:             make([]byte, 8192),
+		Game:                game{Name: "New Super Mario Bros."},
+		Format:              "sram",
+		ROMSHA1:             "nds-rom-sha1",
+		ROMMD5:              "nds-rom-md5",
+		SlotName:            "default",
+		SystemSlug:          "gameboy",
+		GameSlug:            "new-super-mario-bros",
+		TrustedHelperSystem: true,
 	})
 	if err != nil {
 		t.Fatalf("create stale ds save: %v", err)
@@ -249,6 +250,7 @@ func TestRescanSavesCorrectsNintendoDSFromStoredFallbackMetadata(t *testing.T) {
 	record.GameSlug = "new-super-mario-bros"
 	record.Summary.SystemSlug = "gameboy"
 	record.Summary.Game.System = &system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy", Manufacturer: "Nintendo"}
+	record.Summary.Metadata = nil
 	if err := persistSaveRecordMetadata(record); err != nil {
 		t.Fatalf("persist stale ds metadata: %v", err)
 	}
@@ -272,30 +274,27 @@ func TestRescanSavesCorrectsNintendoDSFromStoredFallbackMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rescan ds save: %v", err)
 	}
-	if result.Updated < 1 {
-		t.Fatalf("expected at least one updated save during ds correction, got %+v", result)
+	if result.Removed < 1 {
+		t.Fatalf("expected stale DS fallback save to be removed, got %+v", result)
 	}
 
 	records := h.app.snapshotSaveRecords()
-	found := false
 	for _, candidate := range records {
 		if candidate.Summary.DisplayTitle != "New Super Mario Bros." {
 			continue
 		}
-		found = true
-		if candidate.SystemSlug != "nds" {
-			t.Fatalf("expected Nintendo DS system slug after rescan, got %q", candidate.SystemSlug)
-		}
-		if candidate.Summary.Game.System == nil || candidate.Summary.Game.System.Slug != "nds" {
-			t.Fatalf("expected Nintendo DS game system after rescan, got %#v", candidate.Summary.Game.System)
-		}
-		if candidate.SystemPath != "Nintendo DS" {
-			t.Fatalf("expected Nintendo DS system path after rescan, got %q", candidate.SystemPath)
-		}
+		t.Fatalf("expected stale fallback DS record to be pruned, still found %+v", candidate)
 	}
-	if !found {
-		t.Fatal("expected New Super Mario Bros. record after rescan")
+	for _, rejection := range result.Rejections {
+		if rejection.SaveID != record.Summary.ID {
+			continue
+		}
+		if rejection.Reason == "" {
+			t.Fatalf("expected rejection reason for pruned DS record, got %+v", rejection)
+		}
+		return
 	}
+	t.Fatalf("expected rejection entry for pruned DS record, got %+v", result.Rejections)
 }
 
 func TestRescanSavesPrunesGenericStoredFallbackSlots(t *testing.T) {
@@ -337,6 +336,7 @@ func TestRescanSavesPrunesGenericStoredFallbackSlots(t *testing.T) {
 		record.Summary.Filename = tc.filename
 		record.Summary.DisplayTitle = tc.title
 		record.Summary.SystemSlug = "nds"
+		record.Summary.Metadata = nil
 		record.Summary.Game = game{
 			ID:           deterministicGameID(tc.title),
 			Name:         tc.title,
@@ -411,6 +411,7 @@ func TestRescanSavesPrunesStoredFallbackArcadeGuesses(t *testing.T) {
 		record.Summary.DisplayTitle = tc.title
 		record.Summary.Format = inferSaveFormat(tc.filename)
 		record.Summary.SystemSlug = "arcade"
+		record.Summary.Metadata = nil
 		record.Summary.Game = game{
 			ID:           deterministicGameID(tc.title),
 			Name:         tc.title,

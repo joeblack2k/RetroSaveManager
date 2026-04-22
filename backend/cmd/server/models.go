@@ -3,18 +3,18 @@ package main
 import "time"
 
 type device struct {
-	ID                  int       `json:"id"`
-	DeviceType          string    `json:"deviceType"`
-	Fingerprint         string    `json:"fingerprint"`
-	Alias               *string   `json:"alias"`
-	DisplayName         string    `json:"displayName"`
-	SyncAll             bool      `json:"syncAll"`
-	AllowedSystemSlugs  []string  `json:"allowedSystemSlugs,omitempty"`
-	BoundAppPasswordID  *string   `json:"boundAppPasswordId,omitempty"`
-	BoundAppPasswordName string `json:"boundAppPasswordName,omitempty"`
-	BoundAppPasswordLastFour string `json:"boundAppPasswordLastFour,omitempty"`
-	LastSyncedAt        time.Time `json:"lastSyncedAt"`
-	CreatedAt           time.Time `json:"createdAt"`
+	ID                       int       `json:"id"`
+	DeviceType               string    `json:"deviceType"`
+	Fingerprint              string    `json:"fingerprint"`
+	Alias                    *string   `json:"alias"`
+	DisplayName              string    `json:"displayName"`
+	SyncAll                  bool      `json:"syncAll"`
+	AllowedSystemSlugs       []string  `json:"allowedSystemSlugs,omitempty"`
+	BoundAppPasswordID       *string   `json:"boundAppPasswordId,omitempty"`
+	BoundAppPasswordName     string    `json:"boundAppPasswordName,omitempty"`
+	BoundAppPasswordLastFour string    `json:"boundAppPasswordLastFour,omitempty"`
+	LastSyncedAt             time.Time `json:"lastSyncedAt"`
+	CreatedAt                time.Time `json:"createdAt"`
 }
 
 type system struct {
@@ -39,15 +39,21 @@ type game struct {
 }
 
 type memoryCardEntry struct {
-	Title         string `json:"title"`
-	Slot          int    `json:"slot"`
-	Blocks        int    `json:"blocks"`
-	ProductCode   string `json:"productCode,omitempty"`
-	RegionCode    string `json:"regionCode,omitempty"`
-	DirectoryName string `json:"directoryName,omitempty"`
-	IconDataURL   string `json:"iconDataUrl,omitempty"`
-	SizeBytes     int    `json:"sizeBytes,omitempty"`
-	Portable      *bool  `json:"portable,omitempty"`
+	LogicalKey      string `json:"logicalKey,omitempty"`
+	Title           string `json:"title"`
+	Slot            int    `json:"slot"`
+	Blocks          int    `json:"blocks"`
+	ProductCode     string `json:"productCode,omitempty"`
+	RegionCode      string `json:"regionCode,omitempty"`
+	DirectoryName   string `json:"directoryName,omitempty"`
+	IconDataURL     string `json:"iconDataUrl,omitempty"`
+	SizeBytes       int    `json:"sizeBytes,omitempty"`
+	SaveCount       int    `json:"saveCount,omitempty"`
+	LatestVersion   int    `json:"latestVersion,omitempty"`
+	LatestSizeBytes int    `json:"latestSizeBytes,omitempty"`
+	TotalSizeBytes  int    `json:"totalSizeBytes,omitempty"`
+	LatestCreatedAt string `json:"latestCreatedAt,omitempty"`
+	Portable        *bool  `json:"portable,omitempty"`
 }
 
 type memoryCardDetails struct {

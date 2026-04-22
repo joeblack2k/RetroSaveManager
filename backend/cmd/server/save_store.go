@@ -37,30 +37,31 @@ type saveRecord struct {
 }
 
 type saveCreateInput struct {
-	Filename      string
-	Payload       []byte
-	Game          game
-	Format        string
-	Metadata      any
-	ROMSHA1       string
-	ROMMD5        string
-	SlotName      string
-	SystemSlug    string
-	GameSlug      string
-	SystemPath    string
-	GamePath      string
-	DisplayTitle  string
-	RegionCode    string
-	RegionFlag    string
-	LanguageCodes []string
-	CoverArtURL   string
-	MemoryCard    *memoryCardDetails
-	RuntimeProfile string
-	CardSlot       string
-	ProjectionID   string
-	SourceImportID string
-	Portable       *bool
-	CreatedAt     time.Time
+	Filename            string
+	Payload             []byte
+	Game                game
+	Format              string
+	Metadata            any
+	ROMSHA1             string
+	ROMMD5              string
+	SlotName            string
+	SystemSlug          string
+	GameSlug            string
+	SystemPath          string
+	GamePath            string
+	DisplayTitle        string
+	RegionCode          string
+	RegionFlag          string
+	LanguageCodes       []string
+	CoverArtURL         string
+	MemoryCard          *memoryCardDetails
+	TrustedHelperSystem bool
+	RuntimeProfile      string
+	CardSlot            string
+	ProjectionID        string
+	SourceImportID      string
+	Portable            *bool
+	CreatedAt           time.Time
 }
 
 func newSaveStoreFromEnv() (*saveStore, error) {
@@ -542,9 +543,7 @@ func buildBatchGame(raw json.RawMessage, filename string) game {
 			g := fallbackGameFromFilename(filename)
 			g.ID = deterministicGameID(value.Name)
 			g.Name = strings.TrimSpace(value.Name)
-			if strings.EqualFold(g.Name, "Wario Land II") {
-				return gameForID(281)
-			}
+			g.DisplayTitle = strings.TrimSpace(value.Name)
 			return g
 		}
 	}
@@ -558,14 +557,6 @@ func fallbackGameFromFilename(filename string) game {
 		name = "Unknown Game"
 	}
 	displayTitle, regionCode, languageCodes := cleanupDisplayTitleRegionAndLanguages(name)
-	detectedSystem := detectSaveSystem(saveSystemDetectionInput{
-		Filename:     filename,
-		DisplayTitle: displayTitle,
-		Payload:      nil,
-	})
-	if strings.EqualFold(name, "Wario Land II") {
-		return gameForID(281)
-	}
 	return game{
 		ID:            deterministicGameID(name),
 		Name:          displayTitle,
@@ -576,7 +567,7 @@ func fallbackGameFromFilename(filename string) game {
 		Boxart:        nil,
 		BoxartThumb:   nil,
 		HasParser:     false,
-		System:        detectedSystem.System,
+		System:        nil,
 	}
 }
 

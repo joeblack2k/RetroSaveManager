@@ -27,7 +27,26 @@
       "id": "<redacted>",
       "latestSizeBytes": 17,
       "latestVersion": 1,
-      "metadata": null,
+      "metadata": {
+        "rsm": {
+          "systemDetection": {
+            "confidence": 89,
+            "evidence": {
+              "declared": true,
+              "formatHint": false,
+              "helperTrusted": false,
+              "pathHint": false,
+              "payload": false,
+              "storedTrusted": true,
+              "titleHint": false
+            },
+            "noise": false,
+            "reason": "stored trusted system evidence",
+            "slug": "gameboy",
+            "trustedSystem": true
+          }
+        }
+      },
       "regionCode": "UNKNOWN",
       "regionFlag": "unknown",
       "saveCount": 1,

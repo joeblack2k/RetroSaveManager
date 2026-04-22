@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { SectionCard } from "../../components/SectionCard";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -10,13 +10,15 @@ import { formatBytes, formatDate } from "../../utils/format";
 
 export function SaveDetailPage(): JSX.Element {
   const params = useParams<{ saveId: string }>();
+  const [searchParams] = useSearchParams();
   const saveId = params.saveId ?? "";
+  const psLogicalKey = (searchParams.get("psLogicalKey") || "").trim();
   const [rollbackError, setRollbackError] = useState<string | null>(null);
   const [rollbackMessage, setRollbackMessage] = useState<string | null>(null);
   const [rollbackingId, setRollbackingId] = useState<string | null>(null);
 
-  const loader = useCallback(() => getSaveHistory({ saveId }), [saveId]);
-  const { loading, error, data, reload } = useAsyncData(loader, [saveId]);
+  const loader = useCallback(() => getSaveHistory({ saveId, psLogicalKey: psLogicalKey || undefined }), [saveId, psLogicalKey]);
+  const { loading, error, data, reload } = useAsyncData(loader, [saveId, psLogicalKey]);
 
   const versions = data?.versions ?? [];
   const latest = versions.length > 0 ? versions[0] : null;
@@ -45,7 +47,11 @@ export function SaveDetailPage(): JSX.Element {
     setRollbackMessage(null);
     setRollbackingId(target.id);
     try {
-      const response = await rollbackSave(target.id);
+      const response = await rollbackSave(
+        psLogicalKey
+          ? { saveId, psLogicalKey, revisionId: target.id }
+          : { saveId: target.id }
+      );
       setRollbackMessage(`Rollback voltooid. Nieuwe versie: v${response.save.version}`);
       await reload();
     } catch (err: unknown) {
@@ -79,7 +85,7 @@ export function SaveDetailPage(): JSX.Element {
 
           {memoryCard ? (
             <div className="stack compact">
-              <p><strong>Memory Card:</strong> {memoryCard.name}</p>
+              <p><strong>{psLogicalKey ? "Source card" : "Memory Card"}:</strong> {memoryCard.name}</p>
               {memoryCard.entries && memoryCard.entries.length > 0 ? (
                 <table className="table">
                   <thead>
@@ -159,7 +165,14 @@ export function SaveDetailPage(): JSX.Element {
                     <td>{regionToFlagEmoji(versionRegion)} {versionRegion}</td>
                     <td>{versionLanguages.length > 0 ? versionLanguages.join(", ") : "-"}</td>
                     <td>
-                      <a className="saves-action-link" href={apiDownloadURL(`/saves/download?id=${encodeURIComponent(version.id)}`)}>
+                      <a
+                        className="saves-action-link"
+                        href={apiDownloadURL(
+                          psLogicalKey
+                            ? `/saves/download?id=${encodeURIComponent(saveId)}&psLogicalKey=${encodeURIComponent(psLogicalKey)}&revisionId=${encodeURIComponent(version.id)}`
+                            : `/saves/download?id=${encodeURIComponent(version.id)}`
+                        )}
+                      >
                         Download
                       </a>
                     </td>

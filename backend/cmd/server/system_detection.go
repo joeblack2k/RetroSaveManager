@@ -96,17 +96,25 @@ var systemLabelAliases = map[string]string{
 	"sfc":                  "snes",
 }
 
-var arcadeFilenameHints = []string{
-	"mame", "fbneo", "finalburn", "model2", "naomi",
-}
-
 type saveSystemDetectionInput struct {
 	Filename             string
 	DisplayTitle         string
 	Payload              []byte
 	DeclaredSystemSlug   string
 	DeclaredSystem       *system
+	TrustedHelperSystem  bool
 	DeclaredFallbackOnly bool
+	TrustedStoredSystem  bool
+}
+
+type saveDetectionEvidence struct {
+	Declared      bool `json:"declared,omitempty"`
+	HelperTrusted bool `json:"helperTrusted,omitempty"`
+	Payload       bool `json:"payload,omitempty"`
+	PathHint      bool `json:"pathHint,omitempty"`
+	FormatHint    bool `json:"formatHint,omitempty"`
+	StoredTrusted bool `json:"storedTrusted,omitempty"`
+	TitleHint     bool `json:"titleHint,omitempty"`
 }
 
 type saveSystemDetectionResult struct {
@@ -115,10 +123,7 @@ type saveSystemDetectionResult struct {
 	Confidence int
 	Reason     string
 	Noise      bool
-}
-
-var exactTitleSystemHints = map[string]string{
-	"new super mario bros": "nds",
+	Evidence   saveDetectionEvidence
 }
 
 var strictNeoGeoSetNames = map[string]struct{}{
@@ -175,32 +180,9 @@ func supportedSystemSlugFromLabel(raw string) string {
 	return ""
 }
 
-func normalizedSystemTitleHintKey(raw string) string {
-	clean := strings.ToLower(strings.TrimSpace(raw))
-	clean = strings.Trim(clean, " .,:;!?-_")
-	if clean == "" {
-		return ""
-	}
-	return strings.Join(strings.Fields(clean), " ")
-}
-
-func knownSystemSlugFromTitleHint(raw string) string {
-	key := normalizedSystemTitleHintKey(raw)
-	if key == "" {
-		return ""
-	}
-	if slug, ok := exactTitleSystemHints[key]; ok && isSupportedSystemSlug(slug) {
-		return slug
-	}
-	return ""
-}
-
 func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult {
 	filename := strings.TrimSpace(input.Filename)
 	displayTitle := strings.TrimSpace(input.DisplayTitle)
-	lowerFilename := strings.ToLower(filename)
-	lowerTitle := strings.ToLower(displayTitle)
-	lowerName := strings.ToLower(filename + " " + displayTitle)
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
 	payload := input.Payload
 
@@ -225,12 +207,15 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 	}
 
 	type detectionCandidate struct {
-		score     int
-		reason    string
-		declared  bool
-		payload   bool
-		pathHint  bool
-		titleHint bool
+		score         int
+		reason        string
+		declared      bool
+		helperTrusted bool
+		payload       bool
+		pathHint      bool
+		formatHint    bool
+		storedTrusted bool
+		titleHint     bool
 	}
 
 	score := map[string]detectionCandidate{}
@@ -250,38 +235,68 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 	}
 
 	if input.DeclaredFallbackOnly {
+		scoreValue := 69
+		reason := "stored system fallback"
+		if input.TrustedStoredSystem {
+			scoreValue = 89
+			reason = "stored trusted system evidence"
+		}
 		if declared := supportedSystemSlugFromLabel(input.DeclaredSystemSlug); declared != "" {
-			setScore(declared, 69, "stored system fallback", func(candidate *detectionCandidate) {
+			setScore(declared, scoreValue, reason, func(candidate *detectionCandidate) {
 				candidate.declared = true
+				candidate.storedTrusted = input.TrustedStoredSystem
 			})
 		}
 		if input.DeclaredSystem != nil {
 			if declared := supportedSystemSlugFromLabel(input.DeclaredSystem.Slug); declared != "" {
-				setScore(declared, 69, "stored system fallback", func(candidate *detectionCandidate) {
+				setScore(declared, scoreValue, reason, func(candidate *detectionCandidate) {
 					candidate.declared = true
+					candidate.storedTrusted = input.TrustedStoredSystem
 				})
 			}
 			if declared := supportedSystemSlugFromLabel(input.DeclaredSystem.Name); declared != "" {
-				setScore(declared, 69, "stored system fallback", func(candidate *detectionCandidate) {
+				setScore(declared, scoreValue, reason, func(candidate *detectionCandidate) {
 					candidate.declared = true
+					candidate.storedTrusted = input.TrustedStoredSystem
 				})
 			}
 		}
 	} else {
 		if declared := supportedSystemSlugFromLabel(input.DeclaredSystemSlug); declared != "" {
-			setScore(declared, 92, "declared system slug", func(candidate *detectionCandidate) {
+			scoreValue := 92
+			reason := "declared system slug"
+			if input.TrustedHelperSystem {
+				scoreValue = 96
+				reason = "trusted helper declared system slug"
+			}
+			setScore(declared, scoreValue, reason, func(candidate *detectionCandidate) {
 				candidate.declared = true
+				candidate.helperTrusted = input.TrustedHelperSystem
 			})
 		}
 		if input.DeclaredSystem != nil {
 			if declared := supportedSystemSlugFromLabel(input.DeclaredSystem.Slug); declared != "" {
-				setScore(declared, 90, "declared system struct slug", func(candidate *detectionCandidate) {
+				scoreValue := 90
+				reason := "declared system struct slug"
+				if input.TrustedHelperSystem {
+					scoreValue = 95
+					reason = "trusted helper declared system struct slug"
+				}
+				setScore(declared, scoreValue, reason, func(candidate *detectionCandidate) {
 					candidate.declared = true
+					candidate.helperTrusted = input.TrustedHelperSystem
 				})
 			}
 			if declared := supportedSystemSlugFromLabel(input.DeclaredSystem.Name); declared != "" {
-				setScore(declared, 88, "declared system name", func(candidate *detectionCandidate) {
+				scoreValue := 88
+				reason := "declared system name"
+				if input.TrustedHelperSystem {
+					scoreValue = 94
+					reason = "trusted helper declared system name"
+				}
+				setScore(declared, scoreValue, reason, func(candidate *detectionCandidate) {
 					candidate.declared = true
+					candidate.helperTrusted = input.TrustedHelperSystem
 				})
 			}
 		}
@@ -310,131 +325,28 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 
 	switch ext {
 	case "dsv":
-		setScore("nds", 90, "dsv extension", nil)
+		setScore("nds", 90, "dsv extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
+		})
 	case "eep", "fla", "sra", "mpk":
-		setScore("n64", 90, ext+" extension", nil)
+		setScore("n64", 90, ext+" extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
+		})
 	case "mcr", "mc", "mcd", "gme", "vmp", "psv":
-		setScore("psx", 90, ext+" extension", nil)
+		setScore("psx", 90, ext+" extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
+		})
 	case "ps2":
-		setScore("ps2", 90, "ps2 extension", nil)
+		setScore("ps2", 90, "ps2 extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
+		})
 	case "sa1":
-		setScore("snes", 74, "sa1 extension", nil)
-	case "srm":
-		setScore("snes", 68, "srm extension", nil)
-		setScore("gameboy", 62, "srm extension", nil)
-		setScore("genesis", 60, "srm extension", nil)
-	case "sav":
-		setScore("gameboy", 56, "sav extension", nil)
-		setScore("gba", 56, "sav extension", nil)
-		setScore("nds", 56, "sav extension", nil)
-	case "ram":
-		setScore("genesis", 60, "ram extension", nil)
-		setScore("master-system", 56, "ram extension", nil)
-		setScore("game-gear", 56, "ram extension", nil)
-		setScore("neogeo", 62, "ram extension", nil)
-		setScore("arcade", 58, "ram extension", nil)
+		setScore("snes", 74, "sa1 extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
+		})
 	case "nv", "nvram", "hi", "eeprom":
-		setScore("arcade", 82, ext+" extension", nil)
-	}
-
-	if containsAny(lowerFilename, []string{"game boy", "gameboy", "/gb/", "\\gb\\", ".gb"}) {
-		setScore("gameboy", 70, "gameboy filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerFilename, []string{"gba", "game boy advance", "mgba", "visualboyadvance"}) {
-		setScore("gba", 74, "gba filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerFilename, []string{"nds", "nintendo ds", "melonds", "desmume"}) {
-		setScore("nds", 78, "nds filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"snes", "super nintendo", "sfc", "bsnes", "snes9x"}) {
-		setScore("snes", 76, "snes filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"n64", "nintendo 64", "mupen", "project64"}) {
-		setScore("n64", 78, "n64 filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerFilename, []string{"neogeo", "neo geo", "neo-geo", "/mvs/", "\\mvs\\", "/aes/", "\\aes\\"}) {
-		setScore("neogeo", 82, "neo geo filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"genesis", "mega drive", "megadrive"}) {
-		setScore("genesis", 74, "genesis filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerFilename, []string{"master system", "/sms/", "\\sms\\"}) {
-		setScore("master-system", 76, "master system filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerFilename, []string{"game gear", "/gg/", "\\gg\\"}) {
-		setScore("game-gear", 76, "game gear filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"playstation", "psx", "ps1", "duckstation", "pcsx"}) {
-		setScore("psx", 78, "playstation filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"ps2", "pcsx2", "playstation 2"}) {
-		setScore("ps2", 80, "ps2 filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"psp", "ppsspp", "playstation portable"}) {
-		setScore("psp", 78, "psp filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"ps vita", "psvita", "vita3k"}) {
-		setScore("psvita", 78, "psvita filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"ps3", "rpcs3"}) {
-		setScore("ps3", 76, "ps3 filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"ps4"}) {
-		setScore("ps4", 76, "ps4 filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerName, []string{"ps5"}) {
-		setScore("ps5", 76, "ps5 filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerFilename, arcadeFilenameHints) {
-		setScore("arcade", 84, "arcade filename hint", func(candidate *detectionCandidate) {
-			candidate.pathHint = true
-		})
-	}
-	if containsAny(lowerTitle, []string{"super nintendo", "snes"}) {
-		setScore("snes", 66, "title hint", func(candidate *detectionCandidate) {
-			candidate.titleHint = true
-		})
-	}
-	if containsAny(lowerTitle, []string{"nintendo 64", "n64"}) {
-		setScore("n64", 66, "title hint", func(candidate *detectionCandidate) {
-			candidate.titleHint = true
-		})
-	}
-	if hinted := knownSystemSlugFromTitleHint(displayTitle); hinted != "" {
-		setScore(hinted, 80, "exact title hint", func(candidate *detectionCandidate) {
-			candidate.titleHint = true
+		setScore("arcade", 82, ext+" extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
 		})
 	}
 
@@ -448,7 +360,7 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 	}
 
 	if bestSlug == "" || bestCandidate.score < 50 {
-		noise := looksLikeMostlyTextPayload(payload)
+		noise := isGenericSaveExtension(ext) || looksLikeMostlyTextPayload(payload)
 		return saveSystemDetectionResult{
 			Slug:       "unknown-system",
 			System:     nil,
@@ -458,17 +370,37 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 		}
 	}
 
-	if isGenericSaveExtension(ext) && !bestCandidate.declared && !bestCandidate.payload && !bestCandidate.pathHint && bestCandidate.score < 68 {
+	if isGenericSaveExtension(ext) && !bestCandidate.payload && !bestCandidate.pathHint && !bestCandidate.formatHint && !bestCandidate.helperTrusted && !bestCandidate.storedTrusted {
 		return saveSystemDetectionResult{
 			Slug:       "unknown-system",
 			System:     nil,
 			Confidence: bestCandidate.score,
-			Reason:     "generic save extension without trusted system evidence",
+			Reason:     "generic save extension without parser or helper evidence",
 			Noise:      true,
 		}
 	}
 
-	if isGenericSaveExtension(ext) && bestCandidate.declared && !bestCandidate.payload && !bestCandidate.pathHint && !bestCandidate.titleHint {
+	if isGenericSaveExtension(ext) && input.DeclaredFallbackOnly && bestCandidate.declared && !bestCandidate.payload && !bestCandidate.storedTrusted {
+		return saveSystemDetectionResult{
+			Slug:       "unknown-system",
+			System:     nil,
+			Confidence: bestCandidate.score,
+			Reason:     "generic save extension without trusted stored system evidence",
+			Noise:      true,
+		}
+	}
+
+	if input.DeclaredFallbackOnly && bestCandidate.declared && !bestCandidate.storedTrusted && !bestCandidate.payload && !bestCandidate.formatHint && !bestCandidate.pathHint {
+		return saveSystemDetectionResult{
+			Slug:       "unknown-system",
+			System:     nil,
+			Confidence: bestCandidate.score,
+			Reason:     "stored system fallback without trusted save evidence",
+			Noise:      true,
+		}
+	}
+
+	if isGenericSaveExtension(ext) && bestCandidate.declared && !bestCandidate.payload && !bestCandidate.pathHint && !bestCandidate.titleHint && !bestCandidate.storedTrusted {
 		if generic, reason := isLikelyGenericFallbackTitle(firstNonEmpty(displayTitle, strings.TrimSuffix(filename, filepath.Ext(filename)))); generic {
 			return saveSystemDetectionResult{
 				Slug:       "unknown-system",
@@ -492,7 +424,7 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 
 	// Treat plain-text payload as noise unless the system evidence is strong
 	// (explicit console signatures or declared trusted source).
-	if looksLikeMostlyTextPayload(payload) && !bestCandidate.declared && !bestCandidate.payload && bestCandidate.score < 85 {
+	if looksLikeMostlyTextPayload(payload) && !bestCandidate.declared && !bestCandidate.payload && !bestCandidate.storedTrusted && bestCandidate.score < 85 {
 		return saveSystemDetectionResult{
 			Slug:       "unknown-system",
 			System:     nil,
@@ -509,6 +441,15 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 		Confidence: bestCandidate.score,
 		Reason:     bestCandidate.reason,
 		Noise:      false,
+		Evidence: saveDetectionEvidence{
+			Declared:      bestCandidate.declared,
+			HelperTrusted: bestCandidate.helperTrusted,
+			Payload:       bestCandidate.payload,
+			PathHint:      bestCandidate.pathHint,
+			FormatHint:    bestCandidate.formatHint,
+			StoredTrusted: bestCandidate.storedTrusted,
+			TitleHint:     bestCandidate.titleHint,
+		},
 	}
 }
 

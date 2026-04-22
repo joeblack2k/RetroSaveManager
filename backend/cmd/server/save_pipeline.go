@@ -37,8 +37,11 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		Payload:              input.Payload,
 		DeclaredSystemSlug:   input.SystemSlug,
 		DeclaredSystem:       input.Game.System,
+		TrustedHelperSystem:  input.TrustedHelperSystem,
 		DeclaredFallbackOnly: options.StoredSystemFallbackOnly,
+		TrustedStoredSystem:  metadataHasTrustedSystemEvidence(input.Metadata),
 	})
+	input.Metadata = mergeSystemDetectionMetadata(input.Metadata, detection)
 
 	normalized := deriveNormalizedSaveMetadata(input, input.Filename, detection)
 	input.DisplayTitle = normalized.DisplayTitle
@@ -158,30 +161,30 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 	}
 
 	normalized := a.normalizeSaveInputDetailedWithOptions(saveCreateInput{
-		Filename:      record.Summary.Filename,
-		Payload:       payload,
-		Game:          record.Summary.Game,
-		Format:        record.Summary.Format,
-		Metadata:      record.Summary.Metadata,
-		ROMSHA1:       record.ROMSHA1,
-		ROMMD5:        record.ROMMD5,
-		SlotName:      record.SlotName,
-		SystemSlug:    firstNonEmpty(record.SystemSlug, record.Summary.SystemSlug),
-		GameSlug:      record.GameSlug,
-		SystemPath:    record.SystemPath,
-		GamePath:      record.GamePath,
-		DisplayTitle:  record.Summary.DisplayTitle,
-		RegionCode:    record.Summary.RegionCode,
-		RegionFlag:    record.Summary.RegionFlag,
-		LanguageCodes: record.Summary.LanguageCodes,
-		CoverArtURL:   record.Summary.CoverArtURL,
-		MemoryCard:    record.Summary.MemoryCard,
+		Filename:       record.Summary.Filename,
+		Payload:        payload,
+		Game:           record.Summary.Game,
+		Format:         record.Summary.Format,
+		Metadata:       record.Summary.Metadata,
+		ROMSHA1:        record.ROMSHA1,
+		ROMMD5:         record.ROMMD5,
+		SlotName:       record.SlotName,
+		SystemSlug:     firstNonEmpty(record.SystemSlug, record.Summary.SystemSlug),
+		GameSlug:       record.GameSlug,
+		SystemPath:     record.SystemPath,
+		GamePath:       record.GamePath,
+		DisplayTitle:   record.Summary.DisplayTitle,
+		RegionCode:     record.Summary.RegionCode,
+		RegionFlag:     record.Summary.RegionFlag,
+		LanguageCodes:  record.Summary.LanguageCodes,
+		CoverArtURL:    record.Summary.CoverArtURL,
+		MemoryCard:     record.Summary.MemoryCard,
 		RuntimeProfile: record.Summary.RuntimeProfile,
 		CardSlot:       record.Summary.CardSlot,
 		ProjectionID:   record.Summary.ProjectionID,
 		SourceImportID: record.Summary.SourceImportID,
 		Portable:       record.Summary.Portable,
-		CreatedAt:     record.Summary.CreatedAt,
+		CreatedAt:      record.Summary.CreatedAt,
 	}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
 
 	updated := applyNormalizedSaveToRecord(*record, normalized.Input)

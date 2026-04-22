@@ -516,7 +516,6 @@ func countDirectoryBlocks(payload []byte, start int) int {
 	return count
 }
 
-
 func extractLongestReadableASCII(data []byte) string {
 	best := ""
 	current := strings.Builder{}

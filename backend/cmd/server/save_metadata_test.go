@@ -223,22 +223,38 @@ func TestDetectSaveSystemDoesNotPromoteArcadeFromTitleOnly(t *testing.T) {
 	}
 }
 
-func TestDetectSaveSystemKeepsDeclaredSNESForGenericExtension(t *testing.T) {
+func TestDetectSaveSystemRejectsDeclaredSNESForGenericExtensionWithoutHelperEvidence(t *testing.T) {
 	detected := detectSaveSystem(saveSystemDetectionInput{
 		Filename:           "The Legend of Zelda - A Link to the Past (USA).sav",
 		DisplayTitle:       "The Legend of Zelda - A Link to the Past",
 		Payload:            []byte{0x01, 0x00, 0x01, 0x00},
 		DeclaredSystemSlug: "snes",
 	})
+	if detected.Slug != "unknown-system" {
+		t.Fatalf("expected generic SNES save to be rejected without helper evidence, got %q", detected.Slug)
+	}
+	if detected.System != nil {
+		t.Fatalf("expected no supported system details, got %#v", detected.System)
+	}
+}
+
+func TestDetectSaveSystemAcceptsDeclaredSNESForGenericExtensionWithHelperEvidence(t *testing.T) {
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:            "The Legend of Zelda - A Link to the Past (USA).sav",
+		DisplayTitle:        "The Legend of Zelda - A Link to the Past",
+		Payload:             []byte{0x01, 0x00, 0x01, 0x00},
+		DeclaredSystemSlug:  "snes",
+		TrustedHelperSystem: true,
+	})
 	if detected.Slug != "snes" {
-		t.Fatalf("expected declared SNES system to win, got %q", detected.Slug)
+		t.Fatalf("expected helper-trusted SNES system to win, got %q", detected.Slug)
 	}
 	if detected.System == nil || detected.System.Slug != "snes" {
 		t.Fatalf("expected SNES system details, got %#v", detected.System)
 	}
 }
 
-func TestDetectSaveSystemUsesNintendoDSTitleHintWhenStoredSystemFallsBack(t *testing.T) {
+func TestDetectSaveSystemRejectsNintendoDSTitleHintWhenStoredSystemFallsBack(t *testing.T) {
 	detected := detectSaveSystem(saveSystemDetectionInput{
 		Filename:             "New Super Mario Bros. (USA).sav",
 		DisplayTitle:         "New Super Mario Bros.",
@@ -247,11 +263,29 @@ func TestDetectSaveSystemUsesNintendoDSTitleHintWhenStoredSystemFallsBack(t *tes
 		DeclaredSystem:       &system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"},
 		DeclaredFallbackOnly: true,
 	})
-	if detected.Slug != "nds" {
-		t.Fatalf("expected Nintendo DS title hint to win over stored fallback, got %q", detected.Slug)
+	if detected.Slug != "unknown-system" {
+		t.Fatalf("expected Nintendo DS title hint to be rejected without trusted evidence, got %q", detected.Slug)
 	}
-	if detected.System == nil || detected.System.Slug != "nds" {
-		t.Fatalf("expected Nintendo DS system details, got %#v", detected.System)
+	if detected.System != nil {
+		t.Fatalf("expected no trusted system details, got %#v", detected.System)
+	}
+}
+
+func TestDetectSaveSystemKeepsTrustedStoredSystemForGenericExtension(t *testing.T) {
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:             "Wario Land II.srm",
+		DisplayTitle:         "Wario Land II",
+		Payload:              []byte("trusted-stored-save"),
+		DeclaredSystemSlug:   "gameboy",
+		DeclaredSystem:       &system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"},
+		DeclaredFallbackOnly: true,
+		TrustedStoredSystem:  true,
+	})
+	if detected.Slug != "gameboy" {
+		t.Fatalf("expected trusted stored system to remain gameboy, got %q", detected.Slug)
+	}
+	if detected.System == nil || detected.System.Slug != "gameboy" {
+		t.Fatalf("expected Nintendo Game Boy system details, got %#v", detected.System)
 	}
 }
 
@@ -362,5 +396,15 @@ func TestDetectSaveSystemKeepsDedicatedArcadeExtension(t *testing.T) {
 	}
 	if detected.System == nil || detected.System.Slug != "arcade" {
 		t.Fatalf("expected arcade system details, got %#v", detected.System)
+	}
+}
+
+func TestFallbackGameFromFilenameDoesNotInjectConsoleFromTitle(t *testing.T) {
+	game := fallbackGameFromFilename("Wario Land II.srm")
+	if game.System != nil {
+		t.Fatalf("expected filename fallback to avoid setting a console, got %#v", game.System)
+	}
+	if game.Name != "Wario Land II" {
+		t.Fatalf("expected cleaned fallback title, got %q", game.Name)
 	}
 }

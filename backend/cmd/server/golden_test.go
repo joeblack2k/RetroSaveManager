@@ -22,7 +22,7 @@ func TestGoldenSaveLatestMissing(t *testing.T) {
 
 func TestGoldenSaveLatestSuccess(t *testing.T) {
 	h := newContractHarness(t)
-	uploadSave(t, h, "/saves", map[string]string{"rom_sha1": "golden-rom", "slotName": "default"}, "slot1.srm", []byte("golden-save"))
+	uploadSave(t, h, "/saves", map[string]string{"rom_sha1": "golden-rom", "slotName": "default", "system": "n64"}, "slot1.eep", []byte("golden-save"))
 	rr := h.request(http.MethodGet, "/save/latest?romSha1=golden-rom&slotName=default", nil)
 	assertStatus(t, rr, http.StatusOK)
 	assertGoldenJSONResponse(t, rr, "save_latest_success.json")
