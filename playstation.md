@@ -558,4 +558,49 @@ Status: confirmed backend-side projection integrity bug (not a helper-side merge
 1. Two consecutive helper `sync` runs on the same device converge to `in_sync`.
 2. No PS1 download/upload loop for unchanged cards.
 3. Helper no longer emits invalid canonical PS1 error for valid PS1 line records.
+
+## 23. Backend Incident Note: Dreamcast uploads rejected with `422` (helper-side validation already active)
+
+Date: 2026-04-22 (CEST)
+
+Status: confirmed backend-side format acceptance gap for Dreamcast payloads.
+
+### What was observed
+
+1. Updated helper build recognizes Dreamcast saves on KNULLI:
+   - `*.A1.bin`, `*.B1.bin`, `*.C1.bin`, `*.D1.bin` (128KB VMU images)
+2. Helper strict validation succeeds and classifies these as Dreamcast:
+   - evidence example: `path hint sega + .bin (131072 bytes) [vmu-bin entries=0 icons=0 title=- app=-]`
+3. `dc_nvmem.bin` is rejected client-side as intended (NVRAM blob, not a VMU save container).
+4. Upload request then fails server-side with:
+   - `422 Unprocessable Entity`
+   - message: `unsupported or unrecognized save format; only known consoles/arcade are allowed`
+
+### Reproduction (minimal)
+
+1. On KNULLI, keep source path that includes `/userdata/saves/dreamcast/*.A1.bin`.
+2. Run helper sync:
+   - `./sgm-mister-helper --config ./config.ini sync --verbose`
+3. Observe:
+   - Dreamcast files are detected by helper and attempted for upload.
+   - Backend responds `422` with unsupported-format message.
+
+### Required backend fix
+
+1. Extend backend save classifier/validator to accept Dreamcast VMU-family payloads:
+   - raw VMU image (`.bin`, 128KB)
+   - VMS package (`.vms`)
+   - DCI dump (`.dci`)
+2. Add Dreamcast as a supported console slug in backend normalization path (`dreamcast`).
+3. Preserve helper-provided Dreamcast line identity (`dc-line:<system>:<device_type>:<slot>`) in latest/conflict flow.
+4. Add contract tests:
+   - upload valid VMU `.bin` -> accepted
+   - upload known-invalid `dc_nvmem.bin` style blob -> rejected
+   - `/save/latest` + `/saves/download` roundtrip for Dreamcast converges to `in_sync`
+
+### Acceptance criteria for backend developer
+
+1. Dreamcast VMU uploads from helper return success (no `422` unsupported format).
+2. `dc_nvmem.bin` remains rejected.
+3. Two consecutive helper sync runs on unchanged Dreamcast cards converge to `in_sync`.
 4. `/saves/download` payload for PS1 passes structural validator every time.
