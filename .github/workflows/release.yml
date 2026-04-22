@@ -1,0 +1,41 @@
+name: Publish GitHub Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release notes
+        run: |
+          set -euo pipefail
+          owner_lc="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
+          cp docs/RELEASE_NOTES.md release-notes.md
+          {
+            echo
+            echo "## Container Images"
+            echo
+            echo "- \`ghcr.io/${owner_lc}/retrosavemanager:${GITHUB_REF_NAME}\`"
+            echo "- \`ghcr.io/${owner_lc}/retrosavemanager:sha-${GITHUB_SHA}\`"
+            echo
+            echo "## Source"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+          } >> release-notes.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: RetroSaveManager ${{ github.ref_name }}
+          body_path: release-notes.md

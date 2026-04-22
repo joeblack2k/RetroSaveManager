@@ -1,13 +1,23 @@
 # Release Notes
 
-## 2026-04-22
+## v0.1.0 - 2026-04-22
 
 ### Included
 
 - Single-container runtime for self-hosted deploys:
   - one `app` container serves both API and frontend SPA
   - one GHCR image: `ghcr.io/joeblack2k/retrosavemanager`
+- Persistent storage hardening:
+  - save and config mounts must now be explicit persistent host paths
+  - demo bootstrap save is disabled by default for production-style deploys
+  - startup continues to rehydrate save state from disk-backed metadata under `SAVE_ROOT`
+- Save manager UI refresh:
+  - compact dark `My Saves` tree/grid layout
+  - text-based sidebar navigation
+  - tighter typography and higher-contrast styling
 - PlayStation save-domain improvements:
+  - extracted logical saves are the sync truth
+  - PS1/PS2 projections remain helper-compatible downloads
   - real PS1 memory-card detection only
   - real PS2 memory-card detection only
   - unsupported PS1/PS2 save-state noise is rejected during rescan
@@ -18,6 +28,10 @@
 - Live rescan behavior improved:
   - noisy or false-positive PlayStation records are pruned
   - valid PS memory cards remain grouped as `Memory Card N`
+- PS1 projection integrity fix:
+  - generated PS1 downloads now emit valid raw card header frames
+  - frame `0` and frame `63` now contain canonical `MC` markers plus valid XOR checksums
+  - helper-facing `/saves/download` output is validated by backend integration tests
 
 ### Deploy Notes
 
@@ -32,7 +46,4 @@
 - Backend tests passed on the test bench VM
 - Frontend tests and production build passed locally
 - Live deploy validated on the internal Docker host
-
-### Not Included In This Release
-
-- In-progress frontend `My Games` grouping refinements still in the local worktree and were not part of this release
+- GitHub release tagging and release publication are part of this release
