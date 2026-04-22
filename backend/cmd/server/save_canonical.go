@@ -12,6 +12,7 @@ type canonicalSaveTrack struct {
 	RegionCode     string
 	IsMemoryCard   bool
 	MemoryCardName string
+	RuntimeProfile string
 }
 
 func canonicalSystemForSave(existing *system, fallbackSlug string) (string, *system) {
@@ -84,6 +85,7 @@ func canonicalTrackFromInput(input saveCreateInput) canonicalSaveTrack {
 		track.IsMemoryCard = true
 		track.MemoryCardName = canonicalMemoryCardName(input.MemoryCard, input.SlotName, input.Filename)
 		track.DisplayTitle = track.MemoryCardName
+		track.RuntimeProfile = strings.TrimSpace(input.RuntimeProfile)
 	}
 	return track
 }
@@ -109,6 +111,7 @@ func canonicalTrackFromSummary(summary saveSummary, fallbackSystemSlug string) c
 		track.IsMemoryCard = true
 		track.MemoryCardName = canonicalMemoryCardName(summary.MemoryCard, "", summary.Filename)
 		track.DisplayTitle = track.MemoryCardName
+		track.RuntimeProfile = strings.TrimSpace(summary.RuntimeProfile)
 	}
 	return track
 }
@@ -132,6 +135,9 @@ func canonicalTrackKey(track canonicalSaveTrack) string {
 		cardName := strings.ToLower(strings.TrimSpace(spacePattern.ReplaceAllString(track.MemoryCardName, " ")))
 		if cardName == "" {
 			cardName = "memory card 1"
+		}
+		if runtimeProfile := canonicalOptionalSegment(track.RuntimeProfile); runtimeProfile != "" {
+			return systemSlug + "::" + runtimeProfile + "::memory-card::" + cardName
 		}
 		return systemSlug + "::memory-card::" + cardName
 	}

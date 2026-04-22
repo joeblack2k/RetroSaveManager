@@ -182,6 +182,11 @@ func applyNormalizedSaveToRecord(record saveRecord, normalized saveCreateInput) 
 	updated.Summary.LanguageCodes = normalized.LanguageCodes
 	updated.Summary.CoverArtURL = normalized.CoverArtURL
 	updated.Summary.MemoryCard = normalized.MemoryCard
+	updated.Summary.RuntimeProfile = strings.TrimSpace(normalized.RuntimeProfile)
+	updated.Summary.CardSlot = strings.TrimSpace(normalized.CardSlot)
+	updated.Summary.ProjectionID = strings.TrimSpace(normalized.ProjectionID)
+	updated.Summary.SourceImportID = strings.TrimSpace(normalized.SourceImportID)
+	updated.Summary.Portable = normalized.Portable
 	updated.Summary.Game = normalized.Game
 	updated.Summary.Game.DisplayTitle = normalized.DisplayTitle
 	updated.Summary.Game.Name = normalized.DisplayTitle

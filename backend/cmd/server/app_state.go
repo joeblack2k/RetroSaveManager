@@ -51,6 +51,7 @@ type app struct {
 	roadmapSuggestions          map[string]roadmapSuggestion
 	saves                       []saveSummary
 	saveStore                   *saveStore
+	playStationStore            *playStationStore
 	saveRecords                 []saveRecord
 	enricher                    *gameEnricher
 	conflicts                   map[string]conflictRecord
@@ -166,6 +167,14 @@ func (a *app) initSaveStore() error {
 
 	a.mu.Lock()
 	a.saveStore = store
+	a.mu.Unlock()
+
+	psStore, err := newPlayStationStore(store.root)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.playStationStore = psStore
 	a.mu.Unlock()
 
 	isEmpty, err := store.isEmpty()

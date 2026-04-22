@@ -52,6 +52,12 @@ func (a *app) handleConflictsCheck(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 
 	romSHA1, slotName := conflictQueryFromRequest(r)
+	if identity := extractHelperIdentity(r, nil); identity.hasAnyMarker() {
+		if runtimeProfile, cardSlot, ok := helperProjectionIdentity(identity.DeviceType, slotName); ok {
+			romSHA1 = projectionConflictKey(runtimeProfile, cardSlot)
+			slotName = cardSlot
+		}
+	}
 	record, ok := a.getConflict(romSHA1, slotName)
 	if !ok {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -102,9 +108,17 @@ func (a *app) handleConflictsReport(w http.ResponseWriter, r *http.Request) {
 		deviceFileSize = int(files[0].Size)
 	}
 
+	romSHA1 := strings.TrimSpace(r.FormValue("romSha1"))
+	slotName := normalizedSlot(r.FormValue("slotName"))
+	if identity := extractHelperIdentity(r, func(key string) string { return r.FormValue(key) }); identity.hasAnyMarker() {
+		if runtimeProfile, cardSlot, ok := helperProjectionIdentity(identity.DeviceType, slotName); ok {
+			romSHA1 = projectionConflictKey(runtimeProfile, cardSlot)
+			slotName = cardSlot
+		}
+	}
 	record := a.reportConflict(
-		r.FormValue("romSha1"),
-		r.FormValue("slotName"),
+		romSHA1,
+		slotName,
 		r.FormValue("localSha256"),
 		r.FormValue("cloudSha256"),
 		conflictDeviceNameFromRequest(r),

@@ -18,6 +18,12 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "backfill-playstation" {
+		if err := runPlayStationBackfill(os.Args[2:]); err != nil {
+			log.Fatalf("playstation backfill failed: %v", err)
+		}
+		return
+	}
 
 	app := newApp()
 	if err := app.initSaveStore(); err != nil {

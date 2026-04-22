@@ -55,6 +55,11 @@ type saveCreateInput struct {
 	LanguageCodes []string
 	CoverArtURL   string
 	MemoryCard    *memoryCardDetails
+	RuntimeProfile string
+	CardSlot       string
+	ProjectionID   string
+	SourceImportID string
+	Portable       *bool
 	CreatedAt     time.Time
 }
 
@@ -237,7 +242,7 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 	shaSum := sha256.Sum256(input.Payload)
 	shaHex := hex.EncodeToString(shaSum[:])
 	version := nextSaveVersion(existing, input, filename)
-	id := fmt.Sprintf("save-%d-%s", createdAt.UnixNano(), shaHex[:12])
+	idBase := fmt.Sprintf("save-%d-%s", createdAt.UnixNano(), shaHex[:12])
 	ext := filepath.Ext(filename)
 	if ext == "" {
 		ext = ".bin"
@@ -258,9 +263,23 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 		gamePath = sanitizeDisplayPathSegment(gameSlug, "Unknown Game")
 	}
 
+	id := idBase
 	targetDir, err := safeJoinUnderRoot(s.root, systemPath, gamePath, id)
 	if err != nil {
 		return saveRecord{}, err
+	}
+	for suffix := 2; ; suffix++ {
+		if _, statErr := os.Stat(targetDir); statErr != nil {
+			if os.IsNotExist(statErr) {
+				break
+			}
+			return saveRecord{}, fmt.Errorf("stat save dir: %w", statErr)
+		}
+		id = fmt.Sprintf("%s-%d", idBase, suffix)
+		targetDir, err = safeJoinUnderRoot(s.root, systemPath, gamePath, id)
+		if err != nil {
+			return saveRecord{}, err
+		}
 	}
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return saveRecord{}, fmt.Errorf("create save dir: %w", err)
@@ -281,6 +300,11 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 			TotalSizeBytes:  len(input.Payload),
 			LatestVersion:   version,
 			MemoryCard:      input.MemoryCard,
+			RuntimeProfile:  strings.TrimSpace(input.RuntimeProfile),
+			CardSlot:        strings.TrimSpace(input.CardSlot),
+			ProjectionID:    strings.TrimSpace(input.ProjectionID),
+			SourceImportID:  strings.TrimSpace(input.SourceImportID),
+			Portable:        input.Portable,
 			Filename:        filename,
 			FileSize:        len(input.Payload),
 			Format:          format,

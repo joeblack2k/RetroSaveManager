@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -23,6 +24,26 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 
 	romSHA1 := strings.TrimSpace(r.URL.Query().Get("romSha1"))
 	slotName := normalizedSlot(r.URL.Query().Get("slotName"))
+
+	if helperCtx.IsHelper {
+		if runtimeProfile, cardSlot, ok := helperProjectionIdentity(helperCtx.Device.DeviceType, slotName); ok {
+			if store := a.playStationSyncStore(); store != nil {
+				if saveID, _, exists := store.latestProjectionSaveRecord(runtimeProfile, cardSlot); exists {
+					latest, found := a.findSaveRecordByID(saveID)
+					if found {
+						writeJSON(w, http.StatusOK, map[string]any{
+							"success": true,
+							"exists":  true,
+							"sha256":  latest.Summary.SHA256,
+							"version": latest.Summary.Version,
+							"id":      latest.Summary.ID,
+						})
+						return
+					}
+				}
+			}
+		}
+	}
 
 	latest, ok := a.latestSaveRecord(romSHA1, slotName)
 	if ok {
@@ -114,6 +135,34 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				Error:      "Forbidden",
 				Message:    "this device is not allowed to sync saves for this console",
 				StatusCode: http.StatusForbidden,
+			})
+			return
+		}
+
+		artifactKind := classifyPlayStationArtifact(preview.Input.Game.System, input.Format, input.Filename, input.Payload)
+		if artifactKind == saveArtifactPS1MemoryCard || artifactKind == saveArtifactPS2MemoryCard {
+			deviceType := firstNonEmpty(helperCtx.Device.DeviceType, identity.DeviceType)
+			record, conflict, err := a.createPlayStationProjectionSave(input, preview, deviceType, identity.Fingerprint)
+			if err != nil {
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{
+					Error:      "Unprocessable Entity",
+					Message:    err.Error(),
+					StatusCode: http.StatusUnprocessableEntity,
+				})
+				return
+			}
+			if conflict != nil {
+				a.reportConflict(conflict.ConflictKey, record.Summary.CardSlot, conflict.LocalSHA256, conflict.CloudSHA256, helperCtx.Device.DisplayName, record.Summary.Filename, record.Summary.FileSize)
+			}
+			if !helperCtx.IsHelper && identity.isComplete() {
+				a.upsertDevice(identity.DeviceType, identity.Fingerprint)
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success": true,
+				"save": map[string]any{
+					"id":     record.Summary.ID,
+					"sha256": record.Summary.SHA256,
+				},
 			})
 			return
 		}
@@ -506,6 +555,26 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
 		return
 	}
+	if runtimeProfile, cardSlot, _, isPSProjection := playStationProjectionInfoFromRecord(sourceRecord); isPSProjection {
+		payload, err := os.ReadFile(sourceRecord.payloadPath)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+			return
+		}
+		record, err := a.rollbackPlayStationProjection(sourceRecord, runtimeProfile, cardSlot, payload)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+			return
+		}
+		a.saveCreatedEvent(record)
+		a.resolveConflictForSave(record)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success":      true,
+			"sourceSaveId": sourceRecord.Summary.ID,
+			"save":         record.Summary,
+		})
+		return
+	}
 	payload, err := os.ReadFile(sourceRecord.payloadPath)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
@@ -586,6 +655,17 @@ func (a *app) handleDeleteSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "id is required", StatusCode: http.StatusBadRequest})
 		return
 	}
+	if record, ok := a.findSaveRecordByID(saveID); ok {
+		if runtimeProfile, cardSlot, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
+			remainingVersions, err := a.deletePlayStationProjection(runtimeProfile, cardSlot)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
+			return
+		}
+	}
 
 	remainingVersions, found, err := a.deleteSaveRecordsByIDs([]string{saveID})
 	if err != nil {
@@ -654,6 +734,13 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(record)) {
 		writeJSON(w, http.StatusForbidden, apiError{Error: "Forbidden", Message: "this device is not allowed to download saves for this console", StatusCode: http.StatusForbidden})
 		return
+	}
+	if helperCtx.IsHelper {
+		if runtimeProfile, cardSlot, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
+			if store := a.playStationSyncStore(); store != nil {
+				store.markProjectionDownloaded(runtimeProfile, cardSlot, helperCtx.Device.Fingerprint)
+			}
+		}
 	}
 
 	payload, err := os.ReadFile(record.payloadPath)
@@ -900,6 +987,214 @@ func splitCSV(raw string) []string {
 		out = append(out, clean)
 	}
 	return out
+}
+
+func (a *app) playStationSyncStore() *playStationStore {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.playStationStore
+}
+
+func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview normalizedSaveInputResult, deviceType, fingerprint string) (saveRecord, *psImportConflict, error) {
+	store := a.playStationSyncStore()
+	if store == nil {
+		return saveRecord{}, nil, fmt.Errorf("playstation store is not initialized")
+	}
+	createdAt := input.CreatedAt.UTC()
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+	artifactKind := classifyPlayStationArtifact(preview.Input.Game.System, input.Format, input.Filename, input.Payload)
+	runtimeProfile, systemSlug, err := supportedPlayStationRuntimeProfile(deviceType, artifactKind)
+	if err != nil {
+		return saveRecord{}, nil, err
+	}
+	cardSlot, ok := deriveExplicitMemoryCardName(input.SlotName, input.Filename)
+	if !ok {
+		return saveRecord{}, nil, fmt.Errorf("PlayStation sync requires an explicit Memory Card 1/2 slot")
+	}
+	result, err := store.importMemoryCard(psImportRequest{
+		Payload:        input.Payload,
+		Filename:       input.Filename,
+		ArtifactKind:   artifactKind,
+		RuntimeProfile: runtimeProfile,
+		SystemSlug:     systemSlug,
+		CardSlot:       cardSlot,
+		Fingerprint:    strings.TrimSpace(fingerprint),
+		CreatedAt:      createdAt,
+		HelperDevice:   strings.TrimSpace(deviceType),
+	})
+	if err != nil {
+		return saveRecord{}, nil, err
+	}
+	var primary saveRecord
+	for _, built := range result.Built {
+		portability := built.Portable
+		gameSystem := supportedSystemFromSlug(built.SystemSlug)
+		record, err := a.createSave(saveCreateInput{
+			Filename:       built.Filename,
+			Payload:        built.Payload,
+			Game:           game{ID: canonicalGameIDForTrack(canonicalSaveTrack{SystemSlug: built.SystemSlug, DisplayTitle: built.CardSlot, IsMemoryCard: true, MemoryCardName: built.CardSlot, RuntimeProfile: built.RuntimeProfile}), Name: built.CardSlot, DisplayTitle: built.CardSlot, System: gameSystem},
+			Format:         inferSaveFormat(built.Filename),
+			Metadata:       mergePlayStationMetadata(input.Metadata, built),
+			ROMSHA1:        projectionConflictKey(built.RuntimeProfile, built.CardSlot),
+			ROMMD5:         "",
+			SlotName:       built.CardSlot,
+			SystemSlug:     built.SystemSlug,
+			GameSlug:       canonicalSegment(built.CardSlot, "memory-card"),
+			SystemPath:     firstNonEmpty(func() string { if gameSystem != nil { return gameSystem.Name }; return "" }(), built.SystemSlug),
+			GamePath:       built.CardSlot,
+			DisplayTitle:   built.CardSlot,
+			RegionCode:     preview.Input.RegionCode,
+			RegionFlag:     preview.Input.RegionFlag,
+			LanguageCodes:  preview.Input.LanguageCodes,
+			CoverArtURL:    preview.Input.CoverArtURL,
+			MemoryCard:     built.MemoryCard,
+			RuntimeProfile: built.RuntimeProfile,
+			CardSlot:       built.CardSlot,
+			ProjectionID:   built.ProjectionID,
+			SourceImportID: built.SourceImportID,
+			Portable:       &portability,
+			CreatedAt:      createdAt,
+		})
+		if err != nil {
+			return saveRecord{}, nil, err
+		}
+		playStationSummaryFields(&record.Summary, built)
+		if err := persistSaveRecordMetadata(record); err == nil {
+			a.replaceSaveRecord(record)
+		}
+		if err := store.attachProjectionSaveRecord(built.ProjectionID, record.Summary.ID); err != nil {
+			return saveRecord{}, nil, err
+		}
+		a.saveCreatedEvent(record)
+		a.resolveConflictForSave(record)
+		if built.ProjectionLineKey == result.PrimaryProjectionLineKey {
+			primary = record
+		}
+	}
+	if strings.TrimSpace(primary.Summary.ID) == "" {
+		return saveRecord{}, nil, fmt.Errorf("primary PlayStation projection was not created")
+	}
+	return primary, result.Conflict, nil
+}
+
+func (a *app) replaceSaveRecord(updated saveRecord) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for i := range a.saveRecords {
+		if a.saveRecords[i].Summary.ID == updated.Summary.ID {
+			a.saveRecords[i] = updated
+			break
+		}
+	}
+	for i := range a.saves {
+		if a.saves[i].ID == updated.Summary.ID {
+			a.saves[i] = updated.Summary
+			break
+		}
+	}
+}
+
+func (a *app) rollbackPlayStationProjection(sourceRecord saveRecord, runtimeProfile, cardSlot string, payload []byte) (saveRecord, error) {
+	store := a.playStationSyncStore()
+	if store == nil {
+		return saveRecord{}, fmt.Errorf("playstation store is not initialized")
+	}
+	store.markProjectionDownloaded(runtimeProfile, cardSlot, "rollback:"+sourceRecord.Summary.ID)
+	systemSlug := "psx"
+	if strings.HasPrefix(runtimeProfile, "ps2/") {
+		systemSlug = "ps2"
+	}
+	returnRecord, _, err := a.createPlayStationProjectionSave(saveCreateInput{
+		Filename:  sourceRecord.Summary.Filename,
+		Payload:   payload,
+		Metadata:  mergeRollbackMetadata(sourceRecord),
+		SlotName:  cardSlot,
+		Game:      sourceRecord.Summary.Game,
+		Format:    sourceRecord.Summary.Format,
+	}, normalizedSaveInputResult{
+		Input: saveCreateInput{SlotName: cardSlot},
+		Detection: saveSystemDetectionResult{
+			Slug:   systemSlug,
+			System: supportedSystemFromSlug(systemSlug),
+		},
+	}, runtimeDeviceTypeFromProfile(runtimeProfile), "rollback:"+sourceRecord.Summary.ID)
+	return returnRecord, err
+}
+
+func (a *app) deletePlayStationProjection(runtimeProfile, cardSlot string) (int, error) {
+	store := a.playStationSyncStore()
+	if store == nil {
+		return 0, fmt.Errorf("playstation store is not initialized")
+	}
+	projection, ok := store.projectionForRuntime(runtimeProfile, cardSlot)
+	if !ok {
+		return 0, fmt.Errorf("PlayStation projection not found")
+	}
+	store.mu.Lock()
+	line, ok := store.state.ProjectionLines[projection.ProjectionLineKey]
+	if !ok {
+		store.mu.Unlock()
+		return 0, fmt.Errorf("PlayStation projection line not found")
+	}
+	active := store.activeLogicalSavesForLineLocked(line.SystemSlug, line.SyncLineKey, line.Key)
+	now := time.Now().UTC()
+	for _, logical := range active {
+		scopeKey := logical.ProjectionLineKey
+		if logical.Portable {
+			scopeKey = logical.SyncLineKey
+		}
+		store.state.Tombstones[psTombstoneKey(scopeKey, logical.Key)] = psTombstone{
+			ID:        deterministicConflictID(psTombstoneKey(scopeKey, logical.Key)),
+			LogicalKey: logical.Key,
+			ScopeKey:  scopeKey,
+			Reason:    "projection deleted from API",
+			CreatedAt: now,
+		}
+	}
+	built, err := store.rebuildProjectionLinesLocked(line.SystemSlug, line.CardSlot, runtimeProfile, "delete:"+projection.ID, line.CardSlot)
+	if err != nil {
+		store.mu.Unlock()
+		return 0, err
+	}
+	if err := store.persistLocked(); err != nil {
+		store.mu.Unlock()
+		return 0, err
+	}
+	store.mu.Unlock()
+	for _, candidate := range built {
+		portability := candidate.Portable
+		sys := supportedSystemFromSlug(candidate.SystemSlug)
+		record, err := a.createSave(saveCreateInput{
+			Filename:       candidate.Filename,
+			Payload:        candidate.Payload,
+			Game:           game{Name: candidate.CardSlot, DisplayTitle: candidate.CardSlot, System: sys},
+			Format:         inferSaveFormat(candidate.Filename),
+			Metadata:       mergePlayStationMetadata(map[string]any{"deleted": true}, candidate),
+			ROMSHA1:        projectionConflictKey(candidate.RuntimeProfile, candidate.CardSlot),
+			SlotName:       candidate.CardSlot,
+			SystemSlug:     candidate.SystemSlug,
+			GameSlug:       canonicalSegment(candidate.CardSlot, "memory-card"),
+			SystemPath:     firstNonEmpty(func() string { if sys != nil { return sys.Name }; return "" }(), candidate.SystemSlug),
+			GamePath:       candidate.CardSlot,
+			DisplayTitle:   candidate.CardSlot,
+			MemoryCard:     candidate.MemoryCard,
+			RuntimeProfile: candidate.RuntimeProfile,
+			CardSlot:       candidate.CardSlot,
+			ProjectionID:   candidate.ProjectionID,
+			SourceImportID: candidate.SourceImportID,
+			Portable:       &portability,
+			CreatedAt:      time.Now().UTC(),
+		})
+		if err != nil {
+			return 0, err
+		}
+		if err := store.attachProjectionSaveRecord(candidate.ProjectionID, record.Summary.ID); err != nil {
+			return 0, err
+		}
+	}
+	return len(a.snapshotSaveRecords()), nil
 }
 
 func parseCSVInts(raw string) []int {

@@ -176,6 +176,11 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 		LanguageCodes: record.Summary.LanguageCodes,
 		CoverArtURL:   record.Summary.CoverArtURL,
 		MemoryCard:    record.Summary.MemoryCard,
+		RuntimeProfile: record.Summary.RuntimeProfile,
+		CardSlot:       record.Summary.CardSlot,
+		ProjectionID:   record.Summary.ProjectionID,
+		SourceImportID: record.Summary.SourceImportID,
+		Portable:       record.Summary.Portable,
 		CreatedAt:     record.Summary.CreatedAt,
 	}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
 

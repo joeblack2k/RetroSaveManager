@@ -47,6 +47,7 @@ type memoryCardEntry struct {
 	DirectoryName string `json:"directoryName,omitempty"`
 	IconDataURL   string `json:"iconDataUrl,omitempty"`
 	SizeBytes     int    `json:"sizeBytes,omitempty"`
+	Portable      *bool  `json:"portable,omitempty"`
 }
 
 type memoryCardDetails struct {
@@ -68,6 +69,11 @@ type saveSummary struct {
 	TotalSizeBytes  int                `json:"totalSizeBytes,omitempty"`
 	LatestVersion   int                `json:"latestVersion,omitempty"`
 	MemoryCard      *memoryCardDetails `json:"memoryCard,omitempty"`
+	RuntimeProfile  string             `json:"runtimeProfile,omitempty"`
+	CardSlot        string             `json:"cardSlot,omitempty"`
+	ProjectionID    string             `json:"projectionId,omitempty"`
+	SourceImportID  string             `json:"sourceImportId,omitempty"`
+	Portable        *bool              `json:"portable,omitempty"`
 	Filename        string             `json:"filename"`
 	FileSize        int                `json:"fileSize"`
 	Format          string             `json:"format"`
