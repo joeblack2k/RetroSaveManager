@@ -19,11 +19,11 @@ De deploy-host hoort dus niet meer lokaal te bouwen voor productie-updates.
 
 ## Live omgeving
 
-- Docker host: `192.168.2.10`
-- User: `debian`
-- Password: `Kirsten`
+- Docker host: `<deploy-host>`
+- User: `<deploy-user>`
+- Password: keep this outside the public repo
 - Repo pad: `/home/debian/RetroSaveManager`
-- Live URL: `http://192.168.2.10`
+- Live URL: `http://<deploy-host>`
 
 ## Vereiste GitHub workflow
 
@@ -37,7 +37,7 @@ Belangrijk:
 - `main` publiceert ook een immutable `sha-<full-commit-sha>` tag
 - de workflow verifieert dat GHCR `latest` echt de revision van `main` bevat
 
-## Standaard deploy op 192.168.2.10
+## Standaard deploy op je Docker-host
 
 1. Check dat de publish-workflow op GitHub groen is.
 2. SSH naar de deploy-host.
@@ -49,7 +49,7 @@ Belangrijk:
 Exacte commando’s:
 
 ```bash
-sshpass -p 'Kirsten' ssh -o StrictHostKeyChecking=no debian@192.168.2.10 '
+sshpass -p '<deploy-password>' ssh -o StrictHostKeyChecking=no <deploy-user>@<deploy-host> '
   set -euo pipefail
   cd /home/debian/RetroSaveManager
   git fetch origin main
@@ -62,16 +62,16 @@ sshpass -p 'Kirsten' ssh -o StrictHostKeyChecking=no debian@192.168.2.10 '
 ## Smoke checks
 
 ```bash
-curl -fsS http://192.168.2.10/healthz
-curl -fsS http://192.168.2.10/auth/me
-curl -fsS 'http://192.168.2.10/saves?limit=5&offset=0'
-curl -fsS http://192.168.2.10/app/my-games > /dev/null
+curl -fsS http://<deploy-host>/healthz
+curl -fsS http://<deploy-host>/auth/me
+curl -fsS 'http://<deploy-host>/saves?limit=5&offset=0'
+curl -fsS http://<deploy-host>/app/my-games > /dev/null
 ```
 
 Container check:
 
 ```bash
-sshpass -p 'Kirsten' ssh -o StrictHostKeyChecking=no debian@192.168.2.10 '
+sshpass -p '<deploy-password>' ssh -o StrictHostKeyChecking=no <deploy-user>@<deploy-host> '
   cd /home/debian/RetroSaveManager/deploy
   docker compose ps
 '
