@@ -24,6 +24,12 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "rebuild-playstation-projections" {
+		if err := runPlayStationProjectionRebuild(os.Args[2:]); err != nil {
+			log.Fatalf("playstation projection rebuild failed: %v", err)
+		}
+		return
+	}
 
 	app := newApp()
 	if err := app.initSaveStore(); err != nil {

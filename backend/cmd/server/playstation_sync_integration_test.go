@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -47,6 +48,29 @@ func TestPlayStationProjectionImportCreatesCrossProfilePS1Records(t *testing.T) 
 	misterID, _, ok := store.latestProjectionSaveRecord("psx/mister", "Memory Card 1")
 	if !ok || strings.TrimSpace(misterID) == "" {
 		t.Fatalf("expected sister MiSTer projection to be generated")
+	}
+}
+
+func TestPlayStationProjectionDownloadReturnsValidPS1RawCard(t *testing.T) {
+	h := newContractHarness(t)
+	payload := makeTestPS1Card(t, "SCUS_941.63", "Final Fantasy VII Save")
+	input := saveCreateInput{
+		Filename: "memory_card_1.mcr",
+		Payload:  payload,
+		Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+		Format:   "mcr",
+		SlotName: "Memory Card 1",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "deck-psx")
+	if err != nil {
+		t.Fatalf("create playstation projection: %v", err)
+	}
+
+	download := h.request(http.MethodGet, "/saves/download?id="+url.QueryEscape(record.Summary.ID), nil)
+	assertStatus(t, download, http.StatusOK)
+	if err := validatePS1RawCard(download.Body.Bytes()); err != nil {
+		t.Fatalf("expected valid helper-restorable PS1 raw card, got %v", err)
 	}
 }
 
@@ -345,8 +369,7 @@ func TestPlayStationBackfillMigratesLegacyPS2RawSave(t *testing.T) {
 
 func makeTestPS1Card(t *testing.T, productCode, title string) []byte {
 	t.Helper()
-	payload := make([]byte, ps1MemoryCardTotalSize)
-	copy(payload[:2], []byte("MC"))
+	payload := blankPS1CardTemplate()
 	dirOffset := psDirectoryEntrySize
 	payload[dirOffset] = ps1DirectoryStateFirst
 	copy(payload[dirOffset+0x0a:dirOffset+0x16], []byte(productCode))
@@ -357,4 +380,42 @@ func makeTestPS1Card(t *testing.T, productCode, title string) []byte {
 	payload[blockOffset+0x80] = 0x11
 	copy(payload[blockOffset+4:blockOffset+4+len(title)], []byte(title))
 	return payload
+}
+
+func validatePS1RawCard(payload []byte) error {
+	raw := normalizedPS1MemoryCardImage(payload, "mcr")
+	if len(raw) != ps1MemoryCardTotalSize {
+		return fmt.Errorf("unexpected PS1 raw size %d", len(raw))
+	}
+	if err := validatePS1Frame(raw, 0, true); err != nil {
+		return fmt.Errorf("frame 0 invalid: %w", err)
+	}
+	for frameIndex := 1; frameIndex <= psDirectoryEntries; frameIndex++ {
+		if err := validatePS1Frame(raw, frameIndex, false); err != nil {
+			return fmt.Errorf("directory frame %d invalid: %w", frameIndex, err)
+		}
+	}
+	if err := validatePS1Frame(raw, 63, true); err != nil {
+		return fmt.Errorf("frame 63 invalid: %w", err)
+	}
+	return nil
+}
+
+func validatePS1Frame(payload []byte, frameIndex int, expectMarker bool) error {
+	offset := frameIndex * psDirectoryEntrySize
+	if offset < 0 || offset+psDirectoryEntrySize > len(payload) {
+		return fmt.Errorf("frame out of range")
+	}
+	frame := payload[offset : offset+psDirectoryEntrySize]
+	if expectMarker && string(frame[:2]) != "MC" {
+		return fmt.Errorf("missing MC marker")
+	}
+	checksum := byte(0)
+	for i := 0; i < psDirectoryEntrySize-1; i++ {
+		checksum ^= frame[i]
+	}
+	if frame[psDirectoryEntrySize-1] != checksum {
+		return fmt.Errorf("checksum mismatch: got %d want %d", frame[psDirectoryEntrySize-1], checksum)
+	}
+	return nil
 }

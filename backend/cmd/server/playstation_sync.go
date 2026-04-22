@@ -1119,7 +1119,8 @@ func buildPS1Projection(runtimeProfile, cardSlot, filename string, saves []psLog
 
 func blankPS1CardTemplate() []byte {
 	payload := make([]byte, ps1MemoryCardTotalSize)
-	copy(payload[:2], []byte("MC"))
+	initializePS1HeaderFrame(payload, 0)
+	initializePS1HeaderFrame(payload, 63)
 	for slot := 1; slot <= psDirectoryEntries; slot++ {
 		offset := slot * psDirectoryEntrySize
 		payload[offset] = ps1DirectoryStateFree
@@ -1128,15 +1129,29 @@ func blankPS1CardTemplate() []byte {
 	return payload
 }
 
+func initializePS1HeaderFrame(payload []byte, frameIndex int) {
+	offset := frameIndex * psDirectoryEntrySize
+	if offset < 0 || offset+psDirectoryEntrySize > len(payload) {
+		return
+	}
+	frame := payload[offset : offset+psDirectoryEntrySize]
+	copy(frame[:2], []byte("MC"))
+	updatePS1FrameChecksum(frame)
+}
+
 func updatePS1DirectoryChecksum(entry []byte) {
-	if len(entry) < psDirectoryEntrySize {
+	updatePS1FrameChecksum(entry)
+}
+
+func updatePS1FrameChecksum(frame []byte) {
+	if len(frame) < psDirectoryEntrySize {
 		return
 	}
 	checksum := byte(0)
 	for i := 0; i < psDirectoryEntrySize-1; i++ {
-		checksum ^= entry[i]
+		checksum ^= frame[i]
 	}
-	entry[psDirectoryEntrySize-1] = checksum
+	frame[psDirectoryEntrySize-1] = checksum
 }
 
 func wrapPS1ProjectionPayload(filename string, raw []byte) []byte {
