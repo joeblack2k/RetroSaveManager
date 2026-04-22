@@ -300,6 +300,10 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 	}
 	aggregates := make(map[string]saveAggregate, len(filteredRecords))
 	for _, record := range filteredRecords {
+		recordSystemSlug := canonicalOptionalSegment(saveRecordSystemSlug(record))
+		if recordSystemSlug == "psx" || recordSystemSlug == "ps2" {
+			continue
+		}
 		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
 			continue
 		}
@@ -337,6 +341,9 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 		summary.LatestSizeBytes = summary.FileSize
 		summary.LatestVersion = summary.Version
 		filtered = append(filtered, summary)
+	}
+	if romSHA1 == "" && romMD5 == "" {
+		filtered = append(filtered, a.playStationLogicalListSummaries(systemID)...)
 	}
 	sort.Slice(filtered, func(i, j int) bool {
 		if filtered[i].CreatedAt.Equal(filtered[j].CreatedAt) {

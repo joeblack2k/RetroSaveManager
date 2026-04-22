@@ -65,6 +65,7 @@ type saveSummary struct {
 	ID              string             `json:"id"`
 	Game            game               `json:"game"`
 	DisplayTitle    string             `json:"displayTitle,omitempty"`
+	LogicalKey      string             `json:"logicalKey,omitempty"`
 	SystemSlug      string             `json:"systemSlug,omitempty"`
 	RegionCode      string             `json:"regionCode,omitempty"`
 	RegionFlag      string             `json:"regionFlag,omitempty"`

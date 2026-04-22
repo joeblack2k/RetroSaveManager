@@ -493,8 +493,12 @@ function buildSaveRows(saves: SaveSummary[]): SaveRow[] {
 
 function expandSaveRows(save: SaveSummary): SaveRow[] {
   const systemInfo = detectConsoleForSave(save);
-  if ((systemInfo.slug === "psx" || systemInfo.slug === "ps2") && (save.memoryCard?.entries?.length ?? 0) > 0) {
-    return buildPlayStationEntryRows(save, systemInfo);
+  const logicalKey = (save.logicalKey || "").trim();
+  if ((systemInfo.slug === "psx" || systemInfo.slug === "ps2")) {
+    if (logicalKey !== "") {
+      return [buildStandardSaveRow(save, systemInfo)];
+    }
+    return [];
   }
   return [buildStandardSaveRow(save, systemInfo)];
 }
@@ -508,9 +512,10 @@ function buildStandardSaveRow(save: SaveSummary, systemInfo: { slug: string; nam
   const latestSizeBytes = save.latestSizeBytes && save.latestSizeBytes > 0 ? save.latestSizeBytes : save.fileSize;
   const totalBytes = save.totalSizeBytes && save.totalSizeBytes > 0 ? save.totalSizeBytes : save.fileSize;
   const latestVersion = save.latestVersion && save.latestVersion > 0 ? save.latestVersion : save.version;
+  const logicalKey = (save.logicalKey || "").trim();
 
   return {
-    key: `${systemInfo.slug}:${save.game.id}:${gameName}`,
+    key: logicalKey !== "" ? `${systemInfo.slug}:${logicalKey}:${regionCode}` : `${systemInfo.slug}:${save.game.id}:${gameName}`,
     gameID: save.game.id,
     primarySaveID: save.id,
     gameName,
@@ -526,73 +531,12 @@ function buildStandardSaveRow(save: SaveSummary, systemInfo: { slug: string; nam
     totalBytes,
     latestCreatedAt: createdAt,
     latestVersion,
-    downloadUrl: apiDownloadURL(`/saves/download?id=${encodeURIComponent(save.id)}`),
-    isPlayStationEntry: false
+    downloadUrl: apiDownloadURL(
+      logicalKey !== ""
+        ? `/saves/download?id=${encodeURIComponent(save.id)}&psLogicalKey=${encodeURIComponent(logicalKey)}`
+        : `/saves/download?id=${encodeURIComponent(save.id)}`
+    ),
+    isPlayStationEntry: logicalKey !== "",
+    psLogicalKey: logicalKey !== "" ? logicalKey : undefined
   };
-}
-
-function buildPlayStationEntryRows(save: SaveSummary, systemInfo: { slug: string; name: string }): SaveRow[] {
-  const cardName = save.memoryCard?.name?.trim() || save.displayTitle?.trim() || "Memory Card";
-  const rows: SaveRow[] = [];
-
-  for (const [index, entry] of (save.memoryCard?.entries ?? []).entries()) {
-    const rawName = entry.title?.trim() || `Save ${index + 1}`;
-    const gameName = cleanGameTitle(rawName);
-    const regionCode = normalizeRegionCode((entry.regionCode || save.regionCode || save.game.regionCode || "UNKNOWN").toString());
-    const latestCreatedAt = entry.latestCreatedAt || save.createdAt || new Date(0).toISOString();
-    const latestSizeBytes = entry.latestSizeBytes && entry.latestSizeBytes > 0
-      ? entry.latestSizeBytes
-      : entry.sizeBytes && entry.sizeBytes > 0
-        ? entry.sizeBytes
-        : save.latestSizeBytes && save.latestSizeBytes > 0
-          ? save.latestSizeBytes
-          : save.fileSize;
-    const totalBytes = entry.totalSizeBytes && entry.totalSizeBytes > 0
-      ? entry.totalSizeBytes
-      : entry.sizeBytes && entry.sizeBytes > 0
-        ? entry.sizeBytes
-        : save.totalSizeBytes && save.totalSizeBytes > 0
-          ? save.totalSizeBytes
-          : save.fileSize;
-    const saveCount = entry.saveCount && entry.saveCount > 0
-      ? entry.saveCount
-      : save.saveCount && save.saveCount > 0
-        ? save.saveCount
-        : 1;
-    const latestVersion = entry.latestVersion && entry.latestVersion > 0
-      ? entry.latestVersion
-      : save.latestVersion && save.latestVersion > 0
-        ? save.latestVersion
-        : save.version;
-    const stableID = entry.directoryName || entry.productCode || `${gameName}:${entry.slot}:${index}`;
-
-    rows.push({
-      key: `${systemInfo.slug}:${entry.logicalKey || stableID}:${regionCode}`,
-      gameID: save.game.id,
-      primarySaveID: save.id,
-      gameName,
-      coverArtUrl: entry.iconDataUrl || save.coverArtUrl || save.game.coverArtUrl || save.game.boxartThumb || save.game.boxart || null,
-      regionCode,
-      regionFlag: regionToFlagEmoji(regionCode),
-      languageCodes: mergeLanguageCodes(save.languageCodes, save.game.languageCodes),
-      systemName: systemInfo.name,
-      systemSlug: systemInfo.slug,
-      saveIDs: [save.id],
-      saveCount,
-      latestSizeBytes,
-      totalBytes,
-      latestCreatedAt,
-      latestVersion,
-      downloadUrl: apiDownloadURL(
-        entry.logicalKey
-          ? `/saves/download?id=${encodeURIComponent(save.id)}&psLogicalKey=${encodeURIComponent(entry.logicalKey)}`
-          : `/saves/download?id=${encodeURIComponent(save.id)}`
-      ),
-      isPlayStationEntry: true,
-      psLogicalKey: entry.logicalKey,
-      sourceCardName: cardName
-    });
-  }
-
-  return rows;
 }

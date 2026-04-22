@@ -27,6 +27,12 @@ export function SaveDetailPage(): JSX.Element {
     () => versions.find((version) => version.memoryCard?.entries && version.memoryCard.entries.length > 0)?.memoryCard || latest?.memoryCard || null,
     [latest?.memoryCard, versions]
   );
+  const logicalEntry = useMemo(() => {
+    if (!psLogicalKey || !memoryCard?.entries || memoryCard.entries.length === 0) {
+      return null;
+    }
+    return memoryCard.entries.find((entry) => (entry.logicalKey || "").trim() === psLogicalKey) || memoryCard.entries[0] || null;
+  }, [memoryCard, psLogicalKey]);
 
   const displayTitle = (data?.displayTitle || data?.summary?.displayTitle || latest?.displayTitle || latest?.game.displayTitle || latest?.game.name || "Unknown game").trim();
   const systemName = data?.summary?.system?.name || latest?.game.system?.name || "Unknown";
@@ -83,9 +89,25 @@ export function SaveDetailPage(): JSX.Element {
             <p><strong>Latest date:</strong> {formatDate(latestCreatedAt)}</p>
           </div>
 
-          {memoryCard ? (
+          {psLogicalKey && logicalEntry ? (
             <div className="stack compact">
-              <p><strong>{psLogicalKey ? "Source card" : "Memory Card"}:</strong> {memoryCard.name}</p>
+              {logicalEntry.iconDataUrl ? (
+                <img
+                  className="memory-card-entry-preview"
+                  src={logicalEntry.iconDataUrl}
+                  alt={`${logicalEntry.title} icon`}
+                  loading="lazy"
+                />
+              ) : null}
+              {logicalEntry.productCode ? <p><strong>Product code:</strong> {logicalEntry.productCode}</p> : null}
+              {logicalEntry.directoryName ? <p><strong>Directory:</strong> {logicalEntry.directoryName}</p> : null}
+              {logicalEntry.slot > 0 ? <p><strong>Slot:</strong> {logicalEntry.slot}</p> : null}
+              {logicalEntry.blocks > 0 ? <p><strong>Blocks:</strong> {logicalEntry.blocks}</p> : null}
+              <p><strong>Current save size:</strong> {logicalEntry.sizeBytes ? formatBytes(logicalEntry.sizeBytes) : formatBytes(latest?.fileSize || 0)}</p>
+            </div>
+          ) : memoryCard ? (
+            <div className="stack compact">
+              <p><strong>Memory Card:</strong> {memoryCard.name}</p>
               {memoryCard.entries && memoryCard.entries.length > 0 ? (
                 <table className="table">
                   <thead>

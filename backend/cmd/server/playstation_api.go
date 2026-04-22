@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -325,6 +326,68 @@ func buildPlayStationLogicalHistory(ctx playStationLogicalContext) playStationLo
 	}
 }
 
+func buildPlayStationLogicalListSummary(ctx playStationLogicalContext) saveSummary {
+	latest, _ := ctx.Logical.latestRevision()
+	sys := supportedSystemFromSlug(ctx.Logical.SystemSlug)
+	regionCode := normalizeRegionCode(ctx.Logical.RegionCode)
+	if regionCode == regionUnknown {
+		regionCode = normalizeRegionCode(latest.MemoryEntry.RegionCode)
+	}
+	coverArtURL := strings.TrimSpace(latest.MemoryEntry.IconDataURL)
+	gameInfo := game{
+		ID:           deterministicGameID("ps-logical:" + ctx.Logical.Key),
+		Name:         ctx.Logical.DisplayTitle,
+		DisplayTitle: ctx.Logical.DisplayTitle,
+		RegionCode:   regionCode,
+		RegionFlag:   regionFlagFromCode(regionCode),
+		HasParser:    true,
+		System:       sys,
+		CoverArtURL:  coverArtURL,
+	}
+	if coverArtURL != "" {
+		thumb := coverArtURL
+		box := coverArtURL
+		gameInfo.BoxartThumb = &thumb
+		gameInfo.Boxart = &box
+	}
+	portable := ctx.Logical.Portable
+	filename := playStationLogicalDownloadFilename(ctx.Projection, ctx.Logical)
+	return saveSummary{
+		ID:              ctx.Projection.SaveRecordID,
+		Game:            gameInfo,
+		DisplayTitle:    ctx.Logical.DisplayTitle,
+		LogicalKey:      ctx.Logical.Key,
+		SystemSlug:      ctx.Logical.SystemSlug,
+		RegionCode:      regionCode,
+		RegionFlag:      regionFlagFromCode(regionCode),
+		CoverArtURL:     coverArtURL,
+		SaveCount:       len(ctx.Logical.Revisions),
+		LatestSizeBytes: psLogicalSaveLatestSize(ctx.Logical),
+		TotalSizeBytes:  psLogicalSaveTotalSize(ctx.Logical),
+		LatestVersion:   len(ctx.Logical.Revisions),
+		RuntimeProfile:  ctx.Projection.RuntimeProfile,
+		CardSlot:        ctx.Projection.CardSlot,
+		ProjectionID:    ctx.Projection.ID,
+		SourceImportID:  latest.ImportID,
+		Portable:        &portable,
+		Filename:        filename,
+		FileSize:        psLogicalSaveLatestSize(ctx.Logical),
+		Format:          inferSaveFormat(filename),
+		Version:         len(ctx.Logical.Revisions),
+		SHA256:          latest.SHA256,
+		CreatedAt:       latest.CreatedAt,
+		Metadata: map[string]any{
+			"playstationLogical": map[string]any{
+				"logicalKey":     ctx.Logical.Key,
+				"productCode":    ctx.Logical.ProductCode,
+				"runtimeProfile": ctx.Projection.RuntimeProfile,
+				"cardSlot":       ctx.Projection.CardSlot,
+				"portable":       portable,
+			},
+		},
+	}
+}
+
 func buildPlayStationLogicalDownload(ctx playStationLogicalContext, revisionID string) (string, string, []byte, error) {
 	revision, ok := resolvePlayStationLogicalRevision(ctx.Logical, revisionID)
 	if !ok {
@@ -404,6 +467,85 @@ func projectionManifestContainsLogicalKey(manifest []psManifestEntry, logicalKey
 		}
 	}
 	return false
+}
+
+func (s *playStationStore) currentProjectionForLogicalLocked(logical psLogicalSave) (psProjection, bool) {
+	best := psProjection{}
+	found := false
+	for _, line := range s.state.ProjectionLines {
+		if line.SystemSlug != logical.SystemSlug || strings.TrimSpace(line.LatestProjectionID) == "" {
+			continue
+		}
+		if logical.Portable {
+			if strings.TrimSpace(line.SyncLineKey) != strings.TrimSpace(logical.SyncLineKey) {
+				continue
+			}
+		} else if strings.TrimSpace(line.Key) != strings.TrimSpace(logical.ProjectionLineKey) {
+			continue
+		}
+		projection, ok := s.state.Projections[line.LatestProjectionID]
+		if !ok || strings.TrimSpace(projection.SaveRecordID) == "" {
+			continue
+		}
+		if !projectionManifestContainsLogicalKey(projection.Manifest, logical.Key) {
+			continue
+		}
+		if !found || projection.CreatedAt.After(best.CreatedAt) || (projection.CreatedAt.Equal(best.CreatedAt) && projection.SaveRecordID > best.SaveRecordID) {
+			best = projection
+			found = true
+		}
+	}
+	return best, found
+}
+
+func (s *playStationStore) listLogicalContexts() []playStationLogicalContext {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	contexts := make([]playStationLogicalContext, 0, len(s.state.LogicalSaves))
+	for _, logical := range s.state.LogicalSaves {
+		if _, ok := logical.latestRevision(); !ok {
+			continue
+		}
+		scopeKey := logicalScopeKey(logical)
+		if _, tombstoned := s.state.Tombstones[psTombstoneKey(scopeKey, logical.Key)]; tombstoned {
+			continue
+		}
+		projection, ok := s.currentProjectionForLogicalLocked(logical)
+		if !ok {
+			continue
+		}
+		contexts = append(contexts, playStationLogicalContext{Projection: projection, Logical: logical})
+	}
+	sort.Slice(contexts, func(i, j int) bool {
+		left, leftOK := contexts[i].Logical.latestRevision()
+		right, rightOK := contexts[j].Logical.latestRevision()
+		if !leftOK || !rightOK {
+			return contexts[i].Logical.Key < contexts[j].Logical.Key
+		}
+		if left.CreatedAt.Equal(right.CreatedAt) {
+			return contexts[i].Logical.Key < contexts[j].Logical.Key
+		}
+		return left.CreatedAt.After(right.CreatedAt)
+	})
+	return contexts
+}
+
+func (a *app) playStationLogicalListSummaries(systemID int) []saveSummary {
+	store := a.playStationSyncStore()
+	if store == nil {
+		return nil
+	}
+	contexts := store.listLogicalContexts()
+	out := make([]saveSummary, 0, len(contexts))
+	for _, ctx := range contexts {
+		sys := supportedSystemFromSlug(ctx.Logical.SystemSlug)
+		if systemID != 0 && (sys == nil || sys.ID != systemID) {
+			continue
+		}
+		out = append(out, buildPlayStationLogicalListSummary(ctx))
+	}
+	return out
 }
 
 func (s *playStationStore) logicalContextForSaveRecord(saveRecordID, logicalKey string) (playStationLogicalContext, error) {

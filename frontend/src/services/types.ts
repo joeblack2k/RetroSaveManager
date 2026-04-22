@@ -62,6 +62,7 @@ export type SaveSummary = {
   id: string;
   game: SaveGame;
   displayTitle?: string;
+  logicalKey?: string;
   systemSlug?: string;
   regionCode?: "US" | "EU" | "JP" | "UNKNOWN" | string;
   regionFlag?: string;
