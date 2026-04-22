@@ -39,9 +39,13 @@ type normalizedSaveMetadata struct {
 	System         *system
 	SystemPath     string
 	GamePath       string
+	CoverArtURL    string
+	Metadata       any
 	ArtifactKind   saveArtifactKind
 	IsPSMemoryCard bool
 	MemoryCard     *memoryCardDetails
+	Dreamcast      *dreamcastDetails
+	Saturn         *saturnDetails
 }
 
 func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detection saveSystemDetectionResult) normalizedSaveMetadata {
@@ -78,6 +82,10 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detect
 	isPS := artifactKind == saveArtifactPS1MemoryCard || artifactKind == saveArtifactPS2MemoryCard
 	cardName := ""
 	var memoryCard *memoryCardDetails
+	var dreamcast *dreamcastDetails
+	var saturn *saturnDetails
+	coverArtURL := strings.TrimSpace(input.CoverArtURL)
+	metadata := input.Metadata
 	gamePath := displayTitle
 	if isPS {
 		cardName = canonicalMemoryCardName(input.MemoryCard, input.SlotName, filename)
@@ -96,6 +104,29 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detect
 			}
 		}
 	}
+	if !isPS && sys != nil && supportedSystemSlugFromLabel(firstNonEmpty(sys.Slug, sys.Name)) == "dreamcast" {
+		dreamcast = parseDreamcastContainer(filename, input.Payload)
+		if dreamcast != nil {
+			dreamcast.SlotName = normalizeDreamcastSlotName(input.SlotName, filename)
+			metadata = mergeRSMMetadata(metadata, "dreamcast", dreamcast)
+			if dreamcast.SaveEntries == 1 {
+				if title := strings.TrimSpace(dreamcast.SampleTitle); title != "" {
+					displayTitle = title
+					gamePath = title
+				}
+			}
+			if coverArtURL == "" {
+				coverArtURL = strings.TrimSpace(firstNonEmpty(dreamcast.SampleIconDataURL, dreamcast.SampleEyecatchDataURL))
+			}
+		}
+	}
+	if !isPS && sys != nil && supportedSystemSlugFromLabel(firstNonEmpty(sys.Slug, sys.Name)) == "saturn" {
+		parsedSaturn := parseSaturnContainer(filename, input.Payload)
+		if parsedSaturn != nil {
+			saturn = parsedSaturn.Details
+			metadata = mergeRSMMetadata(metadata, "saturn", saturn)
+		}
+	}
 
 	return normalizedSaveMetadata{
 		DisplayTitle:  displayTitle,
@@ -109,10 +140,14 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detect
 			}
 			return "Unknown System"
 		}(), "Unknown System"),
+		CoverArtURL:    coverArtURL,
+		Metadata:       metadata,
 		ArtifactKind:   artifactKind,
 		GamePath:       sanitizeDisplayPathSegment(gamePath, "Unknown Game"),
 		IsPSMemoryCard: isPS,
 		MemoryCard:     memoryCard,
+		Dreamcast:      dreamcast,
+		Saturn:         saturn,
 	}
 }
 
@@ -468,6 +503,25 @@ func deriveMemoryCardName(slotName, filename string) string {
 		}
 	}
 	return "Memory Card 1"
+}
+
+func normalizeDreamcastSlotName(slotName, filename string) string {
+	candidates := []string{slotName, filename}
+	for _, candidate := range candidates {
+		upper := strings.ToUpper(strings.TrimSpace(candidate))
+		if upper == "" {
+			continue
+		}
+		for _, bank := range []string{"A", "B", "C", "D"} {
+			for _, slot := range []string{"1", "2", "3", "4"} {
+				needle := bank + slot
+				if strings.Contains(upper, needle) {
+					return needle
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func normalizedPS1MemoryCardImage(payload []byte, ext string) []byte {

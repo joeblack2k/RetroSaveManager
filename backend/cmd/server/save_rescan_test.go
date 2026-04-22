@@ -527,3 +527,102 @@ func TestRescanSavesReclassifiesStrictNeoGeoSetSave(t *testing.T) {
 		t.Fatal("expected strict neogeo record after rescan")
 	}
 }
+
+func TestRescanSavesRebuildsGenesisInspectionFromTrustedMetadata(t *testing.T) {
+	h := newContractHarness(t)
+
+	record, err := h.app.createSave(saveCreateInput{
+		Filename:            "Sonic the Hedgehog.srm",
+		Payload:             make([]byte, 8192),
+		Game:                game{Name: "Sonic the Hedgehog"},
+		Format:              "sram",
+		ROMSHA1:             "genesis-sonic-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "genesis",
+		GameSlug:            "sonic-the-hedgehog",
+		TrustedHelperSystem: true,
+	})
+	if err != nil {
+		t.Fatalf("create trusted Genesis save: %v", err)
+	}
+	record.Summary.Inspection = nil
+	if err := persistSaveRecordMetadata(record); err != nil {
+		t.Fatalf("persist Genesis metadata without inspection: %v", err)
+	}
+	if err := h.app.reloadSavesFromDisk(); err != nil {
+		t.Fatalf("reload Genesis save: %v", err)
+	}
+
+	result, err := h.app.rescanSaves(saveRescanOptions{DryRun: false, PruneUnsupported: true})
+	if err != nil {
+		t.Fatalf("rescan Genesis save: %v", err)
+	}
+	if result.Updated < 1 {
+		t.Fatalf("expected Genesis save inspection to be rebuilt, got %+v", result)
+	}
+
+	records := h.app.snapshotSaveRecords()
+	for _, candidate := range records {
+		if candidate.Summary.ID != record.Summary.ID {
+			continue
+		}
+		if candidate.Summary.Inspection == nil {
+			t.Fatalf("expected rebuilt Genesis inspection metadata, got %+v", candidate.Summary)
+		}
+		if candidate.Summary.Inspection.ParserID != "sega-raw-sram" {
+			t.Fatalf("unexpected Genesis inspection payload: %+v", candidate.Summary.Inspection)
+		}
+		return
+	}
+	t.Fatalf("expected Genesis record %s after rescan", record.Summary.ID)
+}
+
+func TestRescanSavesPrunesTrustedGenesisRawSaveWithoutROMSHA1(t *testing.T) {
+	h := newContractHarness(t)
+
+	record, err := h.app.createSave(saveCreateInput{
+		Filename:            "Sonic the Hedgehog.srm",
+		Payload:             make([]byte, 8192),
+		Game:                game{Name: "Sonic the Hedgehog"},
+		Format:              "sram",
+		ROMSHA1:             "genesis-sonic-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "genesis",
+		GameSlug:            "sonic-the-hedgehog",
+		TrustedHelperSystem: true,
+	})
+	if err != nil {
+		t.Fatalf("create trusted Genesis save: %v", err)
+	}
+	record.ROMSHA1 = ""
+	if err := persistSaveRecordMetadata(record); err != nil {
+		t.Fatalf("persist Genesis metadata without romSha1: %v", err)
+	}
+	if err := h.app.reloadSavesFromDisk(); err != nil {
+		t.Fatalf("reload Genesis save without romSha1: %v", err)
+	}
+
+	result, err := h.app.rescanSaves(saveRescanOptions{DryRun: false, PruneUnsupported: true})
+	if err != nil {
+		t.Fatalf("rescan Genesis save without romSha1: %v", err)
+	}
+	if result.Removed < 1 {
+		t.Fatalf("expected trusted Genesis save without romSha1 to be pruned, got %+v", result)
+	}
+
+	for _, candidate := range h.app.snapshotSaveRecords() {
+		if candidate.Summary.ID == record.Summary.ID {
+			t.Fatalf("expected Genesis save without romSha1 to be pruned, still found %+v", candidate)
+		}
+	}
+	for _, rejection := range result.Rejections {
+		if rejection.SaveID != record.Summary.ID {
+			continue
+		}
+		if rejection.Reason != "genesis raw saves require rom_sha1" {
+			t.Fatalf("unexpected Genesis prune reason: %q", rejection.Reason)
+		}
+		return
+	}
+	t.Fatalf("expected rejection entry for pruned Genesis save, got %+v", result.Rejections)
+}

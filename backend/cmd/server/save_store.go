@@ -55,6 +55,9 @@ type saveCreateInput struct {
 	LanguageCodes       []string
 	CoverArtURL         string
 	MemoryCard          *memoryCardDetails
+	Dreamcast           *dreamcastDetails
+	Saturn              *saturnDetails
+	Inspection          *saveInspection
 	TrustedHelperSystem bool
 	RuntimeProfile      string
 	CardSlot            string
@@ -301,6 +304,9 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 			TotalSizeBytes:  len(input.Payload),
 			LatestVersion:   version,
 			MemoryCard:      input.MemoryCard,
+			Dreamcast:       input.Dreamcast,
+			Saturn:          input.Saturn,
+			Inspection:      input.Inspection,
 			RuntimeProfile:  strings.TrimSpace(input.RuntimeProfile),
 			CardSlot:        strings.TrimSpace(input.CardSlot),
 			ProjectionID:    strings.TrimSpace(input.ProjectionID),
@@ -486,6 +492,13 @@ func (s *saveStore) hydrateRecordDerivedFields(record *saveRecord) {
 			record.GamePath = sanitizeDisplayPathSegment(summary.DisplayTitle, "Memory Card 1")
 		} else {
 			summary.MemoryCard = nil
+		}
+		if supportedSystemSlugFromLabel(firstNonEmpty(summary.SystemSlug, record.SystemSlug)) == "saturn" {
+			if parsed := parseSaturnContainer(summary.Filename, payload); parsed != nil {
+				summary.Saturn = parsed.Details
+			} else {
+				summary.Saturn = nil
+			}
 		}
 	}
 

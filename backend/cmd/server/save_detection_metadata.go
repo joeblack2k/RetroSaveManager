@@ -13,6 +13,43 @@ func isTrustedSystemEvidence(evidence saveDetectionEvidence, _ string) bool {
 	return false
 }
 
+func mergeRSMMetadata(existing any, key string, value any) any {
+	if strings.TrimSpace(key) == "" || value == nil {
+		return existing
+	}
+
+	if existingMap, ok := existing.(map[string]any); ok {
+		merged := make(map[string]any, len(existingMap)+1)
+		for existingKey, existingValue := range existingMap {
+			merged[existingKey] = existingValue
+		}
+		rsm := map[string]any{}
+		if rawRSM, ok := merged["rsm"].(map[string]any); ok {
+			for existingKey, existingValue := range rawRSM {
+				rsm[existingKey] = existingValue
+			}
+		}
+		rsm[key] = value
+		merged["rsm"] = rsm
+		return merged
+	}
+
+	if existing == nil {
+		return map[string]any{
+			"rsm": map[string]any{
+				key: value,
+			},
+		}
+	}
+
+	return map[string]any{
+		"rsm": map[string]any{
+			key: value,
+		},
+		"sourceMetadata": existing,
+	}
+}
+
 func mergeSystemDetectionMetadata(existing any, detection saveSystemDetectionResult) any {
 	detectionMeta := map[string]any{
 		"slug":          strings.TrimSpace(detection.Slug),
@@ -30,37 +67,7 @@ func mergeSystemDetectionMetadata(existing any, detection saveSystemDetectionRes
 			"titleHint":     detection.Evidence.TitleHint,
 		},
 	}
-
-	if existingMap, ok := existing.(map[string]any); ok {
-		merged := make(map[string]any, len(existingMap)+1)
-		for key, value := range existingMap {
-			merged[key] = value
-		}
-		rsm := map[string]any{}
-		if rawRSM, ok := merged["rsm"].(map[string]any); ok {
-			for key, value := range rawRSM {
-				rsm[key] = value
-			}
-		}
-		rsm["systemDetection"] = detectionMeta
-		merged["rsm"] = rsm
-		return merged
-	}
-
-	if existing == nil {
-		return map[string]any{
-			"rsm": map[string]any{
-				"systemDetection": detectionMeta,
-			},
-		}
-	}
-
-	return map[string]any{
-		"rsm": map[string]any{
-			"systemDetection": detectionMeta,
-		},
-		"sourceMetadata": existing,
-	}
+	return mergeRSMMetadata(existing, "systemDetection", detectionMeta)
 }
 
 func metadataHasTrustedSystemEvidence(metadata any) bool {

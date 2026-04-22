@@ -93,6 +93,9 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 			LanguageCodes: original.Summary.LanguageCodes,
 			CoverArtURL:   original.Summary.CoverArtURL,
 			MemoryCard:    original.Summary.MemoryCard,
+			Dreamcast:     original.Summary.Dreamcast,
+			Saturn:        original.Summary.Saturn,
+			Inspection:    original.Summary.Inspection,
 			CreatedAt:     original.Summary.CreatedAt,
 		}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
 
@@ -183,6 +186,9 @@ func applyNormalizedSaveToRecord(record saveRecord, normalized saveCreateInput) 
 	updated.Summary.CoverArtURL = normalized.CoverArtURL
 	updated.Summary.Metadata = normalized.Metadata
 	updated.Summary.MemoryCard = normalized.MemoryCard
+	updated.Summary.Dreamcast = normalized.Dreamcast
+	updated.Summary.Saturn = normalized.Saturn
+	updated.Summary.Inspection = normalized.Inspection
 	updated.Summary.RuntimeProfile = strings.TrimSpace(normalized.RuntimeProfile)
 	updated.Summary.CardSlot = strings.TrimSpace(normalized.CardSlot)
 	updated.Summary.ProjectionID = strings.TrimSpace(normalized.ProjectionID)

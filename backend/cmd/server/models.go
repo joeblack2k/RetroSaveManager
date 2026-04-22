@@ -61,6 +61,19 @@ type memoryCardDetails struct {
 	Entries []memoryCardEntry `json:"entries,omitempty"`
 }
 
+type saveInspection struct {
+	ParserLevel       string         `json:"parserLevel,omitempty"`
+	ParserID          string         `json:"parserId,omitempty"`
+	ValidatedSystem   string         `json:"validatedSystem,omitempty"`
+	Evidence          []string       `json:"evidence,omitempty"`
+	Warnings          []string       `json:"warnings,omitempty"`
+	PayloadSizeBytes  int            `json:"payloadSizeBytes,omitempty"`
+	SlotCount         int            `json:"slotCount,omitempty"`
+	ActiveSlotIndexes []int          `json:"activeSlotIndexes,omitempty"`
+	ChecksumValid     *bool          `json:"checksumValid,omitempty"`
+	SemanticFields    map[string]any `json:"semanticFields,omitempty"`
+}
+
 type saveSummary struct {
 	ID              string             `json:"id"`
 	Game            game               `json:"game"`
@@ -76,6 +89,9 @@ type saveSummary struct {
 	TotalSizeBytes  int                `json:"totalSizeBytes,omitempty"`
 	LatestVersion   int                `json:"latestVersion,omitempty"`
 	MemoryCard      *memoryCardDetails `json:"memoryCard,omitempty"`
+	Dreamcast       *dreamcastDetails  `json:"dreamcast,omitempty"`
+	Saturn          *saturnDetails     `json:"saturn,omitempty"`
+	Inspection      *saveInspection    `json:"inspection,omitempty"`
 	RuntimeProfile  string             `json:"runtimeProfile,omitempty"`
 	CardSlot        string             `json:"cardSlot,omitempty"`
 	ProjectionID    string             `json:"projectionId,omitempty"`

@@ -50,6 +50,20 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 	input.LanguageCodes = normalizeLanguageCodes(normalized.LanguageCodes)
 	input.SystemPath = normalized.SystemPath
 	input.GamePath = normalized.GamePath
+	if normalized.Metadata != nil {
+		input.Metadata = normalized.Metadata
+	}
+	if normalized.Dreamcast != nil {
+		input.Dreamcast = normalized.Dreamcast
+		input.Game.HasParser = true
+	}
+	if normalized.Saturn != nil {
+		input.Saturn = normalized.Saturn
+		input.Game.HasParser = true
+	}
+	if strings.TrimSpace(normalized.CoverArtURL) != "" {
+		input.CoverArtURL = strings.TrimSpace(normalized.CoverArtURL)
+	}
 	input.MemoryCard = normalized.MemoryCard
 	if normalized.System != nil {
 		input.Game.System = normalized.System
@@ -67,7 +81,7 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		}
 	}
 
-	if a != nil && a.enricher != nil && normalized.System != nil && !normalized.IsPSMemoryCard {
+	if a != nil && a.enricher != nil && normalized.System != nil && !normalized.IsPSMemoryCard && strings.TrimSpace(input.CoverArtURL) == "" {
 		systemName := normalized.System.Name
 		enriched := a.enricher.enrich(input.DisplayTitle, systemName, input.RegionCode)
 		if normalizeRegionCode(input.RegionCode) == regionUnknown && normalizeRegionCode(enriched.RegionCode) != regionUnknown {
@@ -94,6 +108,19 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 	if normalized.ArtifactKind == saveArtifactUnsupported {
 		rejected = true
 		rejectReason = playStationRejectReason(normalized.System)
+	}
+	consoleValidation := validateConsoleSpecificSave(input, detection, normalized)
+	if consoleValidation.Inspection != nil {
+		input.Inspection = consoleValidation.Inspection
+		if input.Game.HasParser || consoleValidation.Inspection.ParserLevel == saveParserLevelStructural || consoleValidation.Inspection.ParserLevel == saveParserLevelSemantic {
+			input.Game.HasParser = true
+		}
+	}
+	if consoleValidation.Rejected {
+		rejected = true
+		if rejectReason == "" {
+			rejectReason = consoleValidation.RejectReason
+		}
 	}
 
 	track := canonicalTrackFromInput(input)
@@ -138,6 +165,8 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		input.SystemSlug = "unknown-system"
 		input.Game.System = nil
 		input.MemoryCard = nil
+		input.Dreamcast = nil
+		input.Inspection = nil
 	}
 
 	return normalizedSaveInputResult{
@@ -179,6 +208,9 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 		LanguageCodes:  record.Summary.LanguageCodes,
 		CoverArtURL:    record.Summary.CoverArtURL,
 		MemoryCard:     record.Summary.MemoryCard,
+		Dreamcast:      record.Summary.Dreamcast,
+		Saturn:         record.Summary.Saturn,
+		Inspection:     record.Summary.Inspection,
 		RuntimeProfile: record.Summary.RuntimeProfile,
 		CardSlot:       record.Summary.CardSlot,
 		ProjectionID:   record.Summary.ProjectionID,

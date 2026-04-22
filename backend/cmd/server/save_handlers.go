@@ -3,6 +3,8 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -24,6 +26,8 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 
 	romSHA1 := strings.TrimSpace(r.URL.Query().Get("romSha1"))
 	slotName := normalizedSlot(r.URL.Query().Get("slotName"))
+	saturnFormat := strings.TrimSpace(r.URL.Query().Get("saturnFormat"))
+	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
 
 	if helperCtx.IsHelper {
 		if runtimeProfile, cardSlot, ok := helperProjectionIdentity(helperCtx.Device.DeviceType, slotName); ok {
@@ -57,10 +61,25 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		shaValue := latest.Summary.SHA256
+		if saturnFormat != "" && saveRecordSystemSlug(latest) == "saturn" {
+			payload, err := os.ReadFile(latest.payloadPath)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+				return
+			}
+			_, _, converted, err := saturnDownloadPayload(latest, payload, saturnFormat, saturnEntry)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
+				return
+			}
+			sum := sha256.Sum256(converted)
+			shaValue = hex.EncodeToString(sum[:])
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
 			"exists":  true,
-			"sha256":  latest.Summary.SHA256,
+			"sha256":  shaValue,
 			"version": latest.Summary.Version,
 			"id":      latest.Summary.ID,
 		})
@@ -670,6 +689,8 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 		LanguageCodes:       sourceRecord.Summary.LanguageCodes,
 		CoverArtURL:         sourceRecord.Summary.CoverArtURL,
 		MemoryCard:          sourceRecord.Summary.MemoryCard,
+		Dreamcast:           sourceRecord.Summary.Dreamcast,
+		Saturn:              sourceRecord.Summary.Saturn,
 		CreatedAt:           time.Now().UTC(),
 	})
 	if err != nil {
@@ -802,6 +823,8 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	saveID := strings.TrimSpace(r.URL.Query().Get("id"))
 	psLogicalKey := strings.TrimSpace(r.URL.Query().Get("psLogicalKey"))
 	revisionID := strings.TrimSpace(r.URL.Query().Get("revisionId"))
+	saturnFormat := strings.TrimSpace(r.URL.Query().Get("saturnFormat"))
+	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
 	if saveID == "" {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "id is required", StatusCode: http.StatusBadRequest})
 		return
@@ -843,8 +866,20 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 		return
 	}
+	filename := record.Summary.Filename
+	contentType := "application/octet-stream"
+	if saturnFormat != "" && saveRecordSystemSlug(record) == "saturn" {
+		filename, contentType, payload, err = saturnDownloadPayload(record, payload, saturnFormat, saturnEntry)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
+			return
+		}
+	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+record.Summary.Filename+`"`)
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	}
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
 	_, _ = w.Write(payload)
 }
 

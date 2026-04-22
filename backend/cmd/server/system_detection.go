@@ -27,7 +27,9 @@ var supportedSystemsBySlug = map[string]system{
 	"gameboy":       {ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy", Manufacturer: "Nintendo"},
 	"gba":           {ID: 24, Name: "Game Boy Advance", Slug: "gba", Manufacturer: "Nintendo"},
 	"genesis":       {ID: 33, Name: "Sega Genesis/Mega Drive", Slug: "genesis", Manufacturer: "Sega"},
+	"dreamcast":     {ID: 900013, Name: "Sega Dreamcast", Slug: "dreamcast", Manufacturer: "Sega"},
 	"master-system": {ID: 900003, Name: "Master System", Slug: "master-system", Manufacturer: "Sega"},
+	"saturn":        {ID: 900014, Name: "Sega Saturn", Slug: "saturn", Manufacturer: "Sega"},
 	"n64":           {ID: 64, Name: "Nintendo 64", Slug: "n64", Manufacturer: "Nintendo"},
 	"nds":           {ID: 900004, Name: "Nintendo DS", Slug: "nds", Manufacturer: "Nintendo"},
 	"neogeo":        {ID: 900005, Name: "Neo Geo", Slug: "neogeo", Manufacturer: "SNK"},
@@ -54,6 +56,12 @@ var systemLabelAliases = map[string]string{
 	"game boy advance":     "gba",
 	"gba":                  "gba",
 	"genesis":              "genesis",
+	"dreamcast":            "dreamcast",
+	"sega dreamcast":       "dreamcast",
+	"dc":                   "dreamcast",
+	"saturn":               "saturn",
+	"sega saturn":          "saturn",
+	"ss":                   "saturn",
 	"mega drive":           "genesis",
 	"megadrive":            "genesis",
 	"mastersystem":         "master-system",
@@ -312,6 +320,16 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 			candidate.payload = true
 		})
 	}
+	if parseDreamcastContainer(filename, payload) != nil {
+		setScore("dreamcast", 99, "dreamcast vmu container signature", func(candidate *detectionCandidate) {
+			candidate.payload = true
+		})
+	}
+	if parseSaturnContainer(filename, payload) != nil {
+		setScore("saturn", 99, "saturn backup ram signature", func(candidate *detectionCandidate) {
+			candidate.payload = true
+		})
+	}
 	if hasGBABackupSignature(payload) {
 		setScore("gba", 96, "gba backup signature", func(candidate *detectionCandidate) {
 			candidate.payload = true
@@ -326,6 +344,14 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 	switch ext {
 	case "dsv":
 		setScore("nds", 90, "dsv extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
+		})
+	case "vms", "dci":
+		setScore("dreamcast", 88, ext+" extension", func(candidate *detectionCandidate) {
+			candidate.formatHint = true
+		})
+	case "bkr", "bcr", "bup":
+		setScore("saturn", 84, ext+" extension", func(candidate *detectionCandidate) {
 			candidate.formatHint = true
 		})
 	case "eep", "fla", "sra", "mpk":
