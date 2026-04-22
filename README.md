@@ -72,14 +72,21 @@ cp deploy/.env.example deploy/.env
 
 ```bash
 cd deploy
-./scripts/up.sh direct
+./scripts/pull-up.sh direct
 ```
 
 3. Optional macvlan mode (single container with own LAN IP):
 
 ```bash
 cd deploy
-./scripts/up.sh macvlan
+./scripts/pull-up.sh macvlan
+```
+
+Development-only local image build:
+
+```bash
+cd deploy
+./scripts/build-local.sh direct
 ```
 
 ## Helper Compatibility
@@ -129,3 +136,5 @@ GitHub Actions publishes:
 - `ghcr.io/<owner>/retrosavemanager`
 
 on pushes to `main` and version tags.
+
+See also [DEPLOY.md](DEPLOY.md).

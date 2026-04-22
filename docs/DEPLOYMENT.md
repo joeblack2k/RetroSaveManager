@@ -25,6 +25,12 @@ cd deploy
 
 Switch `direct` to `macvlan` when needed.
 
+Notes:
+
+- `pull-up.sh` is the canonical production path
+- `up.sh` now only restarts from the locally cached image
+- `build-local.sh` is the explicit opt-in path for local image builds
+
 ## Persistence
 
 - App state/config volume: `CONFIG_HOST_PATH` (maps to container `/config`)
