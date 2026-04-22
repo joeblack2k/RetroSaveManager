@@ -23,6 +23,8 @@
 
 - Default runtime is direct HTTP on port `80`
 - Docker Compose default is a single `app` service
+- Default deploy is GHCR-only; it no longer builds locally during `up`
+- Optional local image builds now use `deploy/docker-compose.build.yml` via `deploy/scripts/build-local.sh`
 - Macvlan stays available as an optional override
 
 ### Validation Summary

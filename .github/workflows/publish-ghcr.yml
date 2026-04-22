@@ -6,6 +6,10 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+concurrency:
+  group: publish-ghcr-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
@@ -41,7 +45,7 @@ jobs:
         with:
           images: ghcr.io/${{ steps.vars.outputs.owner_lc }}/retrosavemanager
           tags: |
-            type=sha,prefix=
+            type=sha,format=long,prefix=sha-
             type=ref,event=tag
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -54,3 +58,34 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Verify latest label revision
+        if: github.ref == 'refs/heads/main'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${{ steps.vars.outputs.owner_lc }}/retrosavemanager:latest"
+          docker buildx imagetools inspect "$image" --format '{{json .Manifest}}' > manifest.json
+          amd64_digest="$(python3 - <<'PY'
+          import json
+          with open("manifest.json", "r", encoding="utf-8") as fh:
+              manifest = json.load(fh)
+          for item in manifest["manifests"]:
+              platform = item.get("platform") or {}
+              if platform.get("os") == "linux" and platform.get("architecture") == "amd64":
+                  print(item["digest"])
+                  break
+          else:
+              raise SystemExit("linux/amd64 manifest not found")
+          PY
+          )"
+          docker buildx imagetools inspect "${image}@${amd64_digest}" --format '{{json .Image}}' > image.json
+          actual_sha="$(python3 - <<'PY'
+          import json
+          with open("image.json", "r", encoding="utf-8") as fh:
+              image = json.load(fh)
+          print((image.get("config") or {}).get("Labels", {}).get("org.opencontainers.image.revision", ""))
+          PY
+          )"
+          test "$actual_sha" = "$EXPECTED_SHA"

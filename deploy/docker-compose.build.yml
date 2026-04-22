@@ -1,0 +1,7 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      args:
+        VITE_AUTH_REQUIRED: ${VITE_AUTH_REQUIRED:-false}
