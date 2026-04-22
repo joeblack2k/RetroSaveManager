@@ -17,9 +17,9 @@ scan_forbidden() {
   local output
 
   if [[ -n "$ignore_file" ]]; then
-    output="$(rg -n --hidden --glob '!.git' --glob '!frontend/node_modules/**' --glob '!frontend/dist/**' --glob '!deploy/data/**' --glob '!scripts/security-gate.sh' --glob '!onboarding.md' --glob "!${ignore_file}" -e "$pattern" . || true)"
+    output="$(rg -n --hidden --glob '!.git' --glob '!frontend/node_modules/**' --glob '!frontend/dist/**' --glob '!deploy/data/**' --glob '!scripts/security-gate.sh' --glob "!${ignore_file}" -e "$pattern" . || true)"
   else
-    output="$(rg -n --hidden --glob '!.git' --glob '!frontend/node_modules/**' --glob '!frontend/dist/**' --glob '!deploy/data/**' --glob '!scripts/security-gate.sh' --glob '!onboarding.md' -e "$pattern" . || true)"
+    output="$(rg -n --hidden --glob '!.git' --glob '!frontend/node_modules/**' --glob '!frontend/dist/**' --glob '!deploy/data/**' --glob '!scripts/security-gate.sh' -e "$pattern" . || true)"
   fi
 
   if [[ -n "$output" ]]; then

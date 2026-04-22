@@ -29,13 +29,14 @@ De deploy-host hoort dus niet meer lokaal te bouwen voor productie-updates.
 
 Publicatie naar GHCR loopt via:
 
-- [publish-ghcr.yml](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/.github/workflows/publish-ghcr.yml)
+- [`publish-ghcr.yml`](.github/workflows/publish-ghcr.yml)
 
 Belangrijk:
 
 - `main` publiceert `latest`
 - `main` publiceert ook een immutable `sha-<full-commit-sha>` tag
 - de workflow verifieert dat GHCR `latest` echt de revision van `main` bevat
+- echte omgevingsgegevens horen niet in de repo; gebruik lokale ongetrackte notities zoals `LOCAL_SECRETS.md`
 
 ## Standaard deploy op je Docker-host
 
@@ -165,10 +166,10 @@ Deze dingen zijn niet meer de standaard releaseflow:
 
 ## Relevante bestanden
 
-- [deploy/docker-compose.yml](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/deploy/docker-compose.yml)
-- [deploy/docker-compose.build.yml](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/deploy/docker-compose.build.yml)
-- [deploy/scripts/pull-up.sh](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/deploy/scripts/pull-up.sh)
-- [deploy/scripts/up.sh](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/deploy/scripts/up.sh)
-- [deploy/scripts/build-local.sh](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/deploy/scripts/build-local.sh)
-- [docs/DEPLOYMENT.md](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/docs/DEPLOYMENT.md)
-- [onboarding.md](/Users/nijssen/Documents/Projects/1Retro/RetroSaveManager/onboarding.md)
+- [`deploy/docker-compose.yml`](deploy/docker-compose.yml)
+- [`deploy/docker-compose.build.yml`](deploy/docker-compose.build.yml)
+- [`deploy/scripts/pull-up.sh`](deploy/scripts/pull-up.sh)
+- [`deploy/scripts/up.sh`](deploy/scripts/up.sh)
+- [`deploy/scripts/build-local.sh`](deploy/scripts/build-local.sh)
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+- [`onboarding.md`](onboarding.md)

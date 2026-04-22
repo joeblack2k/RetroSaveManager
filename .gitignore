@@ -17,7 +17,8 @@ backend/coverage.out
 deploy/data/
 backend/cmd/server/data/
 tests/evidence/
-onboarding.md
+LOCAL_SECRETS.md
+LOCAL_NOTES.md
 
 # Env
 .env
