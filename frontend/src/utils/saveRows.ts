@@ -21,7 +21,7 @@ export type SaveRow = {
   psLogicalKey?: string;
 };
 
-export type SaveSortKey = "game" | "region" | "saves" | "latest" | "total" | "rollback" | "date";
+export type SaveSortKey = "game" | "region" | "saves" | "latest" | "total" | "date";
 export type SaveSortDirection = "asc" | "desc";
 
 export function buildSaveRows(saves: SaveSummary[]): SaveRow[] {
@@ -212,8 +212,6 @@ function compareSaveRows(left: SaveRow, right: SaveRow, sortKey: SaveSortKey): n
       return left.latestSizeBytes - right.latestSizeBytes;
     case "total":
       return left.totalBytes - right.totalBytes;
-    case "rollback":
-      return left.latestVersion - right.latestVersion;
     case "date":
       return new Date(left.latestCreatedAt).getTime() - new Date(right.latestCreatedAt).getTime();
     default:

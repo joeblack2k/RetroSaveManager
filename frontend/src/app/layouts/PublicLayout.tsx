@@ -2,8 +2,6 @@ import { Link, Outlet } from "react-router-dom";
 import { TopNav } from "../../components/TopNav";
 
 const publicNav = [
-  { label: "Download", to: "/download" },
-  { label: "Getting Started", to: "/getting-started" },
   { label: "About", to: "/about" },
   { label: "Privacy", to: "/privacy" },
   { label: "Login", to: "/login" }

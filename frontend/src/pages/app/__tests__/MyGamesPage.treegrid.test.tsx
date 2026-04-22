@@ -8,7 +8,9 @@ import type { SaveSummary } from "../../../services/types";
 vi.mock("../../../services/retrosaveApi", () => ({
   listSaves: vi.fn(),
   deleteManySaves: vi.fn(),
-  deleteSave: vi.fn()
+  deleteSave: vi.fn(),
+  getSaveHistory: vi.fn(),
+  rollbackSave: vi.fn()
 }));
 
 function makeSave(overrides: Partial<SaveSummary> & { id: string; title: string; systemSlug: string; systemName: string }): SaveSummary {
@@ -75,7 +77,8 @@ describe("MyGamesPage TreeGrid", () => {
         systemName: "PlayStation",
         logicalKey: "psx::SLUS-00748::resident evil 2::US",
         createdAt: "2026-04-22T10:00:00Z",
-        latestVersion: 4
+        latestVersion: 4,
+        saveCount: 3
       }),
       makeSave({
         id: "ps-save-1",
@@ -94,6 +97,45 @@ describe("MyGamesPage TreeGrid", () => {
         createdAt: "2026-04-20T10:00:00Z"
       })
     ]);
+    vi.mocked(retrosaveApi.getSaveHistory).mockResolvedValue({
+      success: true,
+      game: null,
+      displayTitle: "Resident Evil 2",
+      systemSlug: "psx",
+      versions: [
+        makeSave({
+          id: "ps-save-2",
+          title: "Resident Evil 2",
+          systemSlug: "psx",
+          systemName: "PlayStation",
+          logicalKey: "psx::SLUS-00748::resident evil 2::US",
+          createdAt: "2026-04-22T10:00:00Z",
+          version: 4
+        }),
+        makeSave({
+          id: "ps-save-0",
+          title: "Resident Evil 2",
+          systemSlug: "psx",
+          systemName: "PlayStation",
+          logicalKey: "psx::SLUS-00748::resident evil 2::US",
+          createdAt: "2026-04-20T08:00:00Z",
+          version: 3
+        })
+      ]
+    });
+    vi.mocked(retrosaveApi.rollbackSave).mockResolvedValue({
+      success: true,
+      sourceSaveId: "ps-save-0",
+      save: makeSave({
+        id: "ps-save-3",
+        title: "Resident Evil 2",
+        systemSlug: "psx",
+        systemName: "PlayStation",
+        logicalKey: "psx::SLUS-00748::resident evil 2::US",
+        createdAt: "2026-04-22T10:10:00Z",
+        version: 5
+      })
+    });
   });
 
   afterEach(() => {
@@ -106,10 +148,11 @@ describe("MyGamesPage TreeGrid", () => {
     expect(screen.getByRole("status", { name: "" })).toBeInTheDocument();
     expect(await screen.findByRole("treegrid", { name: "My Saves" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "My Saves" })).toBeInTheDocument();
-    expect(screen.getByText(/2 systems · 3 games · 3 saves/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 systems · 3 games · 5 saves/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /collapse playstation/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /expand super nintendo/i })).toBeInTheDocument();
     expect(screen.queryByText("Chrono Trigger")).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: /rollback/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /expand super nintendo/i }));
 
@@ -141,5 +184,30 @@ describe("MyGamesPage TreeGrid", () => {
       "href",
       "/saves/download?id=ps-save-2&psLogicalKey=psx%3A%3ASLUS-00748%3A%3Aresident%20evil%202%3A%3AUS"
     );
+  });
+
+  it("opens the sync save selector modal from the saves column and promotes the chosen version", async () => {
+    renderPage();
+
+    await screen.findByRole("treegrid", { name: "My Saves" });
+
+    fireEvent.click(screen.getByRole("button", { name: /select sync save for resident evil 2/i }));
+
+    expect(await screen.findByRole("heading", { name: "Select Sync Save" })).toBeInTheDocument();
+    expect(retrosaveApi.getSaveHistory).toHaveBeenCalledWith({
+      saveId: "ps-save-2",
+      psLogicalKey: "psx::SLUS-00748::resident evil 2::US"
+    });
+    expect(screen.getByText("Current Sync Save")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /select version 3 for sync/i }));
+
+    await waitFor(() => {
+      expect(retrosaveApi.rollbackSave).toHaveBeenCalledWith({
+        saveId: "ps-save-2",
+        psLogicalKey: "psx::SLUS-00748::resident evil 2::US",
+        revisionId: "ps-save-0"
+      });
+    });
   });
 });

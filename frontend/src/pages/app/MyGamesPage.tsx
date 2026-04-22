@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { deleteManySaves, deleteSave, listSaves } from "../../services/retrosaveApi";
+import { deleteManySaves, deleteSave, getSaveHistory, listSaves, rollbackSave } from "../../services/retrosaveApi";
+import type { SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
 import {
   buildSaveDetailsHref,
@@ -33,9 +34,14 @@ const SORTABLE_COLUMNS: Array<{ key: SaveSortKey; label: string; align?: "left" 
   { key: "saves", label: "Saves" },
   { key: "latest", label: "Latest" },
   { key: "total", label: "Total" },
-  { key: "rollback", label: "Rollback" },
   { key: "date", label: "Date" }
 ];
+
+type SaveSelectorState = {
+  row: SaveRow;
+  displayTitle: string;
+  versions: SaveSummary[];
+};
 
 export function MyGamesPage(): JSX.Element {
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -43,6 +49,10 @@ export function MyGamesPage(): JSX.Element {
   const [sortKey, setSortKey] = useState<SaveSortKey>(DEFAULT_SORT.key);
   const [sortDirection, setSortDirection] = useState<SaveSortDirection>(DEFAULT_SORT.direction);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [selectorState, setSelectorState] = useState<SaveSelectorState | null>(null);
+  const [selectorLoading, setSelectorLoading] = useState(false);
+  const [selectorError, setSelectorError] = useState<string | null>(null);
+  const [selectingVersionID, setSelectingVersionID] = useState<string | null>(null);
 
   const loader = useCallback(async () => listSaves(), []);
 
@@ -115,6 +125,24 @@ export function MyGamesPage(): JSX.Element {
     });
   }, [consoleGroups]);
 
+  useEffect(() => {
+    if (!selectorState) {
+      return;
+    }
+
+    function handleEscape(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        setSelectorState(null);
+        setSelectorError(null);
+        setSelectorLoading(false);
+        setSelectingVersionID(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [selectorState]);
+
   const totalSaveCount = useMemo(() => rows.reduce((sum, row) => sum + row.saveCount, 0), [rows]);
   const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.totalBytes, 0), [rows]);
   const summaryText = `${consoleGroups.length} ${pluralize(consoleGroups.length, "system", "systems")} · ${rows.length} ${pluralize(rows.length, "game", "games")} · ${totalSaveCount} ${pluralize(totalSaveCount, "save", "saves")} · ${formatBytes(totalBytes)} total`;
@@ -158,6 +186,70 @@ export function MyGamesPage(): JSX.Element {
       setSortDirection(defaultDirectionFor(nextKey));
       return nextKey;
     });
+  }
+
+  async function handleOpenSaveSelector(row: SaveRow): Promise<void> {
+    if (row.saveCount <= 1) {
+      return;
+    }
+
+    setSelectorState({
+      row,
+      displayTitle: row.gameName,
+      versions: []
+    });
+    setSelectorLoading(true);
+    setSelectorError(null);
+    setSelectingVersionID(null);
+
+    try {
+      const history = await getSaveHistory({
+        saveId: row.primarySaveID,
+        psLogicalKey: row.psLogicalKey
+      });
+      setSelectorState({
+        row,
+        displayTitle: history.displayTitle?.trim() || row.gameName,
+        versions: history.versions
+      });
+    } catch (err: unknown) {
+      setSelectorError(err instanceof Error ? err.message : "Could not load save history.");
+    } finally {
+      setSelectorLoading(false);
+    }
+  }
+
+  function closeSaveSelector(): void {
+    setSelectorState(null);
+    setSelectorError(null);
+    setSelectorLoading(false);
+    setSelectingVersionID(null);
+  }
+
+  async function handleSelectSyncSave(version: SaveSummary): Promise<void> {
+    if (!selectorState) {
+      return;
+    }
+
+    setSelectorError(null);
+    setSelectingVersionID(version.id);
+    try {
+      if (selectorState.row.psLogicalKey) {
+        await rollbackSave({
+          saveId: selectorState.row.primarySaveID,
+          psLogicalKey: selectorState.row.psLogicalKey,
+          revisionId: version.id
+        });
+      } else {
+        await rollbackSave({ saveId: version.id });
+      }
+      closeSaveSelector();
+      await reload();
+    } catch (err: unknown) {
+      setSelectorError(err instanceof Error ? err.message : "Could not select the sync save.");
+    } finally {
+      setSelectingVersionID(null);
+    }
   }
 
   if (loading) {
@@ -212,7 +304,7 @@ export function MyGamesPage(): JSX.Element {
               return (
                 <tbody key={group.key} className="treegrid-group-body">
                   <tr className="treegrid-group-row" aria-expanded={expanded}>
-                    <td colSpan={10}>
+                    <td colSpan={9}>
                       <button
                         className="treegrid-group-toggle"
                         type="button"
@@ -256,20 +348,23 @@ export function MyGamesPage(): JSX.Element {
                                 <span>{displayRegionCode(row.regionCode)}</span>
                               </span>
                             </td>
-                            <td>{formatCountLabel(row.saveCount, "save", "saves")}</td>
+                            <td>
+                              {row.saveCount > 1 ? (
+                                <button
+                                  className="treegrid-save-trigger"
+                                  type="button"
+                                  onClick={() => void handleOpenSaveSelector(row)}
+                                  aria-label={`Select sync save for ${row.gameName}`}
+                                  title={`Select sync save for ${row.gameName}`}
+                                >
+                                  {formatCountLabel(row.saveCount, "save", "saves")}
+                                </button>
+                              ) : (
+                                <span>{formatCountLabel(row.saveCount, "save", "saves")}</span>
+                              )}
+                            </td>
                             <td>{formatBytes(row.latestSizeBytes)}</td>
                             <td>{formatBytes(row.totalBytes)}</td>
-                            <td>
-                              <Link
-                                className="treegrid-action treegrid-action--rollback"
-                                to={detailsHref}
-                                aria-label={`Rollback ${row.gameName}`}
-                                title={`Rollback ${row.gameName}`}
-                              >
-                                <HistoryIcon />
-                                <span>{formatCountLabel(row.latestVersion, "version", "versions")}</span>
-                              </Link>
-                            </td>
                             <td>{formatCompactDate(row.latestCreatedAt)}</td>
                             <td>
                               <Link
@@ -311,6 +406,82 @@ export function MyGamesPage(): JSX.Element {
               );
             })}
           </table>
+        </div>
+      ) : null}
+
+      {selectorState ? (
+        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeSaveSelector}>
+          <section
+            className="treegrid-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="treegrid-sync-save-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="treegrid-modal__header">
+              <div>
+                <h2 id="treegrid-sync-save-title">Select Sync Save</h2>
+                <p>{selectorState.displayTitle}</p>
+              </div>
+              <button
+                className="treegrid-modal__close"
+                type="button"
+                onClick={closeSaveSelector}
+                aria-label="Close save selector"
+              >
+                Close
+              </button>
+            </header>
+
+            <div className="treegrid-modal__body">
+              {selectorError ? <p className="error-state">{selectorError}</p> : null}
+              {selectorLoading ? <p className="treegrid-modal__status">Loading save history...</p> : null}
+              {!selectorLoading && selectorState.versions.length === 0 ? (
+                <p className="treegrid-modal__status">No save history found.</p>
+              ) : null}
+
+              {!selectorLoading && selectorState.versions.length > 0 ? (
+                <table className="treegrid-modal-table">
+                  <thead>
+                    <tr>
+                      <th>Version</th>
+                      <th>Date</th>
+                      <th>Size</th>
+                      <th>Status</th>
+                      <th>Select</th>
+                    </tr>
+                  </thead>
+                    <tbody>
+                    {selectorState.versions.map((version, index) => {
+                      const isCurrent = version.id === selectorState.row.primarySaveID || (selectorState.row.primarySaveID === "" && index === 0);
+                      const isBusy = selectingVersionID === version.id;
+                      return (
+                        <tr key={version.id}>
+                          <td>v{version.version}</td>
+                          <td>{formatCompactDate(version.createdAt)}</td>
+                          <td>{formatBytes(version.fileSize)}</td>
+                          <td>
+                            {isCurrent ? <span className="treegrid-current-pill">Current Sync Save</span> : <span>Available</span>}
+                          </td>
+                          <td>
+                            <button
+                              className="treegrid-select-button"
+                              type="button"
+                              disabled={isCurrent || isBusy}
+                              onClick={() => void handleSelectSyncSave(version)}
+                              aria-label={`Select version ${version.version} for sync`}
+                            >
+                              {isCurrent ? "Current" : isBusy ? "Selecting..." : "Select"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : null}
+            </div>
+          </section>
         </div>
       ) : null}
     </section>
@@ -398,16 +569,6 @@ function SystemGlyph({ systemSlug, fallbackLabel }: { systemSlug: string; fallba
     default:
       return <span className="treegrid-platform-badge__label">{fallbackLabel}</span>;
   }
-}
-
-function HistoryIcon(): JSX.Element {
-  return (
-    <svg className="treegrid-inline-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4.5 8.5V4.8h3.7" />
-      <path d="M5.1 12a6.9 6.9 0 1 0 2-4.9" />
-      <path d="M12 8.2v4.1l2.8 1.7" />
-    </svg>
-  );
 }
 
 function DetailsIcon(): JSX.Element {

@@ -13,7 +13,7 @@ describe("AppLayout", () => {
     vi.clearAllMocks();
   });
 
-  it("shows My Saves in the nav and hides My Games", () => {
+  it("shows My Saves in the nav and hides obsolete entries", () => {
     render(
       <MemoryRouter initialEntries={["/app/my-games"]}>
         <Routes>
@@ -26,6 +26,8 @@ describe("AppLayout", () => {
 
     expect(screen.getByRole("link", { name: "My Saves" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "My Games" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Getting Started" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Download" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Devices" })).toBeInTheDocument();
     expect(screen.getByText("My Saves content")).toBeInTheDocument();
   });

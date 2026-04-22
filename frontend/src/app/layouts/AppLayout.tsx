@@ -4,9 +4,7 @@ import { clearFrontendAuthSession, isFrontendAuthRequired } from "../../services
 const appNav: Array<{ label: string; to: string }> = [
   { label: "My Saves", to: "/app/my-games" },
   { label: "Devices", to: "/app/devices" },
-  { label: "Settings", to: "/app/settings" },
-  { label: "Getting Started", to: "/app/getting-started" },
-  { label: "Download", to: "/app/download" }
+  { label: "Settings", to: "/app/settings" }
 ];
 
 export function AppLayout(): JSX.Element {

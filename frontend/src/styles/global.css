@@ -1273,27 +1273,171 @@ code {
   line-height: 1;
 }
 
-.treegrid-action {
+.treegrid-save-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 20px;
+  min-height: 22px;
   padding: 0 8px;
-  border-radius: 2px;
-  border: 1px solid rgba(84, 91, 108, 0.9);
-  background: rgba(27, 32, 42, 0.96);
-  color: #e9eef8;
-  text-decoration: none;
+  border: 1px solid rgba(94, 118, 169, 0.95);
+  background: linear-gradient(180deg, rgba(26, 33, 49, 0.98), rgba(18, 23, 35, 0.98));
+  color: #e6f0ff;
   font-size: 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
 
-.treegrid-action:hover {
-  background: rgba(40, 46, 60, 0.98);
+.treegrid-save-trigger:hover {
+  border-color: rgba(145, 183, 255, 0.98);
+  background: linear-gradient(180deg, rgba(33, 42, 62, 1), rgba(22, 28, 42, 1));
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
-.treegrid-action--rollback {
-  min-width: 88px;
+.treegrid-save-trigger:focus-visible {
+  outline: 1px solid rgba(166, 206, 255, 0.98);
+  outline-offset: 1px;
+}
+
+.treegrid-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(5, 8, 13, 0.82);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.treegrid-modal {
+  width: min(820px, calc(100vw - 40px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid rgba(92, 103, 126, 0.96);
+  background:
+    linear-gradient(180deg, rgba(19, 23, 32, 0.98), rgba(12, 15, 22, 0.99));
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.56),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.treegrid-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(62, 72, 92, 0.96);
+  background: linear-gradient(180deg, rgba(24, 30, 42, 0.98), rgba(15, 19, 28, 0.98));
+}
+
+.treegrid-modal__header h2 {
+  margin: 0;
+  color: #f8fbff;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.treegrid-modal__header p {
+  margin: 4px 0 0;
+  color: #b8c6dd;
+  font-size: 11px;
+}
+
+.treegrid-modal__close {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(80, 92, 116, 0.96);
+  background: rgba(17, 21, 31, 0.98);
+  color: #eef4ff;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.treegrid-modal__close:hover {
+  border-color: rgba(135, 162, 216, 0.98);
+  background: rgba(27, 33, 46, 1);
+}
+
+.treegrid-modal__body {
+  padding: 14px 18px 18px;
+  overflow: auto;
+}
+
+.treegrid-modal__status {
+  margin: 0;
+  color: #c6d0e2;
+  font-size: 11px;
+}
+
+.treegrid-modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.treegrid-modal-table th,
+.treegrid-modal-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(52, 61, 78, 0.94);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.treegrid-modal-table th {
+  color: #95a3bc;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(20, 24, 34, 0.98);
+}
+
+.treegrid-modal-table tbody tr:hover {
+  background: rgba(34, 40, 53, 0.94);
+}
+
+.treegrid-current-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border: 1px solid rgba(82, 129, 80, 0.95);
+  background: rgba(25, 46, 29, 0.95);
+  color: #d9ffd7;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.treegrid-select-button {
+  min-height: 22px;
+  padding: 0 9px;
+  border: 1px solid rgba(95, 118, 170, 0.94);
+  background: linear-gradient(180deg, rgba(31, 40, 61, 0.98), rgba(20, 25, 38, 0.98));
+  color: #eef5ff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.treegrid-select-button:hover:not(:disabled) {
+  border-color: rgba(145, 183, 255, 0.98);
+  background: linear-gradient(180deg, rgba(40, 51, 76, 1), rgba(25, 31, 48, 1));
+}
+
+.treegrid-select-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .treegrid-icon-button {
@@ -1409,6 +1553,19 @@ code {
 
   .treegrid-table {
     min-width: 940px;
+  }
+
+  .treegrid-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+  }
+
+  .treegrid-modal__body {
+    padding: 12px;
+  }
+
+  .treegrid-modal-table {
+    min-width: 560px;
   }
 
   .treegrid-group-toggle__meta {
