@@ -29,7 +29,7 @@
 
 - Backend tests passed on the test bench VM
 - Frontend tests and production build passed locally
-- Live deploy validated on `192.168.2.10`
+- Live deploy validated on the internal Docker host
 
 ### Not Included In This Release
 
