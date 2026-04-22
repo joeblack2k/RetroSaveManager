@@ -85,9 +85,9 @@ func TestRouterUnknownAPIPathReturnsAPI404(t *testing.T) {
 
 func TestIsReservedAPIPath(t *testing.T) {
 	cases := []struct {
-		name  string
-		path  string
-		want  bool
+		name string
+		path string
+		want bool
 	}{
 		{name: "auth root", path: "/auth", want: true},
 		{name: "auth child", path: "/auth/me", want: true},

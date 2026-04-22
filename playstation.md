@@ -2,6 +2,34 @@
 
 This document describes how RetroSaveManager currently handles PlayStation save sync in the backend, how PS1/PS2 memory cards are stored, and what helper applications must send to stay compatible.
 
+Last updated: 2026-04-22 15:21:30 CEST
+
+## Latest update: 2026-04-22 15:21:30 CEST
+
+The current PlayStation contract was clarified and tightened on April 22, 2026 at 15:21:30 CEST.
+
+What changed in practice:
+
+- The web UI no longer treats `Memory Card 1` or `Memory Card 2` as the primary user-facing object.
+- PS1 and PS2 are now presented in the GUI primarily as individual logical game saves.
+- A single PlayStation projection `saveId` can still back multiple logical game rows internally.
+- Because of that, any per-game PlayStation action must be scoped by the pair `saveId` + `psLogicalKey`.
+- `saveId` alone identifies the rebuilt projection/card artifact line.
+- `psLogicalKey` identifies the specific logical game save inside that projection line.
+
+This matters for all PlayStation per-game operations:
+
+- details
+- rollback
+- delete
+- per-game web download
+
+It does **not** change helper upload/download semantics:
+
+- helpers still upload full cards
+- helpers still receive full rebuilt cards from helper sync endpoints
+- the backend still does extraction, logical-save storage and projection rebuilds
+
 The short version:
 
 - Helpers do **not** pre-extract PS save entries.
@@ -232,6 +260,18 @@ This is **not** the same as helper sync behavior.
 
 Helpers still upload/download full cards.
 
+Important implementation detail for tool authors:
+
+- the same PlayStation projection `saveId` may appear on more than one logical game row
+- this is expected and does not mean there are duplicate cards in storage
+- the real per-game key is `psLogicalKey`
+- any PlayStation UI/tool route that targets one specific game must preserve `psLogicalKey`
+
+In other words:
+
+- `saveId` = projection/card lineage
+- `psLogicalKey` = individual logical save lineage
+
 ## 11. PS1 logical save extraction details
 
 For PS1, the backend extracts logical saves from confirmed directory start entries and their block chains.
@@ -315,6 +355,11 @@ It is a logical-save promote/copy into a new latest state.
 - PS1: a single-save card image is generated
 - PS2: a zip archive of the logical save directory is generated
 
+### Web routing rule
+- when the web app opens a PlayStation save detail page, it must include `psLogicalKey`
+- when the web app triggers PlayStation rollback/delete/download for one game, it must include `psLogicalKey`
+- otherwise the request falls back to projection/card context instead of individual game context
+
 This split is intentional.
 
 ## 16. Storage layout under `SAVE_ROOT`
@@ -385,6 +430,13 @@ Yes.
 
 That split is the current contract.
 
+### Does a PlayStation `saveId` always mean one game?
+No.
+
+For PlayStation, a `saveId` is primarily the rebuilt projection/card artifact identity.
+One projection can contain multiple logical game saves.
+The per-game identity is `psLogicalKey`.
+
 ## 20. Recommended next helper updates
 
 For helper programmers, the safe next step is:
@@ -396,3 +448,114 @@ For helper programmers, the safe next step is:
 5. Treat backend downloads as authoritative rebuilt projections.
 
 If we later broaden runtime support, that should happen by adding explicit runtime profiles in the backend, not by making helper logic fuzzy.
+
+## 21. Coordination Note (Session 019dafb9-4ddc-7fc3-b0bd-d341c69f1f11)
+
+Date: 2026-04-22
+
+Purpose: keep backend/web/helper work on one contract line without drift.
+
+Leadership split:
+
+- Contract lead: session `019dafb9-4ddc-7fc3-b0bd-d341c69f1f11` (this file + backend behavior).
+- Helper execution lead: SGM helper implementation thread (MiSTer/SteamDeck/Windows clients).
+- Tie-breaker: this `playstation.md` document. If behavior and helper code differ, helper code must be aligned to this file.
+
+Current alignment status from helper side:
+
+- Done: helper now sends stable helper identity and auth fields for PlayStation flows (`device_type`, `fingerprint`, `app_password`).
+- Done: helper uses explicit PS slot (`Memory Card 1`) when slot is default.
+- Open mismatch: helper currently performs client-side PS1 card injection/merge on download to preserve local card continuity.
+
+Decision needed from contract lead (please confirm in this section):
+
+1. Is any client-side merge/injection allowed for helper sync?
+   - Current contract text says no (backend projection is authoritative).
+2. If preserving local-only entries is desired, should this be backend-driven via projection logic only?
+3. Idempotency target for helper runs:
+   - expected steady state is `in_sync` with no repeated PS1 download/upload loops.
+
+Confirmed by contract lead: 2026-04-22 15:30:41 CEST
+
+Confirmed decisions:
+
+1. Client-side merge/injection for PlayStation helper sync is not allowed.
+   - Helpers must not inject, merge, or preserve card contents client-side after download.
+   - The backend-generated projection is authoritative.
+2. If preserving local-only entries is ever desired, it must be implemented backend-side only.
+   - That logic belongs in projection/import policy on the server, not in helper code.
+   - Helpers should stay dumb and deterministic for PlayStation card state.
+3. Idempotency target is confirmed as steady-state `in_sync`.
+   - A clean helper run should converge without repeated PS1 download/upload churn.
+   - Repeated loops indicate contract drift, stale local state handling, or a backend conflict path that must be fixed centrally.
+
+Implementation rule after confirmation:
+
+- Once decision is confirmed here, helper code will be normalized to exactly match it across all helper targets.
+
+## 22. Backend Incident Note: Invalid PS1 projection returned by `/saves/download`
+
+Date: 2026-04-22 (CEST)
+
+Status: confirmed backend-side projection integrity bug (not a helper-side merge/injection issue).
+
+### What was observed
+
+1. KNULLI local PS1 card is valid raw card (`131072` bytes).
+2. The helper downloads a PS1 projection from backend for:
+   - `romSha1=ps-line:psx:retroarch:memory-card-1`
+   - `slotName=Memory Card 1`
+   - `device_type=retroarch`
+3. Downloaded payload is also `131072` bytes, but fails strict PS1 raw validation:
+   - Frame 0 starts with `MC` but checksum byte does not match XOR.
+   - Frame 63 does not contain trailing `MC` marker.
+4. Helper therefore rejects restore with:
+   - `canonieke PS1 save is ongeldig en kan niet worden teruggezet naar lokaal formaat`
+
+### Hard evidence captured
+
+1. Local KNULLI card:
+   - SHA256: `ec80805978cf36a23db52b1678e86e06bce427b48cd61907c73002e69111f0ef`
+   - Frame 0 checksum: valid (`calc=14`, `stored=14`)
+   - Frame 63 marker+checksum: valid (`MC`, checksum ok)
+2. Backend downloaded projection:
+   - SHA256: `a377a18653868397721e830d4f8ede9bc06ed00e33cf4dc81a7ab7f3e0dc622a`
+   - Frame 0 checksum: invalid (`calc=14`, `stored=0`)
+   - Frame 63 marker: invalid (`00 00`, not `MC`)
+3. Re-uploading the valid local card still yields the same invalid projection SHA on download.
+   - This confirms corruption happens in backend projection/build path (or post-import normalization), not in helper upload.
+
+### Reproduction (minimal)
+
+1. Upload valid PS1 raw card with:
+   - `rom_sha1=ps-line:psx:retroarch:memory-card-1`
+   - `slotName=Memory Card 1`
+   - `device_type=retroarch`
+   - `fingerprint=<device>`
+2. Fetch latest via `GET /save/latest`.
+3. Download via `GET /saves/download`.
+4. Validate PS1 raw:
+   - size must be `131072`
+   - frame 0 must start with `MC` and checksum must match
+   - directory frames `1..15` checksums must match
+   - frame 63 must start with `MC` and checksum must match
+5. Current backend output fails step 4.
+
+### Required backend fix
+
+1. In PS1 projection builder, always emit canonical raw card with:
+   - frame 0 `MC` signature + valid checksum
+   - frame 63 `MC` signature + valid checksum
+   - valid checksums for all written directory frames
+2. Ensure checksum recalculation happens after every projection rewrite step, not before final serialization.
+3. Add backend contract test:
+   - input: valid PS1 card upload
+   - output from `/saves/download` must pass raw validator and remain restorable by helper.
+4. Backfill existing broken PS1 projections by reprojecting affected records.
+
+### Acceptance criteria for backend developer
+
+1. Two consecutive helper `sync` runs on the same device converge to `in_sync`.
+2. No PS1 download/upload loop for unchanged cards.
+3. Helper no longer emits invalid canonical PS1 error for valid PS1 line records.
+4. `/saves/download` payload for PS1 passes structural validator every time.

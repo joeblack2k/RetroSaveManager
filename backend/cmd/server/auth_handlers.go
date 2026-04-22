@@ -47,10 +47,10 @@ func (a *app) handleAuthTokenAppPassword(w http.ResponseWriter, r *http.Request)
 	_ = requestPrincipal(r)
 
 	var payload struct {
-		Name       string `json:"name"`
-		DeviceType string `json:"device_type"`
+		Name          string `json:"name"`
+		DeviceType    string `json:"device_type"`
 		DeviceTypeAlt string `json:"deviceType"`
-		Fingerprint string `json:"fingerprint"`
+		Fingerprint   string `json:"fingerprint"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&payload)
 
@@ -101,10 +101,10 @@ func (a *app) handleAuthTokenAppPassword(w http.ResponseWriter, r *http.Request)
 	_ = a.persistSecurityDeviceStateLocked()
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success":        true,
-		"token":          plainTextKey,
-		"plainTextKey":   plainTextKey,
-		"expiresInDays":  7,
+		"success":         true,
+		"token":           plainTextKey,
+		"plainTextKey":    plainTextKey,
+		"expiresInDays":   7,
 		"autoProvisioned": true,
 		"appPassword": map[string]any{
 			"id":                 publicRecord.ID,

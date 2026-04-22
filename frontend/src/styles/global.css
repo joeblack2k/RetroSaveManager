@@ -1,21 +1,19 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap");
-
 :root {
-  --bg-main: #23252f;
-  --bg-accent: #2a2d39;
-  --sidebar-bg: #0f1117;
-  --sidebar-border: #262a36;
-  --panel: #353842;
-  --panel-soft: #3d404b;
-  --panel-strong: #2f323c;
-  --border: #4a4e5b;
-  --text: #e7ebf4;
-  --text-muted: #a9b0c0;
-  --accent: #5f90ff;
-  --accent-strong: #79a5ff;
+  --bg-main: #181a21;
+  --bg-accent: #1d2028;
+  --sidebar-bg: #11131a;
+  --sidebar-border: #2a2e38;
+  --panel: #232731;
+  --panel-soft: #2a2f3b;
+  --panel-strong: #1e232d;
+  --border: #3b414f;
+  --text: #eef2f7;
+  --text-muted: #9ca6b8;
+  --accent: #66a4ff;
+  --accent-strong: #9cc5ff;
   --ok: #65d298;
-  --danger: #ff7d7d;
-  --shadow: 0 20px 36px -24px rgba(0, 0, 0, 0.72);
+  --danger: #ff6a63;
+  --shadow: 0 18px 36px -28px rgba(0, 0, 0, 0.88);
 }
 
 * {
@@ -30,10 +28,17 @@ body,
 
 body {
   margin: 0;
-  font-family: "Inter", "Segoe UI", sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-size: 13px;
+  line-height: 1.35;
   color: var(--text);
-  background: radial-gradient(circle at 20% 0%, #2f3342 0%, transparent 35%), radial-gradient(circle at 90% 10%, #2a2e3b 0%, transparent 32%),
-    linear-gradient(180deg, var(--bg-accent), var(--bg-main));
+  background:
+    radial-gradient(circle at 16% 0%, rgba(80, 101, 146, 0.2) 0%, transparent 26%),
+    radial-gradient(circle at 88% 8%, rgba(54, 63, 84, 0.28) 0%, transparent 30%),
+    linear-gradient(180deg, #171920 0%, #13151b 100%);
 }
 
 a {
@@ -41,7 +46,7 @@ a {
 }
 
 code {
-  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   border-radius: 0.35rem;
   padding: 0.1rem 0.35rem;
   background: #252834;
@@ -542,6 +547,16 @@ code {
   gap: 0.45rem;
 }
 
+.saves-cover-art {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex: 0 0 44px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .saves-game-cell strong {
   display: block;
   font-weight: 600;
@@ -902,5 +917,501 @@ code {
   .table tr {
     border-bottom: 1px solid #464b5b;
     padding: 0.5rem 0;
+  }
+}
+
+/* My Saves TreeGrid redesign */
+.app-shell {
+  grid-template-columns: 172px minmax(0, 1fr);
+  background: linear-gradient(180deg, #171b23 0%, #11151c 100%);
+}
+
+.app-sidebar {
+  background:
+    linear-gradient(180deg, rgba(32, 36, 47, 0.7), rgba(15, 18, 24, 0.92)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 4px);
+  padding: 14px 8px 16px;
+  border-right: 1px solid rgba(76, 86, 104, 0.42);
+}
+
+.sidebar-brand {
+  display: block;
+  padding: 4px 8px 14px 16px;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(81, 91, 112, 0.44);
+}
+
+.sidebar-brand__heading {
+  display: block;
+  color: #f0f4fb;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.side-nav {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  justify-items: stretch;
+}
+
+.side-nav__link {
+  position: relative;
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px 0 14px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #dfe5ef;
+  text-decoration: none;
+}
+
+.side-nav__link::before {
+  content: "";
+  position: absolute;
+  inset: 4px auto 4px -8px;
+  width: 3px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.side-nav__link:hover {
+  border-color: rgba(95, 108, 133, 0.2);
+  background: rgba(45, 51, 64, 0.42);
+}
+
+.side-nav__link--active {
+  border-color: rgba(106, 134, 194, 0.18);
+  background: linear-gradient(180deg, rgba(58, 66, 84, 0.62), rgba(47, 54, 68, 0.62));
+  color: #f7fbff;
+}
+
+.side-nav__link--active::before {
+  background: linear-gradient(180deg, #76b4ff, #4984ff);
+}
+
+.side-nav__label {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  border: 0;
+  white-space: normal;
+  font-size: 12px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sidebar-user {
+  justify-content: center;
+  border-top-color: rgba(67, 73, 89, 0.72);
+  padding-top: 12px;
+}
+
+.sidebar-user__meta {
+  display: none;
+}
+
+.sidebar-logout {
+  min-width: 100%;
+  min-height: 32px;
+  border-radius: 2px;
+  border: 1px solid rgba(84, 94, 112, 0.28);
+  border-color: rgba(56, 62, 75, 0.92);
+  background: rgba(24, 28, 37, 0.98);
+  color: #d8dfeb;
+  font: inherit;
+  text-align: left;
+  padding: 0 12px;
+}
+
+.app-main {
+  padding: 12px 12px 16px;
+}
+
+.treegrid-panel {
+  min-height: calc(100vh - 32px);
+  border: 1px solid rgba(67, 75, 93, 0.72);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(41, 46, 59, 0.98), rgba(28, 32, 42, 0.99)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.01) 0 1px, transparent 1px 5px);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  overflow: hidden;
+}
+
+.treegrid-panel__header {
+  display: flex;
+  align-items: flex-end;
+  min-height: 58px;
+  padding: 12px 18px 10px;
+  border-bottom: 1px solid rgba(77, 84, 101, 0.62);
+}
+
+.treegrid-panel__header h1 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #edf2f9;
+  text-transform: uppercase;
+}
+
+.treegrid-panel__header p {
+  margin: 6px 0 0;
+  color: #8f99af;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-panel__empty {
+  margin: 0;
+  padding: 20px 28px;
+  color: var(--text-muted);
+}
+
+.treegrid-table-wrap {
+  overflow: auto;
+}
+
+.treegrid-table {
+  width: 100%;
+  min-width: 1100px;
+  border-collapse: collapse;
+}
+
+.treegrid-table thead th {
+  background: rgba(29, 33, 43, 0.94);
+  border-bottom: 1px solid rgba(80, 87, 103, 0.74);
+  color: #f5f7fb;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-table td {
+  border-bottom: 1px solid rgba(71, 78, 95, 0.72);
+  color: #edf1f7;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 9px 12px;
+  vertical-align: middle;
+}
+
+.treegrid-table tbody:last-child tr:last-child td {
+  border-bottom: 0;
+}
+
+.treegrid-table__align-center {
+  text-align: center;
+}
+
+.treegrid-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.treegrid-sort__icon {
+  color: #7a87a0;
+  font-size: 12px;
+}
+
+.treegrid-sort__icon--active {
+  color: #dfe8ff;
+}
+
+.treegrid-group-body {
+  background: transparent;
+}
+
+.treegrid-group-row td {
+  padding: 0;
+  background: linear-gradient(180deg, rgba(47, 55, 70, 0.98), rgba(43, 49, 63, 0.98));
+}
+
+.treegrid-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: #edf1f7;
+  padding: 11px 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.treegrid-group-toggle:hover {
+  background: rgba(72, 82, 102, 0.18);
+}
+
+.treegrid-group-toggle__icon {
+  width: 12px;
+  height: 12px;
+  color: #f7f9fd;
+}
+
+.treegrid-chevron-icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.treegrid-folder-icon {
+  width: 18px;
+  height: 14px;
+  fill: rgba(214, 222, 234, 0.9);
+}
+
+.treegrid-group-toggle__title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.treegrid-group-toggle__meta {
+  margin-left: auto;
+  color: #b7c0d1;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-child-row {
+  background: rgba(31, 35, 46, 0.98);
+}
+
+.treegrid-child-row:hover {
+  background: rgba(37, 42, 54, 0.98);
+}
+
+.treegrid-game-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.treegrid-game-cell--child {
+  padding-left: 12px;
+}
+
+.treegrid-platform-badge {
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  border: 1px solid rgba(55, 64, 82, 0.96);
+  background: linear-gradient(180deg, rgba(8, 10, 14, 1), rgba(11, 14, 20, 0.98));
+  color: #ecf2ff;
+  display: inline-grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.treegrid-system-glyph {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.treegrid-platform-badge__label {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.treegrid-game-title {
+  color: #f5f8fd;
+  font-size: 10px;
+}
+
+.treegrid-region {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 66px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-region__flag {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.treegrid-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(84, 91, 108, 0.9);
+  background: rgba(27, 32, 42, 0.96);
+  color: #e9eef8;
+  text-decoration: none;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-action:hover {
+  background: rgba(40, 46, 60, 0.98);
+}
+
+.treegrid-action--rollback {
+  min-width: 88px;
+}
+
+.treegrid-icon-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 2px;
+  border: 1px solid rgba(85, 92, 108, 0.92);
+  background: rgba(24, 29, 39, 0.98);
+  color: #edf2f9;
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.treegrid-icon-button:hover:not(:disabled) {
+  border-color: rgba(113, 144, 205, 0.95);
+  background: rgba(39, 44, 56, 1);
+  transform: translateY(-1px);
+}
+
+.treegrid-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.treegrid-icon-button--download {
+  color: #d7efff;
+  border-color: rgba(100, 158, 210, 0.5);
+  background: linear-gradient(180deg, rgba(42, 74, 101, 0.95), rgba(25, 43, 60, 0.98));
+  box-shadow: 0 0 12px -8px rgba(88, 177, 255, 0.72);
+}
+
+.treegrid-icon-button--download:hover {
+  box-shadow: 0 0 14px -6px rgba(97, 183, 255, 0.78);
+}
+
+.treegrid-icon-button--danger {
+  color: #ff695f;
+  border-color: rgba(157, 72, 67, 0.54);
+  background: linear-gradient(180deg, rgba(60, 30, 34, 0.92), rgba(45, 24, 28, 0.94));
+}
+
+.treegrid-icon-button--danger:hover:not(:disabled) {
+  border-color: rgba(201, 99, 95, 0.92);
+  background: rgba(62, 31, 35, 1);
+}
+
+.treegrid-inline-icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 1040px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    max-height: none;
+    position: static;
+    border-right: 0;
+    border-bottom: 1px solid var(--sidebar-border);
+    padding: 12px 14px;
+  }
+
+  .sidebar-brand {
+    padding: 0 0 12px;
+  }
+
+  .side-nav {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    justify-items: stretch;
+  }
+
+  .side-nav__link {
+    width: auto;
+    min-height: 42px;
+    justify-content: flex-start;
+    padding: 0 12px;
+    border-radius: 2px;
+  }
+
+  .side-nav__link::before {
+    inset: auto auto -10px 10px;
+    width: calc(100% - 20px);
+    height: 3px;
+  }
+
+  .side-nav__label {
+    font-size: 12px;
+  }
+
+  .sidebar-user {
+    display: none;
+  }
+
+  .app-main {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  .treegrid-panel__header {
+    padding: 18px 18px 12px;
+  }
+
+  .treegrid-table {
+    min-width: 940px;
+  }
+
+  .treegrid-group-toggle__meta {
+    display: none;
   }
 }

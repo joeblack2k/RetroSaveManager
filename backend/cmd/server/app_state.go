@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -182,11 +183,23 @@ func (a *app) initSaveStore() error {
 		return err
 	}
 	if isEmpty {
-		if err := a.bootstrapSeedSave(); err != nil {
-			return err
+		if seedBootstrapEnabled() {
+			if err := a.bootstrapSeedSave(); err != nil {
+				return err
+			}
 		}
 	}
 	return a.reloadSavesFromDisk()
+}
+
+func seedBootstrapEnabled() bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv("BOOTSTRAP_DEMO_DATA")))
+	switch value {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *app) bootstrapSeedSave() error {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeConsoleLabel } from "../MyGamesPage";
+import { normalizeConsoleLabel } from "../../../utils/saveRows";
 
 describe("MyGamesPage console label normalization", () => {
   it("keeps SNES separate from NES when the slug is snes", () => {

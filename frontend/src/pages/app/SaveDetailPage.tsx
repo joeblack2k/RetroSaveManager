@@ -1,12 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { SectionCard } from "../../components/SectionCard";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { apiDownloadURL } from "../../services/apiClient";
 import { getSaveHistory, rollbackSave } from "../../services/retrosaveApi";
-import type { SaveSummary } from "../../services/types";
+import type { MemoryCardEntry, SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
+import { buildSaveDetailsHref } from "../../utils/saveRows";
 
 export function SaveDetailPage(): JSX.Element {
   const params = useParams<{ saveId: string }>();
@@ -27,20 +28,44 @@ export function SaveDetailPage(): JSX.Element {
     () => versions.find((version) => version.memoryCard?.entries && version.memoryCard.entries.length > 0)?.memoryCard || latest?.memoryCard || null,
     [latest?.memoryCard, versions]
   );
+  const playStationEntries = useMemo(() => uniqueMemoryCardEntries(memoryCard?.entries), [memoryCard?.entries]);
+  const systemSlug = normalizeSystemSlug(data?.systemSlug || latest?.systemSlug || latest?.game.system?.slug || "");
+  const isPlayStationSystem = systemSlug === "psx" || systemSlug === "ps2";
+  const effectiveLogicalKey = useMemo(() => {
+    if (psLogicalKey) {
+      return psLogicalKey;
+    }
+    if (!isPlayStationSystem || playStationEntries.length !== 1) {
+      return "";
+    }
+    return (playStationEntries[0]?.logicalKey || "").trim();
+  }, [isPlayStationSystem, playStationEntries, psLogicalKey]);
   const logicalEntry = useMemo(() => {
-    if (!psLogicalKey || !memoryCard?.entries || memoryCard.entries.length === 0) {
+    if (!effectiveLogicalKey) {
       return null;
     }
-    return memoryCard.entries.find((entry) => (entry.logicalKey || "").trim() === psLogicalKey) || memoryCard.entries[0] || null;
-  }, [memoryCard, psLogicalKey]);
+    return playStationEntries.find((entry) => (entry.logicalKey || "").trim() === effectiveLogicalKey) || playStationEntries[0] || null;
+  }, [effectiveLogicalKey, playStationEntries]);
+  const showPlayStationSelector = isPlayStationSystem && !effectiveLogicalKey && playStationEntries.length > 0;
 
-  const displayTitle = (data?.displayTitle || data?.summary?.displayTitle || latest?.displayTitle || latest?.game.displayTitle || latest?.game.name || "Unknown game").trim();
+  const rawDisplayTitle = (data?.displayTitle || data?.summary?.displayTitle || latest?.displayTitle || latest?.game.displayTitle || latest?.game.name || "Unknown game").trim();
+  const displayTitle = useMemo(() => {
+    if (logicalEntry?.title) {
+      return logicalEntry.title.trim() || "Unknown game";
+    }
+    if (showPlayStationSelector) {
+      return "Choose a PlayStation save";
+    }
+    return rawDisplayTitle || "Unknown game";
+  }, [logicalEntry?.title, rawDisplayTitle, showPlayStationSelector]);
   const systemName = data?.summary?.system?.name || latest?.game.system?.name || "Unknown";
-  const regionCode = normalizeRegionCode((data?.summary?.regionCode || latest?.regionCode || latest?.game.regionCode || "UNKNOWN").toString());
+  const regionCode = normalizeRegionCode((data?.summary?.regionCode || latest?.regionCode || latest?.game.regionCode || logicalEntry?.regionCode || "UNKNOWN").toString());
   const languageCodes = mergeLanguageCodes(data?.summary?.languageCodes, latest?.languageCodes, latest?.game.languageCodes, fallbackSummary.languageCodes);
-  const saveCount = data?.summary?.saveCount || fallbackSummary.saveCount;
-  const totalSizeBytes = data?.summary?.totalSizeBytes || fallbackSummary.totalSizeBytes;
-  const latestVersion = data?.summary?.latestVersion || fallbackSummary.latestVersion;
+  const saveCount = showPlayStationSelector ? playStationEntries.length : data?.summary?.saveCount || fallbackSummary.saveCount;
+  const totalSizeBytes = showPlayStationSelector
+    ? playStationEntries.reduce((sum, entry) => sum + (entry.totalSizeBytes || entry.sizeBytes || 0), 0)
+    : data?.summary?.totalSizeBytes || fallbackSummary.totalSizeBytes;
+  const latestVersion = showPlayStationSelector ? 0 : data?.summary?.latestVersion || fallbackSummary.latestVersion;
   const latestCreatedAt = data?.summary?.latestCreatedAt || fallbackSummary.latestCreatedAt;
 
   async function handleRollback(target: SaveSummary): Promise<void> {
@@ -54,8 +79,8 @@ export function SaveDetailPage(): JSX.Element {
     setRollbackingId(target.id);
     try {
       const response = await rollbackSave(
-        psLogicalKey
-          ? { saveId, psLogicalKey, revisionId: target.id }
+        effectiveLogicalKey
+          ? { saveId, psLogicalKey: effectiveLogicalKey, revisionId: target.id }
           : { saveId: target.id }
       );
       setRollbackMessage(`Rollback voltooid. Nieuwe versie: v${response.save.version}`);
@@ -81,49 +106,34 @@ export function SaveDetailPage(): JSX.Element {
           <div className="stack compact">
             <p><strong>Game:</strong> {displayTitle}</p>
             <p><strong>Console:</strong> {systemName}</p>
-            <p><strong>Region:</strong> {regionToFlagEmoji(regionCode)} {regionCode}</p>
-            <p><strong>Languages:</strong> {languageCodes.length > 0 ? languageCodes.join(", ") : "-"}</p>
-            <p><strong>Total saves:</strong> {saveCount}</p>
+            {!showPlayStationSelector ? <p><strong>Region:</strong> {regionToFlagEmoji(regionCode)} {regionCode}</p> : null}
+            {!showPlayStationSelector ? <p><strong>Languages:</strong> {languageCodes.length > 0 ? languageCodes.join(", ") : "-"}</p> : null}
+            <p><strong>{showPlayStationSelector ? "Available saves" : "Total saves"}:</strong> {saveCount}</p>
             <p><strong>Total size:</strong> {formatBytes(totalSizeBytes)}</p>
-            <p><strong>Latest version:</strong> v{latestVersion}</p>
+            {!showPlayStationSelector ? <p><strong>Latest version:</strong> v{latestVersion}</p> : null}
             <p><strong>Latest date:</strong> {formatDate(latestCreatedAt)}</p>
           </div>
 
-          {psLogicalKey && logicalEntry ? (
+          {showPlayStationSelector ? (
             <div className="stack compact">
-              {logicalEntry.iconDataUrl ? (
-                <img
-                  className="memory-card-entry-preview"
-                  src={logicalEntry.iconDataUrl}
-                  alt={`${logicalEntry.title} icon`}
-                  loading="lazy"
-                />
-              ) : null}
-              {logicalEntry.productCode ? <p><strong>Product code:</strong> {logicalEntry.productCode}</p> : null}
-              {logicalEntry.directoryName ? <p><strong>Directory:</strong> {logicalEntry.directoryName}</p> : null}
-              {logicalEntry.slot > 0 ? <p><strong>Slot:</strong> {logicalEntry.slot}</p> : null}
-              {logicalEntry.blocks > 0 ? <p><strong>Blocks:</strong> {logicalEntry.blocks}</p> : null}
-              <p><strong>Current save size:</strong> {logicalEntry.sizeBytes ? formatBytes(logicalEntry.sizeBytes) : formatBytes(latest?.fileSize || 0)}</p>
-            </div>
-          ) : memoryCard ? (
-            <div className="stack compact">
-              <p><strong>Memory Card:</strong> {memoryCard.name}</p>
-              {memoryCard.entries && memoryCard.entries.length > 0 ? (
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Preview</th>
-                      <th>Save</th>
-                      <th>Slot</th>
-                      <th>Blocks</th>
-                      <th>Size</th>
-                      <th>Code</th>
-                      <th>Region</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {memoryCard.entries.map((entry, index) => (
-                      <tr key={`${entry.productCode || entry.title}-${entry.slot}-${index}`}>
+              <p>This PlayStation upload contains individual game saves. Open the game you want to inspect instead of the projection container.</p>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Preview</th>
+                    <th>Save</th>
+                    <th>Region</th>
+                    <th>Size</th>
+                    <th>Details</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {playStationEntries.map((entry, index) => {
+                    const entryLogicalKey = (entry.logicalKey || "").trim();
+                    const canOpen = entryLogicalKey !== "";
+                    return (
+                      <tr key={`${entryLogicalKey || entry.productCode || entry.directoryName || entry.title}-${index}`}>
                         <td>
                           {entry.iconDataUrl ? (
                             <img
@@ -139,84 +149,147 @@ export function SaveDetailPage(): JSX.Element {
                         <td>
                           <div className="memory-card-entry-title-cell">
                             <strong>{entry.title}</strong>
-                            {entry.directoryName ? <span>{entry.directoryName}</span> : null}
+                            {entry.productCode ? <span>{entry.productCode}</span> : entry.directoryName ? <span>{entry.directoryName}</span> : null}
                           </div>
                         </td>
-                        <td>{entry.slot}</td>
-                        <td>{entry.blocks}</td>
-                        <td>{entry.sizeBytes ? formatBytes(entry.sizeBytes) : "-"}</td>
-                        <td>{entry.productCode || "-"}</td>
                         <td>{regionToFlagEmoji((entry.regionCode || "UNKNOWN").toString())} {normalizeRegionCode((entry.regionCode || "UNKNOWN").toString())}</td>
+                        <td>{formatBytes(entry.totalSizeBytes || entry.sizeBytes || 0)}</td>
+                        <td>
+                          {canOpen ? (
+                            <Link className="saves-action-link" to={buildSaveDetailsHref({ primarySaveID: saveId, psLogicalKey: entryLogicalKey })}>
+                              Details
+                            </Link>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </td>
+                        <td>
+                          {canOpen ? (
+                            <a
+                              className="saves-action-link"
+                              href={apiDownloadURL(`/saves/download?id=${encodeURIComponent(saveId)}&psLogicalKey=${encodeURIComponent(entryLogicalKey)}`)}
+                            >
+                              Download
+                            </a>
+                          ) : (
+                            <span>-</span>
+                          )}
+                        </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>Geen memory card entries gevonden.</p>
-              )}
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : logicalEntry ? (
+            <div className="stack compact">
+              {logicalEntry.iconDataUrl ? (
+                <img
+                  className="memory-card-entry-preview"
+                  src={logicalEntry.iconDataUrl}
+                  alt={`${logicalEntry.title} icon`}
+                  loading="lazy"
+                />
+              ) : null}
+              {logicalEntry.productCode ? <p><strong>Product code:</strong> {logicalEntry.productCode}</p> : null}
+              {logicalEntry.directoryName ? <p><strong>Directory:</strong> {logicalEntry.directoryName}</p> : null}
+              {logicalEntry.slot > 0 ? <p><strong>Slot:</strong> {logicalEntry.slot}</p> : null}
+              {logicalEntry.blocks > 0 ? <p><strong>Blocks:</strong> {logicalEntry.blocks}</p> : null}
+              <p><strong>Current save size:</strong> {logicalEntry.sizeBytes ? formatBytes(logicalEntry.sizeBytes) : formatBytes(latest?.fileSize || 0)}</p>
             </div>
           ) : null}
 
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Version</th>
-                <th>Date</th>
-                <th>File</th>
-                <th>Size</th>
-                <th>SHA256</th>
-                <th>Region</th>
-                <th>Languages</th>
-                <th>Download</th>
-                <th>Rollback</th>
-              </tr>
-            </thead>
-            <tbody>
-              {versions.map((version, index) => {
-                const isLatest = index === 0;
-                const versionRegion = normalizeRegionCode((version.regionCode || version.game.regionCode || "UNKNOWN").toString());
-                const versionLanguages = mergeLanguageCodes(version.languageCodes, version.game.languageCodes);
-                const isBusy = rollbackingId === version.id;
-                return (
-                  <tr key={version.id}>
-                    <td>v{version.version}</td>
-                    <td>{formatDate(version.createdAt)}</td>
-                    <td>{version.filename}</td>
-                    <td>{formatBytes(version.fileSize)}</td>
-                    <td><code>{version.sha256}</code></td>
-                    <td>{regionToFlagEmoji(versionRegion)} {versionRegion}</td>
-                    <td>{versionLanguages.length > 0 ? versionLanguages.join(", ") : "-"}</td>
-                    <td>
-                      <a
-                        className="saves-action-link"
-                        href={apiDownloadURL(
-                          psLogicalKey
-                            ? `/saves/download?id=${encodeURIComponent(saveId)}&psLogicalKey=${encodeURIComponent(psLogicalKey)}&revisionId=${encodeURIComponent(version.id)}`
-                            : `/saves/download?id=${encodeURIComponent(version.id)}`
-                        )}
-                      >
-                        Download
-                      </a>
-                    </td>
-                    <td>
-                      <button
-                        className="saves-action-btn"
-                        type="button"
-                        disabled={isLatest || isBusy}
-                        onClick={() => void handleRollback(version)}
-                      >
-                        {isLatest ? "Current" : isBusy ? "..." : "Rollback"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          {!showPlayStationSelector ? (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Version</th>
+                  <th>Date</th>
+                  <th>File</th>
+                  <th>Size</th>
+                  <th>SHA256</th>
+                  <th>Region</th>
+                  <th>Languages</th>
+                  <th>Download</th>
+                  <th>Rollback</th>
+                </tr>
+              </thead>
+              <tbody>
+                {versions.map((version, index) => {
+                  const isLatest = index === 0;
+                  const versionRegion = normalizeRegionCode((version.regionCode || version.game.regionCode || "UNKNOWN").toString());
+                  const versionLanguages = mergeLanguageCodes(version.languageCodes, version.game.languageCodes);
+                  const isBusy = rollbackingId === version.id;
+                  return (
+                    <tr key={version.id}>
+                      <td>v{version.version}</td>
+                      <td>{formatDate(version.createdAt)}</td>
+                      <td>{version.filename}</td>
+                      <td>{formatBytes(version.fileSize)}</td>
+                      <td><code>{version.sha256}</code></td>
+                      <td>{regionToFlagEmoji(versionRegion)} {versionRegion}</td>
+                      <td>{versionLanguages.length > 0 ? versionLanguages.join(", ") : "-"}</td>
+                      <td>
+                        <a
+                          className="saves-action-link"
+                          href={apiDownloadURL(
+                            effectiveLogicalKey
+                              ? `/saves/download?id=${encodeURIComponent(saveId)}&psLogicalKey=${encodeURIComponent(effectiveLogicalKey)}&revisionId=${encodeURIComponent(version.id)}`
+                              : `/saves/download?id=${encodeURIComponent(version.id)}`
+                          )}
+                        >
+                          Download
+                        </a>
+                      </td>
+                      <td>
+                        <button
+                          className="saves-action-btn"
+                          type="button"
+                          disabled={isLatest || isBusy}
+                          onClick={() => void handleRollback(version)}
+                        >
+                          {isLatest ? "Current" : isBusy ? "..." : "Rollback"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : null}
         </div>
       ) : null}
     </SectionCard>
   );
+}
+
+function uniqueMemoryCardEntries(entries: MemoryCardEntry[] | undefined): MemoryCardEntry[] {
+  if (!entries || entries.length === 0) {
+    return [];
+  }
+  const out: MemoryCardEntry[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const logicalKey = (entry.logicalKey || "").trim();
+    const identity = logicalKey || `${entry.productCode || entry.directoryName || entry.title}:${entry.slot}:${entry.blocks}`;
+    if (seen.has(identity)) {
+      continue;
+    }
+    seen.add(identity);
+    out.push(entry);
+  }
+  out.sort((a, b) => {
+    const slotDelta = (a.slot || 0) - (b.slot || 0);
+    if (slotDelta !== 0) {
+      return slotDelta;
+    }
+    return a.title.localeCompare(b.title);
+  });
+  return out;
+}
+
+function normalizeSystemSlug(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function buildSummaryFromVersions(versions: SaveSummary[]): {
@@ -311,8 +384,8 @@ function normalizeLanguageCode(raw: string): string | null {
 }
 
 function mergeLanguageCodes(...sources: Array<string[] | undefined>): string[] {
-  const seen = new Set<string>();
   const out: string[] = [];
+  const seen = new Set<string>();
   for (const source of sources) {
     if (!source) {
       continue;

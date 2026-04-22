@@ -296,6 +296,7 @@ func newContractHarnessWithRoots(t *testing.T, saveRoot, stateRoot string) *cont
 	t.Helper()
 	t.Setenv("SAVE_ROOT", saveRoot)
 	t.Setenv("STATE_ROOT", stateRoot)
+	t.Setenv("BOOTSTRAP_DEMO_DATA", "true")
 
 	app := newApp()
 	if err := app.initSaveStore(); err != nil {

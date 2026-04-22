@@ -12,9 +12,10 @@ services:
       IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
       IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
       RAWG_API_KEY: ${RAWG_API_KEY:-}
+      BOOTSTRAP_DEMO_DATA: ${BOOTSTRAP_DEMO_DATA:-false}
     volumes:
-      - ${CONFIG_HOST_PATH:-./data/config}:/config
-      - ${SAVES_HOST_PATH:-./data/saves}:/saves
+      - ${CONFIG_HOST_PATH:?set CONFIG_HOST_PATH to an absolute persistent host directory}:/config
+      - ${SAVES_HOST_PATH:?set SAVES_HOST_PATH to an absolute persistent host directory}:/saves
     ports:
       - ${HTTP_PORT:-80}:${PORT:-80}
     restart: unless-stopped

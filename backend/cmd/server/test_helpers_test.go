@@ -30,6 +30,7 @@ func newContractHarness(t *testing.T) *contractHarness {
 	stateRoot := filepath.Join(t.TempDir(), "state")
 	t.Setenv("SAVE_ROOT", saveRoot)
 	t.Setenv("STATE_ROOT", stateRoot)
+	t.Setenv("BOOTSTRAP_DEMO_DATA", "true")
 
 	app := newApp()
 	if err := app.initSaveStore(); err != nil {

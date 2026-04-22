@@ -16,31 +16,31 @@ import (
 )
 
 const (
-	defaultStateRoot             = "./data/state"
+	defaultStateRoot            = "./data/state"
 	securityDeviceStateFileName = "security_device_state.json"
-	appPasswordAlphabet          = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	appPasswordAlphabet         = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 )
 
 type securityDeviceStateFile struct {
-	NextDeviceID      int                          `json:"nextDeviceId"`
-	NextAppPasswordID int                          `json:"nextAppPasswordId"`
-	AutoAppPasswordEnabledUntil *time.Time         `json:"autoAppPasswordEnabledUntil,omitempty"`
-	Devices           []securityStateDevice        `json:"devices"`
-	AppPasswords      []securityStateAppPassword   `json:"appPasswords"`
-	UpdatedAt         time.Time                    `json:"updatedAt"`
+	NextDeviceID                int                        `json:"nextDeviceId"`
+	NextAppPasswordID           int                        `json:"nextAppPasswordId"`
+	AutoAppPasswordEnabledUntil *time.Time                 `json:"autoAppPasswordEnabledUntil,omitempty"`
+	Devices                     []securityStateDevice      `json:"devices"`
+	AppPasswords                []securityStateAppPassword `json:"appPasswords"`
+	UpdatedAt                   time.Time                  `json:"updatedAt"`
 }
 
 type securityStateDevice struct {
-	ID                int       `json:"id"`
-	DeviceType        string    `json:"deviceType"`
-	Fingerprint       string    `json:"fingerprint"`
-	Alias             *string   `json:"alias"`
-	DisplayName       string    `json:"displayName"`
-	SyncAll           *bool     `json:"syncAll,omitempty"`
-	AllowedSystemSlugs []string `json:"allowedSystemSlugs,omitempty"`
-	BoundAppPasswordID *string  `json:"boundAppPasswordId,omitempty"`
-	LastSyncedAt      time.Time `json:"lastSyncedAt"`
-	CreatedAt         time.Time `json:"createdAt"`
+	ID                 int       `json:"id"`
+	DeviceType         string    `json:"deviceType"`
+	Fingerprint        string    `json:"fingerprint"`
+	Alias              *string   `json:"alias"`
+	DisplayName        string    `json:"displayName"`
+	SyncAll            *bool     `json:"syncAll,omitempty"`
+	AllowedSystemSlugs []string  `json:"allowedSystemSlugs,omitempty"`
+	BoundAppPasswordID *string   `json:"boundAppPasswordId,omitempty"`
+	LastSyncedAt       time.Time `json:"lastSyncedAt"`
+	CreatedAt          time.Time `json:"createdAt"`
 }
 
 type securityStateAppPassword struct {
@@ -354,12 +354,12 @@ func (a *app) securityDeviceStateSnapshotLocked() securityDeviceStateFile {
 	}
 
 	return securityDeviceStateFile{
-		NextDeviceID:               a.nextDeviceID,
-		NextAppPasswordID:          a.nextAppPasswordID,
+		NextDeviceID:                a.nextDeviceID,
+		NextAppPasswordID:           a.nextAppPasswordID,
 		AutoAppPasswordEnabledUntil: copyTimePtr(a.autoAppPasswordEnabledUntil),
-		Devices:                    persistedDevices,
-		AppPasswords:               persistedPasswords,
-		UpdatedAt:                  time.Now().UTC(),
+		Devices:                     persistedDevices,
+		AppPasswords:                persistedPasswords,
+		UpdatedAt:                   time.Now().UTC(),
 	}
 }
 
