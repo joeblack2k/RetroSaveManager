@@ -1,5 +1,37 @@
 # Release Notes
 
+## v0.1.5 - 2026-04-23
+
+### Included
+
+- Nintendo 64 cross-runtime projection:
+  - helpers now upload their real local N64 save format
+  - backend normalizes N64 uploads into canonical media truth
+  - helper latest/download flows now project back to the explicitly requested target runtime
+  - supported target profiles in tranche 1:
+    - `n64/mister`
+    - `n64/retroarch`
+    - `n64/project64`
+    - `n64/mupen-family`
+    - `n64/everdrive`
+- Strict N64 helper contract:
+  - N64 helper requests now require `n64Profile`
+  - missing `n64Profile` fails clearly for helper upload, latest, and download paths
+  - new helper contract documented in `n64update.md`
+- Diddy Kong Racing cheat support:
+  - added parser-backed `dkr-eeprom` cheat editor
+  - curated `Diddy Kong Racing` cheat pack included
+  - safe slot-based editing with checksum rebuild
+- N64 cheat audit coverage:
+  - added repository-backed N64 cheat inventory tests
+  - added supporting N64 cheat audit and intake docs
+
+### Validation Summary
+
+- Backend test suite passed locally
+- Security gate passed locally
+- Live Docker deploy updated and smoke-checked successfully
+
 ## v0.1.4 - 2026-04-23
 
 ### Included
