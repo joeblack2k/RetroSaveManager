@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,7 +124,6 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 			rejectReason = consoleValidation.RejectReason
 		}
 	}
-
 	track := canonicalTrackFromInput(input)
 	input.SystemSlug = canonicalSegment(track.SystemSlug, "unknown-system")
 	input.DisplayTitle = track.DisplayTitle
@@ -151,6 +151,12 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		input.Game.BoxartThumb = &thumb
 		input.Game.Boxart = &box
 	}
+	if placeholderReason := projectionPlaceholderRejectReason(input); placeholderReason != "" {
+		rejected = true
+		if rejectReason == "" {
+			rejectReason = placeholderReason
+		}
+	}
 
 	if detection.System == nil || !isSupportedSystemSlug(input.SystemSlug) {
 		rejected = true
@@ -176,6 +182,69 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		Rejected:     rejected,
 		RejectReason: rejectReason,
 	}
+}
+
+func projectionPlaceholderRejectReason(input saveCreateInput) string {
+	systemSlug := canonicalSegment(firstNonEmpty(input.SystemSlug, func() string {
+		if input.Game.System != nil {
+			return input.Game.System.Slug
+		}
+		return ""
+	}()), "")
+	if systemSlug == "" || systemSlug == "psx" || systemSlug == "ps2" {
+		return ""
+	}
+
+	profile := canonicalRuntimeProfile(systemSlug, firstNonEmpty(input.RuntimeProfile, input.SourceArtifactProfile))
+	if profile == "" {
+		return ""
+	}
+	if input.Inspection != nil && strings.TrimSpace(input.Inspection.ValidatedGameTitle) != "" {
+		return ""
+	}
+
+	nonEmpty := 0
+	for _, candidate := range []string{
+		input.DisplayTitle,
+		input.Game.DisplayTitle,
+		input.Game.Name,
+		strings.TrimSuffix(input.Filename, filepath.Ext(input.Filename)),
+	} {
+		normalized := canonicalSegment(candidate, "")
+		if normalized == "" {
+			continue
+		}
+		nonEmpty++
+		if !isProjectionPlaceholderTitle(systemSlug, profile, normalized) {
+			return ""
+		}
+	}
+	if nonEmpty == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%s save title resolves to a runtime profile placeholder, not a verified game title", systemSlug)
+}
+
+func isProjectionPlaceholderTitle(systemSlug, profile, normalizedTitle string) bool {
+	normalizedTitle = canonicalSegment(normalizedTitle, "")
+	if normalizedTitle == "" {
+		return false
+	}
+	if !strings.HasPrefix(normalizedTitle, "profile-") {
+		return false
+	}
+
+	shortProfile := strings.TrimPrefix(canonicalRuntimeProfile(systemSlug, profile), profileFamilyPrefix(systemSlug))
+	shortProfile = canonicalSegment(shortProfile, "")
+	fullProfile := canonicalSegment(strings.ReplaceAll(profile, "/", "-"), "")
+	if shortProfile != "" && normalizedTitle == "profile-"+shortProfile {
+		return true
+	}
+	if fullProfile != "" && normalizedTitle == "profile-"+fullProfile {
+		return true
+	}
+	return false
 }
 
 func (a *app) decorateLoadedRecord(record *saveRecord) {

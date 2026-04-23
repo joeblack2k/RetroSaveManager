@@ -81,6 +81,25 @@ func TestNormalizeSaveInputAcceptsStructuredN64SaveWithInspection(t *testing.T) 
 	}
 }
 
+func TestNormalizeSaveInputRejectsRuntimeProfilePlaceholderTitle(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:              "profile-retroarch.eep",
+		Payload:               buildTestN64Payload("eep", "placeholder"),
+		Game:                  game{Name: "profile-retroarch"},
+		SystemSlug:            "n64",
+		TrustedHelperSystem:   true,
+		RuntimeProfile:        n64ProfileRetroArch,
+		SourceArtifactProfile: n64ProfileRetroArch,
+	})
+	if !result.Rejected {
+		t.Fatal("expected runtime profile placeholder save to be rejected")
+	}
+	if !strings.Contains(result.RejectReason, "runtime profile placeholder") {
+		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	}
+}
+
 func TestNormalizeSaveInputRecognizesOOTWordSwappedSRAM(t *testing.T) {
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{
@@ -219,6 +238,43 @@ func TestRescanSavesPrunesBlankN64SaveMedia(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected rejection entry for %s, got %+v", created.Summary.ID, result.Rejections)
+	}
+}
+
+func TestReloadSavesFromDiskHidesRuntimeProfilePlaceholderRecords(t *testing.T) {
+	h := newContractHarness(t)
+
+	raw, err := h.app.saveStore.create(saveCreateInput{
+		Filename:              "profile-retroarch.eep",
+		Payload:               buildTestN64Payload("eep", "placeholder"),
+		Game:                  game{Name: "profile-retroarch"},
+		SystemSlug:            "n64",
+		TrustedHelperSystem:   true,
+		RuntimeProfile:        n64ProfileRetroArch,
+		SourceArtifactProfile: n64ProfileRetroArch,
+	})
+	if err != nil {
+		t.Fatalf("seed placeholder record: %v", err)
+	}
+
+	if err := h.app.reloadSavesFromDisk(); err != nil {
+		t.Fatalf("reload saves: %v", err)
+	}
+
+	for _, record := range h.app.snapshotSaveRecords() {
+		if record.Summary.ID != raw.Summary.ID {
+			continue
+		}
+		if got := canonicalOptionalSegment(record.Summary.SystemSlug); got != "" && got != "unknown-system" {
+			t.Fatalf("expected placeholder record to be downgraded to unknown-system, got %q", got)
+		}
+	}
+
+	items := h.app.aggregatedSaveSummaries("", "", 0)
+	for _, item := range items {
+		if strings.Contains(strings.ToLower(item.DisplayTitle), "profile-retroarch") {
+			t.Fatalf("placeholder record leaked into aggregated saves: %+v", item)
+		}
 	}
 }
 
