@@ -1,148 +1,264 @@
 # RetroSaveManager
 
-RetroSaveManager is a self-hosted, LAN-first save synchronization service with compatibility-focused API behavior for existing helper clients.
+RetroSaveManager is a self-hosted save sync manager for retro gaming setups.
 
-## Scope
+It is built for homelab users who want to run one Docker container, keep all save data on their own storage, and use compatible helper apps with MiSTer, RetroArch, and other supported systems.
 
-- In scope: user web flows + helper API compatibility
-- Out of scope: admin, billing, manager, forge parity
-- Auth mode default: `AUTH_MODE=disabled` (trusted internal environment)
+## What You Get
 
-## Repository Structure
+- One runtime container
+- One web UI
+- One API for helper apps
+- One save root you can back up
+- Docker-first self-hosting
 
-- `backend/` Go API (compat routes, save store, contracts, tests)
-- `frontend/` Modular React + TypeScript web app
-- `deploy/` Single-container Docker Compose + deployment scripts
-- `contracts/` Route matrix and compatibility contract snapshots
-- `scripts/` Contract verification, backup/restore wrappers, security gate
-- `tests/` Evidence output folder for local verification runs
+## Quick Start
 
-## Release Notes
+This is the smallest useful Docker Compose setup.
 
-See [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
-
-## Save Data Layout
-
-All save files live below a single backup-friendly root:
-
-- `SAVE_ROOT/<System Display>/<Game Title or Memory Card>/<save-id>/payload.*`
-- `SAVE_ROOT/<System Display>/<Game Title or Memory Card>/<save-id>/metadata.json`
-
-Back up one root folder to capture all saves.
-
-### Layout Migration
-
-Migrate existing slug-based paths to the display layout:
-
-```bash
-./scripts/migrate-save-layout.sh --dry-run
-./scripts/migrate-save-layout.sh --manifest ./deploy/data/config/save-layout-manifest.json
+```yaml
+services:
+  retrosavemanager:
+    image: ghcr.io/joeblack2k/retrosavemanager:latest
+    container_name: retrosavemanager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      AUTH_MODE: disabled
+      SAVE_ROOT: /saves
+      STATE_ROOT: /config
+      PORT: 80
+    volumes:
+      - /srv/retrosavemanager/config:/config
+      - /srv/retrosavemanager/saves:/saves
 ```
 
-Rollback with the same manifest:
+Start it:
 
 ```bash
-./scripts/migrate-save-layout.sh --rollback --manifest ./deploy/data/config/save-layout-manifest.json
+docker compose up -d
 ```
 
-### Save Rescan And Noise Prune
+Open it:
 
-Run a deep rescan to normalize console detection, clean title noise, and optionally remove unsupported/unknown save entries:
+```text
+http://YOUR-DOCKER-HOST-IP/
+```
+
+## What Each Option Does
+
+`image: ghcr.io/joeblack2k/retrosavemanager:latest`
+
+Uses the published container image from GitHub Container Registry.
+
+`container_name: retrosavemanager`
+
+Gives the container a fixed and easy-to-recognize name.
+
+`restart: unless-stopped`
+
+Starts the container again after a reboot or Docker restart.
+
+`ports:`
+
+Publishes the web UI and API to your Docker host.
+
+`- "80:80"`
+
+Maps host port `80` to container port `80`.
+
+`AUTH_MODE: disabled`
+
+Disables login requirements. This is the default and is intended for trusted internal networks.
+
+`SAVE_ROOT: /saves`
+
+The container stores all managed save data under `/saves`.
+
+`STATE_ROOT: /config`
+
+The container stores app state, indexes, and internal metadata under `/config`.
+
+`PORT: 80`
+
+Tells the app to listen on port `80` inside the container.
+
+`/srv/retrosavemanager/config:/config`
+
+Persistent config and app-state storage on your Docker host.
+
+`/srv/retrosavemanager/saves:/saves`
+
+Persistent save storage on your Docker host. This is the most important volume for backups.
+
+## Volume Mappings
+
+These are the two important host folders:
+
+- `/srv/retrosavemanager/config`
+- `/srv/retrosavemanager/saves`
+
+What they contain:
+
+- `config`
+  - internal app state
+  - save index metadata
+  - helper-related state
+  - settings used by the service
+- `saves`
+  - the actual save files
+  - per-system folders
+  - per-game folders
+  - metadata for each stored save version
+
+If you only care about protecting save history, back up both folders.
+
+If you want the shortest answer to “where are my saves?”, it is this:
+
+```text
+/srv/retrosavemanager/saves
+```
+
+## Save Storage Layout
+
+RetroSaveManager keeps save data under one backup-friendly root:
+
+```text
+SAVE_ROOT/<System>/<Game>/<save-id>/
+```
+
+Example:
+
+```text
+/srv/retrosavemanager/saves/Nintendo Super Nintendo Entertainment System/Super Mario World/save-123456/
+```
+
+Inside each save folder you will typically see:
+
+- `payload.*`
+- `metadata.json`
+
+## Ports Used
+
+By default, RetroSaveManager uses:
+
+- Container port `80`
+- Host port `80` in the example above
+
+That means:
+
+- Web UI: `http://YOUR-HOST-IP/`
+- API: `http://YOUR-HOST-IP/`
+
+There is no required separate frontend port.
+
+There is no required separate API port.
+
+There is no built-in HTTPS requirement inside the container.
+
+If you want to use a different host port, change only the left side:
+
+```yaml
+ports:
+  - "8080:80"
+```
+
+Then the service will be available at:
+
+```text
+http://YOUR-HOST-IP:8080/
+```
+
+## Optional Environment Variables
+
+You only need the minimal compose above to get started.
+
+These extra variables are optional:
+
+`BASE_URL`
+
+Set this if you want a fixed public or internal base URL.
+
+`PUBLIC_HOST`
+
+Useful if you use an internal DNS name such as `retrosavemanager.lan`.
+
+`IGDB_CLIENT_ID`
+
+Optional metadata and cover-art enrichment.
+
+`IGDB_CLIENT_SECRET`
+
+Optional metadata and cover-art enrichment.
+
+`RAWG_API_KEY`
+
+Optional metadata and cover-art fallback enrichment.
+
+`BOOTSTRAP_DEMO_DATA`
+
+Set to `true` only if you want demo data in a fresh environment.
+
+## Recommended Example With Named Host Paths
+
+```yaml
+services:
+  retrosavemanager:
+    image: ghcr.io/joeblack2k/retrosavemanager:latest
+    container_name: retrosavemanager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      AUTH_MODE: disabled
+      PORT: 80
+      SAVE_ROOT: /saves
+      STATE_ROOT: /config
+      PUBLIC_HOST: retrosavemanager.lan
+    volumes:
+      - /srv/retrosavemanager/config:/config
+      - /srv/retrosavemanager/saves:/saves
+```
+
+## Updating
+
+Pull the latest image and recreate the container:
 
 ```bash
-./scripts/rescan-saves.sh --dry-run
-./scripts/rescan-saves.sh --prune-unsupported=true
+docker compose pull
+docker compose up -d
 ```
 
-Docker-only deploys can run the built-in command directly:
+## Helper App Configuration
 
-```bash
-docker compose exec app /usr/local/bin/retrosave-api rescan-saves --prune-unsupported=true
+Point helper apps to your RetroSaveManager host:
+
+```text
+http://YOUR-HOST-IP/
 ```
 
-## Quick Start (Docker)
+If your helper supports an API URL variable, use:
 
-1. Copy environment template:
-
-```bash
-cp deploy/.env.example deploy/.env
+```text
+RSM_API_URL=http://YOUR-HOST-IP/
 ```
 
-2. Start single-container direct HTTP (`:80`):
+If you use an internal DNS name:
 
-```bash
-cd deploy
-./scripts/pull-up.sh direct
+```text
+RSM_API_URL=http://retrosavemanager.lan/
 ```
 
-3. Optional macvlan mode (single container with own LAN IP):
+## Notes
 
-```bash
-cd deploy
-./scripts/pull-up.sh macvlan
-```
+- This project is designed for internal and self-hosted use.
+- Default auth mode is disabled for trusted LAN setups.
+- The standard deployment is exactly one container.
+- The web UI and helper API are served by the same container.
 
-4. Optional backup retention cleanup:
+## Releases
 
-```bash
-cd deploy
-./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7 --dry-run
-./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7
-```
+Container images are published here:
 
-Development-only local image build:
-
-```bash
-cd deploy
-./scripts/build-local.sh direct
-```
-
-## Helper Compatibility
-
-Use your helper client with:
-
-- `RSM_API_URL=http://<internal-hostname-or-ip>`
-- `RSM_APP_PASSWORD=<optional-app-password>`
-
-The service exposes compatibility routes at both root and `/v1` aliases.
-
-## Development
-
-Backend:
-
-```bash
-cd backend
-go test ./...
-```
-
-Frontend:
-
-```bash
-cd frontend
-npm ci
-npm run test
-npm run build
-```
-
-Contract + security checks:
-
-```bash
-./scripts/verify-contract.sh
-./scripts/security-gate.sh
-```
-
-Optional live enrichment (cover art + metadata fallback chain):
-
-- `IGDB_CLIENT_ID`
-- `IGDB_CLIENT_SECRET`
-- `RAWG_API_KEY`
-
-## Image Publishing
-
-GitHub Actions publishes:
-
-- `ghcr.io/<owner>/retrosavemanager`
-
-on pushes to `main` and version tags.
-
-See also [DEPLOY.md](DEPLOY.md).
+- [ghcr.io/joeblack2k/retrosavemanager](https://ghcr.io/joeblack2k/retrosavemanager)
