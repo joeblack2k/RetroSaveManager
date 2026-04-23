@@ -1,5 +1,17 @@
 # Release Notes
 
+## v0.1.2 - 2026-04-23
+
+### Included
+
+- Security gate sanitization:
+  - removed private-network fixture references from Saturn testdata notes
+  - retained fixture hashes, sizes, and source-path examples without leaking internal host details
+
+### Validation Summary
+
+- Repository security gate passed locally after sanitization
+
 ## v0.1.1 - 2026-04-23
 
 ### Included

@@ -1,6 +1,6 @@
 # Saturn Fixture Notes
 
-- Source device: MiSTer (`192.168.2.186`)
+- Source device: MiSTer (`example-device.local`)
 - Source path: `/media/fat/saves/Saturn/Fighting Vipers (USA) (6S).sav`
 - Captured: 2026-04-22 (Europe/Amsterdam)
 - Saved fixture: `saturn_fighting_vipers_usa_6s.sav`
@@ -15,7 +15,7 @@ Intended use:
 
 Additional fixture:
 
-- Source device: MiSTer (`192.168.2.186`)
+- Source device: MiSTer (`example-device.local`)
 - Source path: `/media/fat/saves/Saturn/Quake (USA).sav`
 - Saved fixture: `saturn_quake_usa.sav`
 - Size: `1114112` bytes
