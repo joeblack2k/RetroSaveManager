@@ -23,6 +23,8 @@ type cheatOperation struct {
 	Kind   string `json:"kind" yaml:"kind"`
 	Flag   string `json:"flag,omitempty" yaml:"flag,omitempty"`
 	Course string `json:"course,omitempty" yaml:"course,omitempty"`
+	Mode   string `json:"mode,omitempty" yaml:"mode,omitempty"`
+	Cup    string `json:"cup,omitempty" yaml:"cup,omitempty"`
 	Field  string `json:"field,omitempty" yaml:"field,omitempty"`
 }
 
@@ -89,23 +91,23 @@ type saveCheatsGetResponse struct {
 }
 
 type saveCheatEditorState struct {
-	Supported      bool                         `json:"supported"`
-	GameID         string                       `json:"gameId,omitempty"`
-	SystemSlug     string                       `json:"systemSlug,omitempty"`
-	EditorID       string                       `json:"editorId,omitempty"`
-	Title          string                       `json:"title,omitempty"`
-	AvailableCount int                          `json:"availableCount,omitempty"`
-	Selector       *cheatSelector               `json:"selector,omitempty"`
-	Sections       []cheatSection               `json:"sections,omitempty"`
-	Presets        []cheatPreset                `json:"presets,omitempty"`
-	Values         map[string]any               `json:"values,omitempty"`
-	SlotValues     map[string]map[string]any    `json:"slotValues,omitempty"`
+	Supported      bool                      `json:"supported"`
+	GameID         string                    `json:"gameId,omitempty"`
+	SystemSlug     string                    `json:"systemSlug,omitempty"`
+	EditorID       string                    `json:"editorId,omitempty"`
+	Title          string                    `json:"title,omitempty"`
+	AvailableCount int                       `json:"availableCount,omitempty"`
+	Selector       *cheatSelector            `json:"selector,omitempty"`
+	Sections       []cheatSection            `json:"sections,omitempty"`
+	Presets        []cheatPreset             `json:"presets,omitempty"`
+	Values         map[string]any            `json:"values,omitempty"`
+	SlotValues     map[string]map[string]any `json:"slotValues,omitempty"`
 }
 
 type saveCheatApplyRequest struct {
-	SaveID    string                 `json:"saveId"`
-	EditorID  string                 `json:"editorId"`
-	SlotID    string                 `json:"slotId,omitempty"`
+	SaveID    string                     `json:"saveId"`
+	EditorID  string                     `json:"editorId"`
+	SlotID    string                     `json:"slotId,omitempty"`
 	Updates   map[string]json.RawMessage `json:"updates,omitempty"`
-	PresetIDs []string               `json:"presetIds,omitempty"`
+	PresetIDs []string                   `json:"presetIds,omitempty"`
 }

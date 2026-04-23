@@ -41,11 +41,12 @@ func newCheatService(saveRoot string) (*cheatService, error) {
 		packsBySystem[slug] = append(packsBySystem[slug], pack)
 	}
 	return &cheatService{
-		saveRoot:    saveRoot,
-		curatedRoot: curatedRoot,
+		saveRoot:      saveRoot,
+		curatedRoot:   curatedRoot,
 		packsBySystem: packsBySystem,
 		editors: map[string]cheatEditor{
 			"sm64-eeprom": sm64EEPROMCheatEditor{},
+			"mk64-eeprom": mk64EEPROMCheatEditor{},
 		},
 	}, nil
 }
@@ -176,6 +177,8 @@ func normalizeCheatPack(pack cheatPack, requireIdentity bool) (cheatPack, error)
 			field.Op.Kind = strings.TrimSpace(field.Op.Kind)
 			field.Op.Flag = strings.TrimSpace(field.Op.Flag)
 			field.Op.Course = strings.TrimSpace(field.Op.Course)
+			field.Op.Mode = strings.TrimSpace(field.Op.Mode)
+			field.Op.Cup = strings.TrimSpace(field.Op.Cup)
 			field.Op.Field = strings.TrimSpace(field.Op.Field)
 			for i := range field.Options {
 				field.Options[i].ID = strings.TrimSpace(field.Options[i].ID)

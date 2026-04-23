@@ -1,5 +1,28 @@
 # Release Notes
 
+## v0.1.4 - 2026-04-23
+
+### Included
+
+- Safe cheat editing v1:
+  - parser-backed cheat read/apply endpoints at `/save/cheats` and `/save/cheats/apply`
+  - every cheat apply creates a new current save version instead of mutating history in place
+  - local override support under `SAVE_ROOT/<System>/<Game>/_rsm/cheats.local.yaml`
+- Curated Nintendo 64 cheat packs:
+  - `Super Mario 64` via `sm64-eeprom`
+  - `Mario Kart 64` via `mk64-eeprom`
+- Mario Kart 64 editor coverage:
+  - Grand Prix cup progress for `50cc`, `100cc`, `150cc`, and `Extra`
+  - sound mode editing with checksum repair on main and backup save-info blocks
+- Cheat developer documentation:
+  - added `cheats.md` with pack schema, override rules, API examples, and authoring guidance
+
+### Validation Summary
+
+- Backend cheat tests passed locally for SM64 and Mario Kart 64
+- Frontend tests and production build passed locally
+- Security gate and contract checks passed locally
+
 ## v0.1.3 - 2026-04-23
 
 ### Included

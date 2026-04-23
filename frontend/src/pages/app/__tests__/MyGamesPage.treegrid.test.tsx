@@ -203,7 +203,7 @@ describe("MyGamesPage TreeGrid", () => {
     expect(await screen.findByRole("treegrid", { name: "My Saves" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "My Saves" })).toBeInTheDocument();
     expect(screen.getByText(/3 systems · 4 games · 6 saves/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /collapse nintendo 64/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /collapse nintendo 64/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /expand playstation/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /expand super nintendo/i })).toBeInTheDocument();
     expect(screen.queryByText("Chrono Trigger")).not.toBeInTheDocument();
