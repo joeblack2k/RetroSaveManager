@@ -1,5 +1,32 @@
 # Release Notes
 
+## v0.1.1 - 2026-04-23
+
+### Included
+
+- Strict Sega save-domain backend:
+  - parser-led Dreamcast VMU/VMS/DCI detection and validation
+  - parser-led Sega Saturn backup RAM detection and validation
+  - strict raw SRAM validation for Genesis, Master System, and Game Gear
+  - empty Dreamcast VMUs and empty Saturn backup RAM images are rejected as noise
+- Saturn metadata extraction:
+  - volume summaries for internal and cartridge backup RAM
+  - per-entry filename, comment, language, timestamp, block list, and payload size
+  - helper-compatible `saturnFormat` export support for `mister`, `internal-raw`, `cartridge-raw`, `mednafen`, `yabause`, `yabasanshiro`, `bup`, `ymir`, and `ymbp`
+- Backend inspection metadata:
+  - explicit parser level, parser id, validated system, evidence, warnings, and slot metadata on supported Sega saves
+- My Saves frontend redesign:
+  - compact English TreeGrid-style layout
+  - text-based sidebar navigation
+  - obsolete public links removed from the promoted shell
+  - denser high-contrast dark styling for save management
+
+### Validation Summary
+
+- Backend test suite passed locally with Saturn and Dreamcast fixture coverage
+- Frontend tests passed locally
+- Frontend production build passed locally
+
 ## v0.1.0 - 2026-04-22
 
 ### Included
