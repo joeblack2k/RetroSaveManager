@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeSaveInputAcceptsTrustedSNESRawSaveWithInspection(t *testing.T) {
 	a := &app{}
@@ -42,6 +45,26 @@ func TestNormalizeSaveInputRejectsSNESRawSaveWithoutROMSHA1(t *testing.T) {
 		t.Fatal("expected SNES raw save without rom_sha1 to be rejected")
 	}
 	if result.RejectReason != "snes raw saves require rom_sha1" {
+		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	}
+}
+
+func TestNormalizeSaveInputRejectsWeakSNESSlugTitle(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "sm.srm",
+		Payload:             buildNonBlankPayload(8192, 0x03),
+		Game:                game{Name: "sm"},
+		Format:              "sram",
+		ROMSHA1:             "sm-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "snes",
+		TrustedHelperSystem: true,
+	})
+	if !result.Rejected {
+		t.Fatal("expected weak SNES slug title to be rejected")
+	}
+	if !strings.Contains(result.RejectReason, "title is too short") {
 		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
 	}
 }

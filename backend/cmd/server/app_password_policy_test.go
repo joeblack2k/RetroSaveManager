@@ -32,30 +32,29 @@ func TestAppPasswordBindsOnceAndRejectsOtherDevice(t *testing.T) {
 	_, helperKey := createHelperAppPasswordRecord(t, h, "", "steamdeck")
 
 	uploadSave(t, h, "/saves", map[string]string{
-		"app_password": helperKey,
-		"rom_sha1":     "bind-once-rom",
-		"slotName":     "default",
-		"system":       "snes",
-		"device_type":  "linux-x86",
-		"fingerprint":  "deck-1",
+		"app_password":   helperKey,
+		"rom_sha1":       "bind-once-rom",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "deck-1",
 		"runtimeProfile": "snes/snes9x",
-	}, "bind-once.srm", []byte("bind-once"))
+	}, "Chrono Trigger.srm", []byte("bind-once"))
 
 	conflict := h.multipart("/saves", map[string]string{
-		"app_password": helperKey,
-		"rom_sha1":     "bind-once-rom-2",
-		"slotName":     "default",
-		"system":       "snes",
-		"device_type":  "linux-x86",
-		"fingerprint":  "deck-2",
+		"app_password":   helperKey,
+		"rom_sha1":       "bind-once-rom-2",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "deck-2",
 		"runtimeProfile": "snes/snes9x",
-	}, "file", "bind-once-2.srm", []byte("bind-once-2"))
+	}, "file", "EarthBound.srm", []byte("bind-once-2"))
 	assertStatus(t, conflict, http.StatusConflict)
 	body := decodeJSONMap(t, conflict.Body)
 	if !strings.Contains(strings.ToLower(mustString(t, body["message"], "message")), "bound") {
 		t.Fatalf("expected bound-device conflict message, got %s", prettyJSON(body))
 	}
-
 	devicesResp := h.request(http.MethodGet, "/devices", nil)
 	assertStatus(t, devicesResp, http.StatusOK)
 	devices := mustArray(t, decodeJSONMap(t, devicesResp.Body)["devices"], "devices")
@@ -82,13 +81,13 @@ func TestHelperAutoEnrollmentWindowAllowsNoKeyProvisioning(t *testing.T) {
 	h := newContractHarness(t)
 
 	unauthorized := h.multipart("/saves", map[string]string{
-		"rom_sha1":    "auto-enroll-rom-unauthorized",
-		"slotName":    "default",
-		"system":      "snes",
-		"device_type": "linux-x86",
-		"fingerprint": "deck-auto",
+		"rom_sha1":       "auto-enroll-rom-unauthorized",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "deck-auto",
 		"runtimeProfile": "snes/snes9x",
-	}, "file", "auto-unauthorized.srm", []byte("auto-unauthorized"))
+	}, "file", "Super Metroid.srm", []byte("auto-unauthorized"))
 	assertStatus(t, unauthorized, http.StatusUnauthorized)
 
 	enable := h.json(http.MethodPost, "/auth/app-passwords/auto-enroll", strings.NewReader(`{"minutes":15}`))
@@ -111,7 +110,7 @@ func TestHelperAutoEnrollmentWindowAllowsNoKeyProvisioning(t *testing.T) {
 		"sync_paths":     "/media/fat/saves/SNES;/media/fat/saves/PSX",
 		"systems":        "snes,psx",
 		"runtimeProfile": "snes/snes9x",
-	}, "file", "auto-authorized.srm", []byte("auto-authorized"))
+	}, "file", "Final Fantasy VI.srm", []byte("auto-authorized"))
 	assertStatus(t, authorized, http.StatusOK)
 	if headerValue := authorized.Header().Get("X-RSM-Auto-App-Password"); headerValue == "" {
 		t.Fatalf("expected X-RSM-Auto-App-Password header for auto-provisioned helper request")
@@ -201,14 +200,14 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 	assertStatus(t, blockedUpload, http.StatusForbidden)
 
 	allowedUpload := uploadSave(t, h, "/saves", map[string]string{
-		"app_password": helperKey,
-		"rom_sha1":     "policy-snes-rom",
-		"slotName":     "default",
-		"system":       "snes",
-		"device_type":  "linux-x86",
-		"fingerprint":  "deck-policy",
+		"app_password":   helperKey,
+		"rom_sha1":       "policy-snes-rom",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "deck-policy",
 		"runtimeProfile": "snes/snes9x",
-	}, "policy-snes.srm", []byte("snes-after-policy"))
+	}, "Chrono Trigger.srm", []byte("snes-after-policy"))
 	allowedID := mustString(t, mustObject(t, allowedUpload["save"], "save")["id"], "save.id")
 
 	latestBlocked := helperGET(t, h, "/save/latest?romSha1=policy-n64-rom&slotName=default&device_type=linux-x86&fingerprint=deck-policy&n64Profile="+n64ProfileMister, helperKey)
@@ -298,14 +297,14 @@ func TestAppPasswordAndDevicePolicyPersistAcrossRestart(t *testing.T) {
 	h1 := newContractHarnessWithRoots(t, saveRoot, stateRoot)
 	appPasswordID, helperKey := createHelperAppPasswordRecord(t, h1, "", "persisted-key")
 	uploadSave(t, h1, "/saves", map[string]string{
-		"app_password": helperKey,
-		"rom_sha1":     "persist-rom",
-		"slotName":     "default",
-		"system":       "snes",
-		"device_type":  "linux-x86",
-		"fingerprint":  "deck-persist",
+		"app_password":   helperKey,
+		"rom_sha1":       "persist-rom",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "deck-persist",
 		"runtimeProfile": "snes/snes9x",
-	}, "persist.srm", []byte("persist"))
+	}, "Chrono Trigger.srm", []byte("persist"))
 	deviceID := findDeviceIDByFingerprint(t, h1, "deck-persist")
 	patchBody := `{"alias":"SteamDeck Persist","syncAll":false,"allowedSystemSlugs":["snes","gba"]}`
 	patchResp := h1.json(http.MethodPatch, fmt.Sprintf("/devices/%d", deviceID), strings.NewReader(patchBody))

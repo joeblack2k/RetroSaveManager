@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -58,17 +59,37 @@ func TestNormalizeSaveInputAcceptsTrustedGenesisRawSaveWithInspection(t *testing
 	}
 }
 
+func TestNormalizeSaveInputRejectsWeakGenesisSlugTitle(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "daytona.ram",
+		Payload:             buildNonBlankPayload(16384, 0x17),
+		Game:                game{Name: "daytona"},
+		Format:              "ram",
+		ROMSHA1:             "daytona-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "genesis",
+		TrustedHelperSystem: true,
+	})
+	if !result.Rejected {
+		t.Fatal("expected weak Genesis slug title to be rejected")
+	}
+	if !strings.Contains(result.RejectReason, "single-token lowercase slug title") {
+		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	}
+}
+
 func TestContractSavesMultipartAcceptsGenesisWithInspection(t *testing.T) {
 	h := newContractHarness(t)
 	helperKey := createHelperAppPassword(t, h, "", "genesis-helper")
 
 	uploadSave(t, h, "/saves", map[string]string{
-		"app_password": helperKey,
-		"rom_sha1":     "genesis-rom-sha1",
-		"slotName":     "default",
-		"system":       "genesis",
-		"device_type":  "mister",
-		"fingerprint":  "genesis-device",
+		"app_password":   helperKey,
+		"rom_sha1":       "genesis-rom-sha1",
+		"slotName":       "default",
+		"system":         "genesis",
+		"device_type":    "mister",
+		"fingerprint":    "genesis-device",
 		"runtimeProfile": "genesis/genesis-plus-gx",
 	}, "Sonic the Hedgehog.srm", make([]byte, 8192))
 
@@ -100,13 +121,33 @@ func TestContractSavesMultipartRejectsGenesisWithoutROMSHA1(t *testing.T) {
 	helperKey := createHelperAppPassword(t, h, "", "genesis-helper")
 
 	rr := h.multipart("/saves", map[string]string{
-		"app_password": helperKey,
-		"slotName":     "default",
-		"system":       "genesis",
-		"device_type":  "mister",
-		"fingerprint":  "genesis-device",
+		"app_password":   helperKey,
+		"slotName":       "default",
+		"system":         "genesis",
+		"device_type":    "mister",
+		"fingerprint":    "genesis-device",
 		"runtimeProfile": "genesis/genesis-plus-gx",
 	}, "file", "Sonic the Hedgehog.srm", make([]byte, 8192))
 	assertStatus(t, rr, http.StatusUnprocessableEntity)
 	assertJSONContentType(t, rr)
+}
+
+func TestNormalizeSaveInputRejectsWeakNeoGeoSlugTitle(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "doubledr.sav",
+		Payload:             buildValidNeoGeoCompoundPayload(),
+		Game:                game{Name: "doubledr"},
+		Format:              "sram",
+		ROMSHA1:             "doubledr-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "neogeo",
+		TrustedHelperSystem: true,
+	})
+	if !result.Rejected {
+		t.Fatal("expected weak Neo Geo slug title to be rejected")
+	}
+	if !strings.Contains(result.RejectReason, "single-token lowercase slug title") {
+		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	}
 }

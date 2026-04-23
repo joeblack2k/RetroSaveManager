@@ -445,14 +445,14 @@ func TestRescanSavesPrunesStoredFallbackArcadeGuesses(t *testing.T) {
 func TestRescanSavesPrunesBlankTrustedNeoGeoSave(t *testing.T) {
 	h := newContractHarness(t)
 	record, err := h.app.createSave(saveCreateInput{
-		Filename:            "doubledr.sav",
+		Filename:            "Double Dragon.sav",
 		Payload:             buildValidNeoGeoCompoundPayload(),
-		Game:                game{Name: "doubledr"},
+		Game:                game{Name: "Double Dragon"},
 		Format:              "sram",
 		ROMSHA1:             "neogeo-doubledr-rom",
 		SlotName:            "default",
 		SystemSlug:          "neogeo",
-		GameSlug:            "doubledr",
+		GameSlug:            "double-dragon",
 		TrustedHelperSystem: true,
 	})
 	if err != nil {

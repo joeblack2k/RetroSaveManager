@@ -174,7 +174,7 @@ func buildCompatRequest(t *testing.T, h *contractHarness, prefix string, route c
 				"slotName":     "default",
 				"device_type":  "retroarch",
 				"fingerprint":  "seed-1",
-			}, "file", "compat.srm", []byte("compat-save"))
+			}, "file", "Pokemon Red.sav", buildNonBlankPayload(8192, 0x19))
 			req.Body = body
 			req.ContentType = contentType
 		} else if route.Method == http.MethodDelete {
