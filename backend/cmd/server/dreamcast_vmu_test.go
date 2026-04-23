@@ -178,6 +178,7 @@ func TestContractSavesMultipartAcceptsDreamcastVMUImage(t *testing.T) {
 		"system":       "dreamcast",
 		"device_type":  "mister",
 		"fingerprint":  "dreamcast-device",
+		"runtimeProfile": "dreamcast/mister",
 	}, "Sonic Adventure 2.A1.bin", buildDreamcastVMUWithSingleSave())
 
 	list := h.request(http.MethodGet, "/saves?limit=10&offset=0", nil)
@@ -215,6 +216,7 @@ func TestContractSavesMultipartRejectsEmptyDreamcastVMUImage(t *testing.T) {
 		"system":       "dreamcast",
 		"device_type":  "mister",
 		"fingerprint":  "dreamcast-device",
+		"runtimeProfile": "dreamcast/mister",
 	}, "file", "Sonic Adventure 2.A1.bin", buildDreamcastEmptyVMU())
 	assertStatus(t, rr, http.StatusUnprocessableEntity)
 	assertJSONContentType(t, rr)

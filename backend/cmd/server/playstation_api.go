@@ -268,7 +268,7 @@ func buildPlayStationLogicalHistory(ctx playStationLogicalContext) playStationLo
 		entry.Portable = &portable
 		memoryCard := &memoryCardDetails{Name: ctx.Projection.CardSlot, Entries: []memoryCardEntry{entry}}
 		downloadName := playStationLogicalDownloadFilename(ctx.Projection, ctx.Logical)
-		versions = append(versions, saveSummary{
+		versions = append(versions, summaryWithDownloadProfiles(saveSummary{
 			ID:              revision.ID,
 			Game:            gameInfo,
 			DisplayTitle:    ctx.Logical.DisplayTitle,
@@ -302,7 +302,7 @@ func buildPlayStationLogicalHistory(ctx playStationLogicalContext) playStationLo
 					"portable":       portable,
 				},
 			},
-		})
+		}))
 	}
 	historySummary := map[string]any{
 		"displayTitle":    ctx.Logical.DisplayTitle,
@@ -352,7 +352,7 @@ func buildPlayStationLogicalListSummary(ctx playStationLogicalContext) saveSumma
 	}
 	portable := ctx.Logical.Portable
 	filename := playStationLogicalDownloadFilename(ctx.Projection, ctx.Logical)
-	return saveSummary{
+	return summaryWithDownloadProfiles(saveSummary{
 		ID:              ctx.Projection.SaveRecordID,
 		Game:            gameInfo,
 		DisplayTitle:    ctx.Logical.DisplayTitle,
@@ -385,7 +385,7 @@ func buildPlayStationLogicalListSummary(ctx playStationLogicalContext) saveSumma
 				"portable":       portable,
 			},
 		},
-	}
+	})
 }
 
 func buildPlayStationLogicalDownload(ctx playStationLogicalContext, revisionID string) (string, string, []byte, error) {

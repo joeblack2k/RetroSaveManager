@@ -49,7 +49,7 @@ func TestPlayStationSavesListShowsLogicalSummaryAndSkipsLegacyRawCard(t *testing
 	if preview.Rejected {
 		t.Fatalf("unexpected preview rejection: %s", preview.RejectReason)
 	}
-	if _, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "deck-psx"); err != nil {
+	if _, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx"); err != nil {
 		t.Fatalf("create ps1 projection: %v", err)
 	}
 

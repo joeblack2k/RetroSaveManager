@@ -34,6 +34,7 @@ function makeSave(overrides: Partial<SaveSummary> & { id: string; title: string;
     },
     displayTitle: title,
     logicalKey: overrides.logicalKey,
+    downloadProfiles: overrides.downloadProfiles ?? [{ id: "original", label: "Original file", targetExtension: ".sav" }],
     systemSlug,
     regionCode: overrides.regionCode ?? "US",
     regionFlag: "us",
@@ -215,7 +216,7 @@ describe("MyGamesPage TreeGrid", () => {
     expect(await screen.findByText("Chrono Trigger")).toBeInTheDocument();
   });
 
-  it("sorts rows inside a console group and keeps PlayStation links scoped with psLogicalKey", async () => {
+  it("sorts rows inside a console group and opens the download profile popup with the preserved PlayStation key", async () => {
     const view = renderPage();
 
     await screen.findByRole("treegrid", { name: "My Saves" });
@@ -231,15 +232,20 @@ describe("MyGamesPage TreeGrid", () => {
     });
 
     const detailsLink = screen.getByRole("link", { name: /view details for resident evil 2/i });
-    const downloadLink = screen.getByRole("link", { name: /download resident evil 2/i });
+    const downloadButton = screen.getByRole("button", { name: /download resident evil 2/i });
 
     expect(detailsLink).toHaveAttribute(
       "href",
       "/app/saves/ps-save-2?psLogicalKey=psx%3A%3ASLUS-00748%3A%3Aresident%20evil%202%3A%3AUS"
     );
-    expect(downloadLink).toHaveAttribute(
+
+    fireEvent.click(downloadButton);
+
+    expect(await screen.findByRole("heading", { name: "Download Save" })).toBeInTheDocument();
+    const modalDownloadLink = screen.getByRole("link", { name: "Download" });
+    expect(modalDownloadLink).toHaveAttribute(
       "href",
-      "/saves/download?id=ps-save-2&psLogicalKey=psx%3A%3ASLUS-00748%3A%3Aresident%20evil%202%3A%3AUS"
+      "/saves/download?id=ps-save-2&psLogicalKey=psx%3A%3ASLUS-00748%3A%3Aresident+evil+2%3A%3AUS"
     );
   });
 

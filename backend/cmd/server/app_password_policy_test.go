@@ -38,6 +38,7 @@ func TestAppPasswordBindsOnceAndRejectsOtherDevice(t *testing.T) {
 		"system":       "snes",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-1",
+		"runtimeProfile": "snes/snes9x",
 	}, "bind-once.srm", []byte("bind-once"))
 
 	conflict := h.multipart("/saves", map[string]string{
@@ -47,6 +48,7 @@ func TestAppPasswordBindsOnceAndRejectsOtherDevice(t *testing.T) {
 		"system":       "snes",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-2",
+		"runtimeProfile": "snes/snes9x",
 	}, "file", "bind-once-2.srm", []byte("bind-once-2"))
 	assertStatus(t, conflict, http.StatusConflict)
 	body := decodeJSONMap(t, conflict.Body)
@@ -85,6 +87,7 @@ func TestHelperAutoEnrollmentWindowAllowsNoKeyProvisioning(t *testing.T) {
 		"system":      "snes",
 		"device_type": "linux-x86",
 		"fingerprint": "deck-auto",
+		"runtimeProfile": "snes/snes9x",
 	}, "file", "auto-unauthorized.srm", []byte("auto-unauthorized"))
 	assertStatus(t, unauthorized, http.StatusUnauthorized)
 
@@ -107,6 +110,7 @@ func TestHelperAutoEnrollmentWindowAllowsNoKeyProvisioning(t *testing.T) {
 		"platform":       "MiSTer",
 		"sync_paths":     "/media/fat/saves/SNES;/media/fat/saves/PSX",
 		"systems":        "snes,psx",
+		"runtimeProfile": "snes/snes9x",
 	}, "file", "auto-authorized.srm", []byte("auto-authorized"))
 	assertStatus(t, authorized, http.StatusOK)
 	if headerValue := authorized.Header().Get("X-RSM-Auto-App-Password"); headerValue == "" {
@@ -203,6 +207,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 		"system":       "snes",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-policy",
+		"runtimeProfile": "snes/snes9x",
 	}, "policy-snes.srm", []byte("snes-after-policy"))
 	allowedID := mustString(t, mustObject(t, allowedUpload["save"], "save")["id"], "save.id")
 
@@ -213,7 +218,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 		t.Fatalf("expected disallowed latest lookup to be filtered: %s", prettyJSON(latestBlockedBody))
 	}
 
-	latestAllowed := helperGET(t, h, "/save/latest?romSha1=policy-snes-rom&slotName=default&device_type=linux-x86&fingerprint=deck-policy", helperKey)
+	latestAllowed := helperGET(t, h, "/save/latest?romSha1=policy-snes-rom&slotName=default&device_type=linux-x86&fingerprint=deck-policy&runtimeProfile=snes/snes9x", helperKey)
 	assertStatus(t, latestAllowed, http.StatusOK)
 	latestAllowedBody := decodeJSONMap(t, latestAllowed.Body)
 	if !mustBool(t, latestAllowedBody["exists"], "exists") {
@@ -223,7 +228,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 	blockedDownload := helperGET(t, h, "/saves/download?id="+blockedBeforePolicyID+"&device_type=linux-x86&fingerprint=deck-policy&n64Profile="+n64ProfileMister, helperKey)
 	assertStatus(t, blockedDownload, http.StatusForbidden)
 
-	allowedDownload := helperGET(t, h, "/saves/download?id="+allowedID+"&device_type=linux-x86&fingerprint=deck-policy", helperKey)
+	allowedDownload := helperGET(t, h, "/saves/download?id="+allowedID+"&device_type=linux-x86&fingerprint=deck-policy&runtimeProfile=snes/snes9x", helperKey)
 	assertStatus(t, allowedDownload, http.StatusOK)
 	if got := allowedDownload.Header().Get("Content-Type"); !strings.Contains(got, "application/octet-stream") {
 		t.Fatalf("expected binary download for allowed save, got content-type %q", got)
@@ -299,6 +304,7 @@ func TestAppPasswordAndDevicePolicyPersistAcrossRestart(t *testing.T) {
 		"system":       "snes",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-persist",
+		"runtimeProfile": "snes/snes9x",
 	}, "persist.srm", []byte("persist"))
 	deviceID := findDeviceIDByFingerprint(t, h1, "deck-persist")
 	patchBody := `{"alias":"SteamDeck Persist","syncAll":false,"allowedSystemSlugs":["snes","gba"]}`

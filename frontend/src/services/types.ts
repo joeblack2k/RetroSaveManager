@@ -128,10 +128,18 @@ export type SaveCheatResponse = {
   cheats: SaveCheatEditorState;
 };
 
+export type SaveDownloadProfile = {
+  id: string;
+  label: string;
+  targetExtension?: string;
+  note?: string;
+};
+
 export type SaveSummary = {
   id: string;
   game: SaveGame;
   cheats?: SaveCheatCapability | null;
+  downloadProfiles?: SaveDownloadProfile[];
   displayTitle?: string;
   logicalKey?: string;
   systemSlug?: string;
@@ -139,11 +147,22 @@ export type SaveSummary = {
   regionFlag?: string;
   languageCodes?: string[];
   coverArtUrl?: string;
+  mediaType?: string;
+  projectionCapable?: boolean;
+  sourceArtifactProfile?: string;
   saveCount?: number;
   latestSizeBytes?: number;
   totalSizeBytes?: number;
   latestVersion?: number;
   memoryCard?: MemoryCardDetails | null;
+  dreamcast?: Record<string, unknown> | null;
+  saturn?: Record<string, unknown> | null;
+  inspection?: Record<string, unknown> | null;
+  runtimeProfile?: string;
+  cardSlot?: string;
+  projectionId?: string;
+  sourceImportId?: string;
+  portable?: boolean;
   filename: string;
   fileSize: number;
   format: string;

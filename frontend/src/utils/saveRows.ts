@@ -1,5 +1,11 @@
 import { apiDownloadURL } from "../services/apiClient";
-import type { SaveSummary } from "../services/types";
+import type { SaveDownloadProfile, SaveSummary } from "../services/types";
+
+export type SaveDownloadRequest = {
+  saveId: string;
+  psLogicalKey?: string;
+  revisionId?: string;
+};
 
 export type SaveRow = {
   key: string;
@@ -17,7 +23,8 @@ export type SaveRow = {
   totalBytes: number;
   latestCreatedAt: string;
   latestVersion: number;
-  downloadUrl: string;
+  downloadProfiles: SaveDownloadProfile[];
+  downloadRequest: SaveDownloadRequest;
   cheatsSupported: boolean;
   cheatAvailableCount: number;
   cheatEditorId?: string;
@@ -53,7 +60,8 @@ export function buildSaveRows(saves: SaveSummary[]): SaveRow[] {
       if (new Date(row.latestCreatedAt).getTime() > new Date(existing.latestCreatedAt).getTime()) {
         existing.latestCreatedAt = row.latestCreatedAt;
         existing.primarySaveID = row.primarySaveID;
-        existing.downloadUrl = row.downloadUrl;
+        existing.downloadProfiles = row.downloadProfiles;
+        existing.downloadRequest = row.downloadRequest;
       }
 
       for (const saveID of row.saveIDs) {
@@ -86,6 +94,21 @@ export function buildSaveDetailsHref(save: { primarySaveID: string; psLogicalKey
     return base;
   }
   return `${base}?psLogicalKey=${encodeURIComponent(save.psLogicalKey)}`;
+}
+
+export function buildSaveDownloadHref(request: SaveDownloadRequest, runtimeProfile?: string): string {
+  const search = new URLSearchParams();
+  search.set("id", request.saveId);
+  if (request.psLogicalKey) {
+    search.set("psLogicalKey", request.psLogicalKey);
+  }
+  if (request.revisionId) {
+    search.set("revisionId", request.revisionId);
+  }
+  if (runtimeProfile) {
+    search.set("runtimeProfile", runtimeProfile);
+  }
+  return apiDownloadURL(`/saves/download?${search.toString()}`);
 }
 
 export function systemBadgeForSlug(systemSlug: string): { label: string; title: string } {
@@ -374,11 +397,11 @@ function buildStandardSaveRow(save: SaveSummary, systemInfo: { slug: string; nam
     totalBytes,
     latestCreatedAt: createdAt,
     latestVersion,
-    downloadUrl: apiDownloadURL(
-      logicalKey !== ""
-        ? `/saves/download?id=${encodeURIComponent(save.id)}&psLogicalKey=${encodeURIComponent(logicalKey)}`
-        : `/saves/download?id=${encodeURIComponent(save.id)}`
-    ),
+    downloadProfiles: save.downloadProfiles ?? [],
+    downloadRequest: {
+      saveId: save.id,
+      psLogicalKey: logicalKey !== "" ? logicalKey : undefined
+    },
     cheatsSupported: Boolean(save.cheats?.supported),
     cheatAvailableCount: save.cheats?.availableCount && save.cheats.availableCount > 0 ? save.cheats.availableCount : 0,
     cheatEditorId: save.cheats?.editorId,

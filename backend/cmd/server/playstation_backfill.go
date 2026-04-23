@@ -153,7 +153,7 @@ func (a *app) backfillPlayStation(options playStationBackfillOptions) (playStati
 			CoverArtURL:   record.Summary.CoverArtURL,
 			MemoryCard:    record.Summary.MemoryCard,
 			CreatedAt:     record.Summary.CreatedAt,
-		}, preview, runtimeDeviceTypeFromProfile(runtimeProfile), "backfill:"+record.Summary.ID)
+		}, preview, runtimeDeviceTypeFromProfile(runtimeProfile), runtimeProfile, "backfill:"+record.Summary.ID)
 		if err != nil {
 			result.Failures = append(result.Failures, playStationBackfillFailure{SaveID: record.Summary.ID, Filename: record.Summary.Filename, Reason: err.Error()})
 			continue

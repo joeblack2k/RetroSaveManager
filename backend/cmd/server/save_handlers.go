@@ -45,12 +45,16 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 
 	romSHA1 := strings.TrimSpace(r.URL.Query().Get("romSha1"))
 	slotName := normalizedSlot(r.URL.Query().Get("slotName"))
-	saturnFormat := strings.TrimSpace(r.URL.Query().Get("saturnFormat"))
 	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
-	n64Profile := canonicalN64Profile(r.URL.Query().Get("n64Profile"))
+	runtimeProfile := requestedRuntimeProfile(r.URL.Query(), "")
 
 	if helperCtx.IsHelper {
-		if runtimeProfile, cardSlot, ok := helperProjectionIdentity(helperCtx.Device.DeviceType, slotName); ok {
+		if runtimeProfile != "" && (strings.HasPrefix(runtimeProfile, "psx/") || strings.HasPrefix(runtimeProfile, "ps2/")) {
+			cardSlot, ok := deriveExplicitMemoryCardName(slotName, slotName)
+			if !ok {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "slotName must be an explicit Memory Card 1/2 for PlayStation helper latest checks", StatusCode: http.StatusBadRequest})
+				return
+			}
 			if store := a.playStationSyncStore(); store != nil {
 				if saveID, _, exists := store.latestProjectionSaveRecord(runtimeProfile, cardSlot); exists {
 					latest, found := a.findSaveRecordByID(saveID)
@@ -66,6 +70,9 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+		} else if runtimeProfile == "" && helperProjectionDeviceType(helperCtx.Device.DeviceType) != "" && slotName != "" {
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for PlayStation helper latest checks", StatusCode: http.StatusBadRequest})
+			return
 		}
 	}
 
@@ -82,38 +89,24 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		shaValue := latest.Summary.SHA256
-		if saveRecordSystemSlug(latest) == "n64" {
-			if requiresN64ProfileForHelper(saveRecordSystemSlug(latest), helperCtx.IsHelper) && n64Profile == "" {
-				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is required for N64 helper latest checks", StatusCode: http.StatusBadRequest})
-				return
-			}
-			if n64Profile != "" {
-				payload, err := os.ReadFile(latest.payloadPath)
-				if err != nil {
-					writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
-					return
-				}
-				_, _, projected, err := projectN64Payload(latest.Summary, payload, n64Profile)
-				if err != nil {
-					writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
-					return
-				}
-				sum := sha256.Sum256(projected)
-				shaValue = hex.EncodeToString(sum[:])
-			}
+		recordSystem := saveRecordSystemSlug(latest)
+		runtimeProfile = requestedRuntimeProfile(r.URL.Query(), recordSystem)
+		if requiresRuntimeProfileForHelper(recordSystem, helperCtx.IsHelper) && runtimeProfile == "" {
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper latest checks", StatusCode: http.StatusBadRequest})
+			return
 		}
-		if saturnFormat != "" && saveRecordSystemSlug(latest) == "saturn" {
+		if runtimeProfile != "" {
 			payload, err := os.ReadFile(latest.payloadPath)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 				return
 			}
-			_, _, converted, err := saturnDownloadPayload(latest, payload, saturnFormat, saturnEntry)
+			_, _, projected, err := projectPayloadForRuntime(a, latest, payload, runtimeProfile, saturnEntry)
 			if err != nil {
 				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
 				return
 			}
-			sum := sha256.Sum256(converted)
+			sum := sha256.Sum256(projected)
 			shaValue = hex.EncodeToString(sum[:])
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -170,7 +163,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		filename := header.Filename
 		gameInfo := fallbackGameFromFilename(filename)
 		declaredSystem := safeMultipartSystemSlug(formValue("system"), gameInfo.System)
-		n64Profile := canonicalN64Profile(formValue("n64Profile"))
+		runtimeProfile := requestedRuntimeProfileFromForm(formValue, declaredSystem)
 		input := saveCreateInput{
 			Filename:            filename,
 			Payload:             payload,
@@ -184,18 +177,18 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			GameSlug:            canonicalSegment(gameInfo.Name, "unknown-game"),
 			TrustedHelperSystem: helperCtx.IsHelper && strings.TrimSpace(formValue("system")) != "",
 		}
-		if helperCtx.IsHelper && declaredSystem == "n64" {
-			if n64Profile == "" {
-				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is required for N64 helper uploads", StatusCode: http.StatusBadRequest})
+		if helperCtx.IsHelper && isProjectionCapableSystem(declaredSystem) && declaredSystem != "psx" && declaredSystem != "ps2" {
+			if runtimeProfile == "" {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper uploads", StatusCode: http.StatusBadRequest})
 				return
 			}
-			input, err = normalizeN64ProjectionUpload(input, n64Profile)
+			input, err = normalizeProjectionUpload(input, runtimeProfile)
 			if err != nil {
 				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
 				return
 			}
-		} else if n64Profile != "" && declaredSystem != "n64" {
-			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is only valid for N64 saves", StatusCode: http.StatusBadRequest})
+		} else if runtimeProfile != "" && !isProjectionCapableSystem(declaredSystem) {
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is only valid for projection-capable saves", StatusCode: http.StatusBadRequest})
 			return
 		}
 		preview := a.normalizeSaveInputDetailed(input)
@@ -239,7 +232,11 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		artifactKind := classifyPlayStationArtifact(preview.Input.Game.System, input.Format, input.Filename, input.Payload)
 		if artifactKind == saveArtifactPS1MemoryCard || artifactKind == saveArtifactPS2MemoryCard {
 			deviceType := firstNonEmpty(helperCtx.Device.DeviceType, identity.DeviceType)
-			record, conflict, err := a.createPlayStationProjectionSave(input, preview, deviceType, identity.Fingerprint)
+			if helperCtx.IsHelper && runtimeProfile == "" {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for PlayStation helper uploads", StatusCode: http.StatusBadRequest})
+				return
+			}
+			record, conflict, err := a.createPlayStationProjectionSave(input, preview, deviceType, runtimeProfile, identity.Fingerprint)
 			if err != nil {
 				a.appendSyncLog(syncLogInput{
 					DeviceName:   deviceName,
@@ -728,7 +725,7 @@ func canonicalSummaryForRecord(record saveRecord) saveSummary {
 	if strings.TrimSpace(summary.CoverArtURL) == "" && summary.Game.Boxart != nil {
 		summary.CoverArtURL = strings.TrimSpace(*summary.Game.Boxart)
 	}
-	return summary
+	return summaryWithDownloadProfiles(summary)
 }
 
 func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
@@ -1027,9 +1024,7 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	saveID := strings.TrimSpace(r.URL.Query().Get("id"))
 	psLogicalKey := strings.TrimSpace(r.URL.Query().Get("psLogicalKey"))
 	revisionID := strings.TrimSpace(r.URL.Query().Get("revisionId"))
-	saturnFormat := strings.TrimSpace(r.URL.Query().Get("saturnFormat"))
 	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
-	n64Profile := canonicalN64Profile(r.URL.Query().Get("n64Profile"))
 	if saveID == "" {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "id is required", StatusCode: http.StatusBadRequest})
 		return
@@ -1065,7 +1060,12 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(payload)
 		return
 	}
+	runtimeProfile := requestedRuntimeProfile(r.URL.Query(), saveRecordSystemSlug(record))
 	if helperCtx.IsHelper {
+		if requiresRuntimeProfileForHelper(saveRecordSystemSlug(record), true) && runtimeProfile == "" {
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper downloads", StatusCode: http.StatusBadRequest})
+			return
+		}
 		if runtimeProfile, cardSlot, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
 			if store := a.playStationSyncStore(); store != nil {
 				store.markProjectionDownloaded(runtimeProfile, cardSlot, helperCtx.Device.Fingerprint)
@@ -1080,21 +1080,8 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	}
 	filename := record.Summary.Filename
 	contentType := "application/octet-stream"
-	if saveRecordSystemSlug(record) == "n64" {
-		if requiresN64ProfileForHelper(saveRecordSystemSlug(record), helperCtx.IsHelper) && n64Profile == "" {
-			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is required for N64 helper downloads", StatusCode: http.StatusBadRequest})
-			return
-		}
-		if n64Profile != "" {
-			filename, contentType, payload, err = projectN64Payload(record.Summary, payload, n64Profile)
-			if err != nil {
-				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
-				return
-			}
-		}
-	}
-	if saturnFormat != "" && saveRecordSystemSlug(record) == "saturn" {
-		filename, contentType, payload, err = saturnDownloadPayload(record, payload, saturnFormat, saturnEntry)
+	if runtimeProfile != "" {
+		filename, contentType, payload, err = projectPayloadForRuntime(a, record, payload, runtimeProfile, saturnEntry)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
 			return
@@ -1362,7 +1349,7 @@ func (a *app) playStationSyncStore() *playStationStore {
 	return a.playStationStore
 }
 
-func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview normalizedSaveInputResult, deviceType, fingerprint string) (saveRecord, *psImportConflict, error) {
+func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview normalizedSaveInputResult, deviceType, requestedProfile, fingerprint string) (saveRecord, *psImportConflict, error) {
 	store := a.playStationSyncStore()
 	if store == nil {
 		return saveRecord{}, nil, fmt.Errorf("playstation store is not initialized")
@@ -1372,7 +1359,7 @@ func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview nor
 		createdAt = time.Now().UTC()
 	}
 	artifactKind := classifyPlayStationArtifact(preview.Input.Game.System, input.Format, input.Filename, input.Payload)
-	runtimeProfile, systemSlug, err := supportedPlayStationRuntimeProfile(deviceType, artifactKind)
+	runtimeProfile, systemSlug, err := resolvePlayStationRuntimeProfile(deviceType, requestedProfile, artifactKind)
 	if err != nil {
 		return saveRecord{}, nil, err
 	}
@@ -1452,7 +1439,7 @@ func (a *app) rollbackPlayStationProjection(sourceRecord saveRecord, runtimeProf
 			Slug:   systemSlug,
 			System: supportedSystemFromSlug(systemSlug),
 		},
-	}, runtimeDeviceTypeFromProfile(runtimeProfile), "rollback:"+sourceRecord.Summary.ID)
+	}, runtimeDeviceTypeFromProfile(runtimeProfile), runtimeProfile, "rollback:"+sourceRecord.Summary.ID)
 	return returnRecord, err
 }
 

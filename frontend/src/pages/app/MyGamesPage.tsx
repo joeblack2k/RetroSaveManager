@@ -14,6 +14,7 @@ import {
 import type { SaveCheatEditorState, SaveCheatField, SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
 import {
+  buildSaveDownloadHref,
   buildSaveDetailsHref,
   buildSaveRows,
   sortSaveRows,
@@ -22,6 +23,7 @@ import {
   type SaveSortDirection,
   type SaveSortKey
 } from "../../utils/saveRows";
+import type { SaveDownloadProfile } from "../../services/types";
 
 type ConsoleGroup = {
   key: string;
@@ -51,6 +53,12 @@ type SaveSelectorState = {
   versions: SaveSummary[];
 };
 
+type DownloadModalState = {
+  title: string;
+  request: { saveId: string; psLogicalKey?: string; revisionId?: string };
+  profiles: SaveDownloadProfile[];
+};
+
 export function MyGamesPage(): JSX.Element {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingKeys, setDeletingKeys] = useState<string[]>([]);
@@ -61,6 +69,7 @@ export function MyGamesPage(): JSX.Element {
   const [selectorLoading, setSelectorLoading] = useState(false);
   const [selectorError, setSelectorError] = useState<string | null>(null);
   const [selectingVersionID, setSelectingVersionID] = useState<string | null>(null);
+  const [downloadState, setDownloadState] = useState<DownloadModalState | null>(null);
   const [cheatRow, setCheatRow] = useState<SaveRow | null>(null);
   const [cheatDisplayTitle, setCheatDisplayTitle] = useState("");
   const [cheatData, setCheatData] = useState<SaveCheatEditorState | null>(null);
@@ -140,7 +149,7 @@ export function MyGamesPage(): JSX.Element {
   }, [consoleGroups]);
 
   useEffect(() => {
-    if (!selectorState && !cheatRow) {
+    if (!selectorState && !cheatRow && !downloadState) {
       return;
     }
 
@@ -148,12 +157,13 @@ export function MyGamesPage(): JSX.Element {
       if (event.key === "Escape") {
         closeSaveSelector();
         closeCheatModal();
+        closeDownloadModal();
       }
     }
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [selectorState, cheatRow]);
+  }, [selectorState, cheatRow, downloadState]);
 
   const totalSaveCount = useMemo(() => rows.reduce((sum, row) => sum + row.saveCount, 0), [rows]);
   const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.totalBytes, 0), [rows]);
@@ -243,6 +253,15 @@ export function MyGamesPage(): JSX.Element {
     setSelectorError(null);
     setSelectorLoading(false);
     setSelectingVersionID(null);
+  }
+
+  function openDownloadModal(title: string, request: { saveId: string; psLogicalKey?: string; revisionId?: string }, profiles: SaveDownloadProfile[] | undefined): void {
+    const normalized = profiles && profiles.length > 0 ? profiles : [{ id: "original", label: "Original file" }];
+    setDownloadState({ title, request, profiles: normalized });
+  }
+
+  function closeDownloadModal(): void {
+    setDownloadState(null);
   }
 
   async function handleSelectSyncSave(version: SaveSummary): Promise<void> {
@@ -494,14 +513,15 @@ export function MyGamesPage(): JSX.Element {
                               </Link>
                             </td>
                             <td>
-                              <a
+                              <button
                                 className="treegrid-icon-button treegrid-icon-button--download"
-                                href={row.downloadUrl}
+                                type="button"
+                                onClick={() => openDownloadModal(row.gameName, row.downloadRequest, row.downloadProfiles)}
                                 aria-label={`Download ${row.gameName}`}
                                 title={`Download ${row.gameName}`}
                               >
                                 <DownloadIcon />
-                              </a>
+                              </button>
                             </td>
                             <td>
                               <button
@@ -523,6 +543,58 @@ export function MyGamesPage(): JSX.Element {
               );
             })}
           </table>
+        </div>
+      ) : null}
+
+      {downloadState ? (
+        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeDownloadModal}>
+          <section
+            className="treegrid-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="treegrid-download-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="treegrid-modal__header">
+              <div>
+                <h2 id="treegrid-download-title">Download Save</h2>
+                <p>{downloadState.title}</p>
+              </div>
+              <button className="treegrid-modal__close" type="button" onClick={closeDownloadModal} aria-label="Close download options">
+                Close
+              </button>
+            </header>
+
+            <div className="treegrid-modal__body">
+              <table className="treegrid-modal-table">
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>Extension</th>
+                    <th>Notes</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {downloadState.profiles.map((profile) => (
+                    <tr key={profile.id}>
+                      <td>{profile.label}</td>
+                      <td>{profile.targetExtension || "-"}</td>
+                      <td>{profile.note || "-"}</td>
+                      <td>
+                        <a
+                          className="saves-action-link"
+                          href={buildSaveDownloadHref(downloadState.request, profile.id !== "original" ? profile.id : undefined)}
+                        >
+                          Download
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       ) : null}
 

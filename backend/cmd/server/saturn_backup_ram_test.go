@@ -183,6 +183,7 @@ func TestContractSavesMultipartAcceptsSaturnBackupRAMAndListsMetadata(t *testing
 		"system":       "saturn",
 		"device_type":  "mister",
 		"fingerprint":  "saturn-device",
+		"runtimeProfile": "saturn/mister",
 	}, "Quake (USA).sav", loadSaturnFixture(t, "saturn_quake_usa.sav"))
 
 	save := mustObject(t, body["save"], "save")
@@ -232,6 +233,7 @@ func TestContractSavesMultipartRejectsEmptySaturnBackupRAM(t *testing.T) {
 		"system":       "saturn",
 		"device_type":  "mister",
 		"fingerprint":  "saturn-device",
+		"runtimeProfile": "saturn/mister",
 	}, "file", "Fighting Vipers (USA) (6S).sav", loadSaturnFixture(t, "saturn_fighting_vipers_usa_6s.sav"))
 	assertStatus(t, rr, http.StatusUnprocessableEntity)
 	assertJSONContentType(t, rr)
@@ -249,6 +251,7 @@ func TestContractSaturnDownloadAndLatestSupportFormatConversion(t *testing.T) {
 		"system":       "saturn",
 		"device_type":  "mister",
 		"fingerprint":  "saturn-device",
+		"runtimeProfile": "saturn/mister",
 	}, "Quake (USA).sav", payload)
 	save := mustObject(t, body["save"], "save")
 	saveID := mustString(t, save["id"], "save.id")

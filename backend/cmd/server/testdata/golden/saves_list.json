@@ -5,6 +5,14 @@
     {
       "createdAt": "<timestamp>",
       "displayTitle": "Wario Land II",
+      "downloadProfiles": [
+        {
+          "id": "<redacted>",
+          "label": "Original file",
+          "note": "Stored payload without projection",
+          "targetExtension": ".srm"
+        }
+      ],
       "fileSize": 8192,
       "filename": "Wario Land II.srm",
       "format": "sram",

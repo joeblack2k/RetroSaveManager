@@ -3,11 +3,16 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { SectionCard } from "../../components/SectionCard";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { apiDownloadURL } from "../../services/apiClient";
 import { getSaveHistory, rollbackSave } from "../../services/retrosaveApi";
-import type { MemoryCardEntry, SaveSummary } from "../../services/types";
+import type { MemoryCardEntry, SaveDownloadProfile, SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
-import { buildSaveDetailsHref } from "../../utils/saveRows";
+import { buildSaveDetailsHref, buildSaveDownloadHref } from "../../utils/saveRows";
+
+type DownloadModalState = {
+  title: string;
+  request: { saveId: string; psLogicalKey?: string; revisionId?: string };
+  profiles: SaveDownloadProfile[];
+};
 
 export function SaveDetailPage(): JSX.Element {
   const params = useParams<{ saveId: string }>();
@@ -17,6 +22,7 @@ export function SaveDetailPage(): JSX.Element {
   const [rollbackError, setRollbackError] = useState<string | null>(null);
   const [rollbackMessage, setRollbackMessage] = useState<string | null>(null);
   const [rollbackingId, setRollbackingId] = useState<string | null>(null);
+  const [downloadState, setDownloadState] = useState<DownloadModalState | null>(null);
 
   const loader = useCallback(() => getSaveHistory({ saveId, psLogicalKey: psLogicalKey || undefined }), [saveId, psLogicalKey]);
   const { loading, error, data, reload } = useAsyncData(loader, [saveId, psLogicalKey]);
@@ -69,7 +75,7 @@ export function SaveDetailPage(): JSX.Element {
   const latestCreatedAt = data?.summary?.latestCreatedAt || fallbackSummary.latestCreatedAt;
 
   async function handleRollback(target: SaveSummary): Promise<void> {
-    const confirmed = window.confirm(`Rollback naar versie ${target.version} van ${displayTitle}?\n\nEr wordt een nieuwe nieuwste versie aangemaakt (promote copy).`);
+    const confirmed = window.confirm(`Rollback to version ${target.version} of ${displayTitle}?\n\nA new latest version will be created as the promoted sync copy.`);
     if (!confirmed) {
       return;
     }
@@ -83,20 +89,29 @@ export function SaveDetailPage(): JSX.Element {
           ? { saveId, psLogicalKey: effectiveLogicalKey, revisionId: target.id }
           : { saveId: target.id }
       );
-      setRollbackMessage(`Rollback voltooid. Nieuwe versie: v${response.save.version}`);
+      setRollbackMessage(`Rollback complete. New version: v${response.save.version}`);
       await reload();
     } catch (err: unknown) {
-      setRollbackError(err instanceof Error ? err.message : "Rollback mislukt");
+      setRollbackError(err instanceof Error ? err.message : "Rollback failed.");
     } finally {
       setRollbackingId(null);
     }
   }
 
+  function openDownloadModal(title: string, request: { saveId: string; psLogicalKey?: string; revisionId?: string }, profiles: SaveDownloadProfile[] | undefined): void {
+    const normalized = profiles && profiles.length > 0 ? profiles : [{ id: "original", label: "Original file" }];
+    setDownloadState({ title, request, profiles: normalized });
+  }
+
+  function closeDownloadModal(): void {
+    setDownloadState(null);
+  }
+
   return (
-    <SectionCard title="Save details & history" subtitle="Bekijk metadata, versiehistorie en rollback-opties voor deze savegame.">
-      {loading ? <LoadingState label="Save history laden..." /> : null}
+    <SectionCard title="Save details & history" subtitle="Inspect metadata, version history, downloads, and rollback options for this save.">
+      {loading ? <LoadingState label="Loading save history..." /> : null}
       {error ? <ErrorState message={error} /> : null}
-      {!loading && !error && versions.length === 0 ? <ErrorState message="Geen versies gevonden voor deze save." /> : null}
+      {!loading && !error && versions.length === 0 ? <ErrorState message="No versions found for this save." /> : null}
 
       {rollbackError ? <p className="error-state">{rollbackError}</p> : null}
       {rollbackMessage ? <p className="success-state">{rollbackMessage}</p> : null}
@@ -165,12 +180,15 @@ export function SaveDetailPage(): JSX.Element {
                         </td>
                         <td>
                           {canOpen ? (
-                            <a
-                              className="saves-action-link"
-                              href={apiDownloadURL(`/saves/download?id=${encodeURIComponent(saveId)}&psLogicalKey=${encodeURIComponent(entryLogicalKey)}`)}
+                            <button
+                              className="saves-action-btn"
+                              type="button"
+                              onClick={() =>
+                                openDownloadModal(entry.title, { saveId, psLogicalKey: entryLogicalKey }, latest?.downloadProfiles)
+                              }
                             >
                               Download
-                            </a>
+                            </button>
                           ) : (
                             <span>-</span>
                           )}
@@ -230,16 +248,19 @@ export function SaveDetailPage(): JSX.Element {
                       <td>{regionToFlagEmoji(versionRegion)} {versionRegion}</td>
                       <td>{versionLanguages.length > 0 ? versionLanguages.join(", ") : "-"}</td>
                       <td>
-                        <a
-                          className="saves-action-link"
-                          href={apiDownloadURL(
-                            effectiveLogicalKey
-                              ? `/saves/download?id=${encodeURIComponent(saveId)}&psLogicalKey=${encodeURIComponent(effectiveLogicalKey)}&revisionId=${encodeURIComponent(version.id)}`
-                              : `/saves/download?id=${encodeURIComponent(version.id)}`
-                          )}
+                        <button
+                          className="saves-action-btn"
+                          type="button"
+                          onClick={() =>
+                            openDownloadModal(displayTitle, {
+                              saveId: effectiveLogicalKey ? saveId : version.id,
+                              psLogicalKey: effectiveLogicalKey || undefined,
+                              revisionId: effectiveLogicalKey ? version.id : undefined
+                            }, version.downloadProfiles)
+                          }
                         >
                           Download
-                        </a>
+                        </button>
                       </td>
                       <td>
                         <button
@@ -257,6 +278,58 @@ export function SaveDetailPage(): JSX.Element {
               </tbody>
             </table>
           ) : null}
+        </div>
+      ) : null}
+
+      {downloadState ? (
+        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeDownloadModal}>
+          <section
+            className="treegrid-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="save-detail-download-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="treegrid-modal__header">
+              <div>
+                <h2 id="save-detail-download-title">Download Save</h2>
+                <p>{downloadState.title}</p>
+              </div>
+              <button className="treegrid-modal__close" type="button" onClick={closeDownloadModal} aria-label="Close download options">
+                Close
+              </button>
+            </header>
+
+            <div className="treegrid-modal__body">
+              <table className="treegrid-modal-table">
+                <thead>
+                  <tr>
+                    <th>Profile</th>
+                    <th>Extension</th>
+                    <th>Notes</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {downloadState.profiles.map((profile) => (
+                    <tr key={profile.id}>
+                      <td>{profile.label}</td>
+                      <td>{profile.targetExtension || "-"}</td>
+                      <td>{profile.note || "-"}</td>
+                      <td>
+                        <a
+                          className="saves-action-link"
+                          href={buildSaveDownloadHref(downloadState.request, profile.id !== "original" ? profile.id : undefined)}
+                        >
+                          Download
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       ) : null}
     </SectionCard>

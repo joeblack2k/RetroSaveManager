@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSaveDetailsHref, buildSaveRows } from "../saveRows";
+import { buildSaveDetailsHref, buildSaveDownloadHref, buildSaveRows } from "../saveRows";
 import type { SaveSummary } from "../../services/types";
 
 function makeSave(overrides: Partial<SaveSummary>): SaveSummary {
@@ -56,5 +56,15 @@ describe("saveRows", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.gameName).toBe("Burnout 3");
     expect(rows[0]?.psLogicalKey).toBe("ps2::BASLUS-21050::burnout 3::US");
+  });
+
+  it("builds profile-aware download URLs while preserving logical keys", () => {
+    expect(buildSaveDownloadHref({
+      saveId: "save-42",
+      psLogicalKey: "ps2::BASLUS-21050::burnout 3::US",
+      revisionId: "rev-7"
+    }, "ps2/pcsx2")).toBe(
+      "/saves/download?id=save-42&psLogicalKey=ps2%3A%3ABASLUS-21050%3A%3Aburnout+3%3A%3AUS&revisionId=rev-7&runtimeProfile=ps2%2Fpcsx2"
+    );
   });
 });

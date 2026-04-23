@@ -69,6 +69,7 @@ func TestContractSavesMultipartAcceptsGenesisWithInspection(t *testing.T) {
 		"system":       "genesis",
 		"device_type":  "mister",
 		"fingerprint":  "genesis-device",
+		"runtimeProfile": "genesis/genesis-plus-gx",
 	}, "Sonic the Hedgehog.srm", make([]byte, 8192))
 
 	list := h.request(http.MethodGet, "/saves?limit=10&offset=0", nil)
@@ -104,6 +105,7 @@ func TestContractSavesMultipartRejectsGenesisWithoutROMSHA1(t *testing.T) {
 		"system":       "genesis",
 		"device_type":  "mister",
 		"fingerprint":  "genesis-device",
+		"runtimeProfile": "genesis/genesis-plus-gx",
 	}, "file", "Sonic the Hedgehog.srm", make([]byte, 8192))
 	assertStatus(t, rr, http.StatusUnprocessableEntity)
 	assertJSONContentType(t, rr)

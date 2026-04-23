@@ -20,7 +20,7 @@ func TestPlayStationProjectionImportCreatesCrossProfilePS1Records(t *testing.T) 
 		SlotName: "Memory Card 1",
 	}
 	preview := h.app.normalizeSaveInputDetailed(input)
-	record, conflict, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "deck-psx")
+	record, conflict, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx")
 	if err != nil {
 		t.Fatalf("create playstation projection: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestPlayStationProjectionDownloadReturnsValidPS1RawCard(t *testing.T) {
 		SlotName: "Memory Card 1",
 	}
 	preview := h.app.normalizeSaveInputDetailed(input)
-	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "deck-psx")
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx")
 	if err != nil {
 		t.Fatalf("create playstation projection: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestPlayStationProjectionImportBuildsPS2Projection(t *testing.T) {
 		SlotName: "Memory Card 1",
 	}
 	preview := h.app.normalizeSaveInputDetailed(input)
-	record, conflict, err := h.app.createPlayStationProjectionSave(input, preview, "pcsx2", "deck-ps2")
+	record, conflict, err := h.app.createPlayStationProjectionSave(input, preview, "pcsx2", "ps2/pcsx2", "deck-ps2")
 	if err != nil {
 		t.Fatalf("create ps2 projection: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestPlayStationLogicalHistoryDownloadAndDeletePS2Entry(t *testing.T) {
 		SlotName: "Memory Card 1",
 	}
 	preview := h.app.normalizeSaveInputDetailed(input)
-	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "pcsx2", "deck-ps2")
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "pcsx2", "ps2/pcsx2", "deck-ps2")
 	if err != nil {
 		t.Fatalf("create ps2 projection: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestPlayStationLogicalRollbackPromotesHistoricalRevision(t *testing.T) {
 		SlotName: "Memory Card 1",
 	}
 	preview := h.app.normalizeSaveInputDetailed(input)
-	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "deck-psx")
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx")
 	if err != nil {
 		t.Fatalf("create first ps1 projection: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestPlayStationLogicalRollbackPromotesHistoricalRevision(t *testing.T) {
 	secondInput := input
 	secondInput.Payload = secondPayload
 	secondPreview := h.app.normalizeSaveInputDetailed(secondInput)
-	record, _, err = h.app.createPlayStationProjectionSave(secondInput, secondPreview, "retroarch", "deck-psx")
+	record, _, err = h.app.createPlayStationProjectionSave(secondInput, secondPreview, "retroarch", "psx/retroarch", "deck-psx")
 	if err != nil {
 		t.Fatalf("create second ps1 projection: %v", err)
 	}

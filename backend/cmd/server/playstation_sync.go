@@ -309,6 +309,32 @@ func supportedPlayStationRuntimeProfile(deviceType string, artifact saveArtifact
 	}
 }
 
+func resolvePlayStationRuntimeProfile(deviceType, requestedProfile string, artifact saveArtifactKind) (profile string, systemSlug string, err error) {
+	if strings.TrimSpace(requestedProfile) != "" {
+		profile = canonicalRuntimeProfile("", requestedProfile)
+		switch profile {
+		case "psx/mister":
+			if artifact != saveArtifactPS1MemoryCard {
+				return "", "", fmt.Errorf("psx/mister is only supported for PlayStation memory cards")
+			}
+			return profile, "psx", nil
+		case "psx/retroarch":
+			if artifact != saveArtifactPS1MemoryCard {
+				return "", "", fmt.Errorf("psx/retroarch is only supported for PlayStation memory cards")
+			}
+			return profile, "psx", nil
+		case "ps2/pcsx2":
+			if artifact != saveArtifactPS2MemoryCard {
+				return "", "", fmt.Errorf("ps2/pcsx2 is only supported for PlayStation 2 memory cards")
+			}
+			return profile, "ps2", nil
+		default:
+			return "", "", fmt.Errorf("unsupported PlayStation runtimeProfile %q", strings.TrimSpace(requestedProfile))
+		}
+	}
+	return supportedPlayStationRuntimeProfile(deviceType, artifact)
+}
+
 func canonicalPlayStationDeviceType(deviceType string) string {
 	clean := strings.ToLower(strings.TrimSpace(deviceType))
 	switch {
@@ -320,6 +346,16 @@ func canonicalPlayStationDeviceType(deviceType string) string {
 		return "pcsx2"
 	default:
 		return clean
+	}
+}
+
+func helperProjectionDeviceType(deviceType string) string {
+	clean := canonicalPlayStationDeviceType(deviceType)
+	switch clean {
+	case "mister", "retroarch", "pcsx2":
+		return clean
+	default:
+		return ""
 	}
 }
 
