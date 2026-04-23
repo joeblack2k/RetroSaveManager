@@ -94,6 +94,8 @@ func mountCompatRoutes(r chi.Router, app *app) {
 
 	r.Get("/save/latest", app.handleSaveLatest)
 	r.Get("/save", app.handleSaveByGame)
+	r.Get("/save/cheats", app.handleSaveCheats)
+	r.Post("/save/cheats/apply", app.handleSaveCheatsApply)
 	r.Post("/save/rollback", app.handleSaveRollback)
 	r.Delete("/save", app.handleDeleteSave)
 

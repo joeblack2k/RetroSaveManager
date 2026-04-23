@@ -12,6 +12,7 @@ import type {
   RoadmapSuggestion,
   SaveSystem,
   SaveHistoryResponse,
+  SaveCheatResponse,
   SaveSummary,
   SyncLogPage
 } from "./types";
@@ -99,6 +100,24 @@ export function rollbackSave(params: {
   revisionId?: string;
 }): Promise<{ success: boolean; sourceSaveId: string; save: SaveSummary }> {
   return apiFetchJSON("/save/rollback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params)
+  });
+}
+
+export function getSaveCheats(saveId: string): Promise<SaveCheatResponse> {
+  return apiFetchJSON<SaveCheatResponse>(`/save/cheats?saveId=${encodeURIComponent(saveId)}`);
+}
+
+export function applySaveCheats(params: {
+  saveId: string;
+  editorId: string;
+  slotId?: string;
+  updates?: Record<string, unknown>;
+  presetIds?: string[];
+}): Promise<{ success: boolean; sourceSaveId: string; save: SaveSummary }> {
+  return apiFetchJSON("/save/cheats/apply", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params)

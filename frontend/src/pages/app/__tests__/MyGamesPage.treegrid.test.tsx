@@ -10,7 +10,9 @@ vi.mock("../../../services/retrosaveApi", () => ({
   deleteManySaves: vi.fn(),
   deleteSave: vi.fn(),
   getSaveHistory: vi.fn(),
-  rollbackSave: vi.fn()
+  rollbackSave: vi.fn(),
+  getSaveCheats: vi.fn(),
+  applySaveCheats: vi.fn()
 }));
 
 function makeSave(overrides: Partial<SaveSummary> & { id: string; title: string; systemSlug: string; systemName: string }): SaveSummary {
@@ -41,6 +43,7 @@ function makeSave(overrides: Partial<SaveSummary> & { id: string; title: string;
     latestSizeBytes: overrides.latestSizeBytes ?? 4096,
     totalSizeBytes: overrides.totalSizeBytes ?? 8192,
     latestVersion: overrides.latestVersion ?? 2,
+    cheats: overrides.cheats ?? null,
     memoryCard: null,
     filename: overrides.filename ?? `${title}.zip`,
     fileSize: overrides.fileSize ?? 4096,
@@ -95,6 +98,14 @@ describe("MyGamesPage TreeGrid", () => {
         systemSlug: "snes",
         systemName: "Super Nintendo",
         createdAt: "2026-04-20T10:00:00Z"
+      }),
+      makeSave({
+        id: "sm64-save-1",
+        title: "Super Mario 64",
+        systemSlug: "n64",
+        systemName: "Nintendo 64",
+        createdAt: "2026-04-19T08:00:00Z",
+        cheats: { supported: true, availableCount: 4, editorId: "sm64-eeprom" }
       })
     ]);
     vi.mocked(retrosaveApi.getSaveHistory).mockResolvedValue({
@@ -136,6 +147,49 @@ describe("MyGamesPage TreeGrid", () => {
         version: 5
       })
     });
+    vi.mocked(retrosaveApi.getSaveCheats).mockResolvedValue({
+      success: true,
+      saveId: "sm64-save-1",
+      displayTitle: "Super Mario 64",
+      cheats: {
+        supported: true,
+        editorId: "sm64-eeprom",
+        availableCount: 4,
+        selector: {
+          id: "file",
+          label: "Save File",
+          type: "save-file",
+          options: [
+            { id: "A", label: "File A" },
+            { id: "B", label: "File B" }
+          ]
+        },
+        sections: [
+          {
+            id: "abilities",
+            title: "Abilities",
+            fields: [{ id: "haveWingCap", label: "Wing Cap Switch", type: "boolean" }]
+          }
+        ],
+        presets: [{ id: "unlockCaps", label: "Unlock All Caps", updates: { haveWingCap: true } }],
+        slotValues: {
+          A: { haveWingCap: false },
+          B: { haveWingCap: true }
+        }
+      }
+    });
+    vi.mocked(retrosaveApi.applySaveCheats).mockResolvedValue({
+      success: true,
+      sourceSaveId: "sm64-save-1",
+      save: makeSave({
+        id: "sm64-save-2",
+        title: "Super Mario 64",
+        systemSlug: "n64",
+        systemName: "Nintendo 64",
+        version: 2,
+        cheats: { supported: true, availableCount: 4, editorId: "sm64-eeprom" }
+      })
+    });
   });
 
   afterEach(() => {
@@ -148,11 +202,13 @@ describe("MyGamesPage TreeGrid", () => {
     expect(screen.getByRole("status", { name: "" })).toBeInTheDocument();
     expect(await screen.findByRole("treegrid", { name: "My Saves" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "My Saves" })).toBeInTheDocument();
-    expect(screen.getByText(/2 systems · 3 games · 5 saves/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /collapse playstation/i })).toBeInTheDocument();
+    expect(screen.getByText(/3 systems · 4 games · 6 saves/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /collapse nintendo 64/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /expand playstation/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /expand super nintendo/i })).toBeInTheDocument();
     expect(screen.queryByText("Chrono Trigger")).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: /rollback/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: /cheats/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /expand super nintendo/i }));
 
@@ -163,6 +219,7 @@ describe("MyGamesPage TreeGrid", () => {
     const view = renderPage();
 
     await screen.findByRole("treegrid", { name: "My Saves" });
+    fireEvent.click(screen.getByRole("button", { name: /expand playstation/i }));
     await waitFor(() => {
       expect(titlesForGroup(view.container, "psx")).toEqual(["Resident Evil 2", "Ape Escape"]);
     });
@@ -190,6 +247,7 @@ describe("MyGamesPage TreeGrid", () => {
     renderPage();
 
     await screen.findByRole("treegrid", { name: "My Saves" });
+    fireEvent.click(screen.getByRole("button", { name: /expand playstation/i }));
 
     fireEvent.click(screen.getByRole("button", { name: /select sync save for resident evil 2/i }));
 
@@ -207,6 +265,28 @@ describe("MyGamesPage TreeGrid", () => {
         saveId: "ps-save-2",
         psLogicalKey: "psx::SLUS-00748::resident evil 2::US",
         revisionId: "ps-save-0"
+      });
+    });
+  });
+
+  it("opens the cheat editor modal and applies structured cheat changes", async () => {
+    renderPage();
+
+    await screen.findByRole("treegrid", { name: "My Saves" });
+    fireEvent.click(screen.getByRole("button", { name: /edit cheats for super mario 64/i }));
+
+    expect(await screen.findByRole("heading", { name: "Cheat Editor" })).toBeInTheDocument();
+    expect(retrosaveApi.getSaveCheats).toHaveBeenCalledWith("sm64-save-1");
+
+    fireEvent.click(screen.getByRole("button", { name: /unlock all caps/i }));
+    fireEvent.click(screen.getByRole("button", { name: /apply cheats/i }));
+
+    await waitFor(() => {
+      expect(retrosaveApi.applySaveCheats).toHaveBeenCalledWith({
+        saveId: "sm64-save-1",
+        editorId: "sm64-eeprom",
+        slotId: "A",
+        updates: { haveWingCap: true }
       });
     });
   });

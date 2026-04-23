@@ -1511,6 +1511,10 @@ code {
     inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
+.treegrid-modal--wide {
+  width: min(1080px, calc(100vw - 40px));
+}
+
 .treegrid-modal__header {
   display: flex;
   align-items: flex-start;
@@ -1676,6 +1680,22 @@ code {
   background: rgba(62, 31, 35, 1);
 }
 
+.treegrid-icon-button--cheat {
+  color: #ffe89a;
+  border-color: rgba(170, 146, 73, 0.58);
+  background: linear-gradient(180deg, rgba(62, 52, 18, 0.94), rgba(42, 34, 10, 0.98));
+  box-shadow: 0 0 12px -9px rgba(255, 224, 108, 0.72);
+}
+
+.treegrid-icon-button--cheat:hover:not(:disabled) {
+  border-color: rgba(223, 193, 101, 0.9);
+  background: rgba(78, 64, 20, 0.98);
+}
+
+.treegrid-empty-cell {
+  color: rgba(122, 133, 154, 0.9);
+}
+
 .treegrid-inline-icon {
   width: 12px;
   height: 12px;
@@ -1684,6 +1704,150 @@ code {
   stroke-width: 1.85;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.treegrid-cheat-body {
+  display: grid;
+  gap: 14px;
+}
+
+.treegrid-cheat-slot-picker,
+.treegrid-cheat-input {
+  display: grid;
+  gap: 6px;
+  color: #d6e0f2;
+  font-size: 11px;
+}
+
+.treegrid-cheat-slot-picker select,
+.treegrid-cheat-input input,
+.treegrid-cheat-input select {
+  min-height: 30px;
+  border: 1px solid rgba(77, 88, 108, 0.96);
+  background: rgba(14, 18, 26, 0.98);
+  color: #eef4ff;
+  font: inherit;
+  padding: 0 10px;
+}
+
+.treegrid-cheat-presets {
+  display: grid;
+  gap: 8px;
+}
+
+.treegrid-cheat-presets__label {
+  margin: 0;
+  color: #95a3bc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.treegrid-cheat-presets__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.treegrid-cheat-preset {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(93, 105, 127, 0.94);
+  background: rgba(22, 28, 39, 0.98);
+  color: #eef4ff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.treegrid-cheat-preset:hover {
+  border-color: rgba(140, 174, 239, 0.94);
+  background: rgba(32, 39, 53, 1);
+}
+
+.treegrid-cheat-preset--ghost {
+  color: #d7dfec;
+  border-color: rgba(79, 87, 101, 0.94);
+}
+
+.treegrid-cheat-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.treegrid-cheat-section {
+  border: 1px solid rgba(55, 63, 79, 0.94);
+  background: rgba(11, 15, 22, 0.86);
+}
+
+.treegrid-cheat-section__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(44, 50, 64, 0.94);
+  background: rgba(17, 22, 31, 0.96);
+}
+
+.treegrid-cheat-section__header h3 {
+  margin: 0;
+  color: #f3f7ff;
+  font-size: 12px;
+}
+
+.treegrid-cheat-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.treegrid-cheat-field {
+  min-width: 0;
+}
+
+.treegrid-cheat-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  color: #eef4ff;
+  font-size: 11px;
+}
+
+.treegrid-cheat-toggle--compact {
+  min-height: 22px;
+}
+
+.treegrid-cheat-bitmask {
+  margin: 0;
+  min-width: 0;
+  border: 1px solid rgba(51, 60, 76, 0.94);
+  padding: 10px;
+}
+
+.treegrid-cheat-bitmask legend {
+  padding: 0 6px;
+  color: #eef4ff;
+  font-size: 11px;
+}
+
+.treegrid-cheat-bitmask__options {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.treegrid-cheat-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.treegrid-cheat-unsupported {
+  display: grid;
+  gap: 4px;
+  color: #c8d1e0;
+  font-size: 11px;
 }
 
 .logs-panel {

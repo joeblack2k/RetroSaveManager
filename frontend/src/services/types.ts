@@ -58,9 +58,80 @@ export type MemoryCardDetails = {
   entries?: MemoryCardEntry[];
 };
 
+export type SaveCheatCapability = {
+  supported: boolean;
+  availableCount?: number;
+  editorId?: string;
+};
+
+export type SaveCheatOption = {
+  id: string;
+  label: string;
+};
+
+export type SaveCheatBitOption = {
+  id: string;
+  bit: number;
+  label: string;
+};
+
+export type SaveCheatField = {
+  id: string;
+  label: string;
+  description?: string;
+  type: "boolean" | "integer" | "enum" | "bitmask" | string;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: SaveCheatOption[];
+  bits?: SaveCheatBitOption[];
+};
+
+export type SaveCheatSection = {
+  id: string;
+  title: string;
+  fields: SaveCheatField[];
+};
+
+export type SaveCheatPreset = {
+  id: string;
+  label: string;
+  description?: string;
+  updates?: Record<string, unknown>;
+};
+
+export type SaveCheatSelector = {
+  id: string;
+  label: string;
+  type: string;
+  options?: SaveCheatOption[];
+};
+
+export type SaveCheatEditorState = {
+  supported: boolean;
+  gameId?: string;
+  systemSlug?: string;
+  editorId?: string;
+  title?: string;
+  availableCount?: number;
+  selector?: SaveCheatSelector | null;
+  sections?: SaveCheatSection[];
+  presets?: SaveCheatPreset[];
+  values?: Record<string, unknown>;
+  slotValues?: Record<string, Record<string, unknown>>;
+};
+
+export type SaveCheatResponse = {
+  success: boolean;
+  saveId: string;
+  displayTitle: string;
+  cheats: SaveCheatEditorState;
+};
+
 export type SaveSummary = {
   id: string;
   game: SaveGame;
+  cheats?: SaveCheatCapability | null;
   displayTitle?: string;
   logicalKey?: string;
   systemSlug?: string;

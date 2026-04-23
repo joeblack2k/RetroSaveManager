@@ -27,12 +27,14 @@ WORKDIR /app
 COPY --from=backend-build /out/retrosave-api /usr/local/bin/retrosave-api
 COPY --from=backend-build /out/retrosave-healthcheck /usr/local/bin/retrosave-healthcheck
 COPY --from=frontend-build /src/frontend/dist /app/frontend-dist
+COPY contracts /app/contracts
 
 ENV PORT=80
 ENV AUTH_MODE=disabled
 ENV SAVE_ROOT=/saves
 ENV STATE_ROOT=/config
 ENV FRONTEND_DIST_DIR=/app/frontend-dist
+ENV CHEAT_PACK_ROOT=/app/contracts/cheats/packs
 
 EXPOSE 80
 

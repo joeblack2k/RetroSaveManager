@@ -53,6 +53,7 @@ type app struct {
 	roadmapSuggestions          map[string]roadmapSuggestion
 	saves                       []saveSummary
 	saveStore                   *saveStore
+	cheats                      *cheatService
 	playStationStore            *playStationStore
 	saveRecords                 []saveRecord
 	enricher                    *gameEnricher
@@ -178,6 +179,14 @@ func (a *app) initSaveStore() error {
 	a.saveStore = store
 	a.mu.Unlock()
 
+	cheats, err := newCheatService(store.root)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.cheats = cheats
+	a.mu.Unlock()
+
 	psStore, err := newPlayStationStore(store.root)
 	if err != nil {
 		return err
@@ -198,6 +207,12 @@ func (a *app) initSaveStore() error {
 		}
 	}
 	return a.reloadSavesFromDisk()
+}
+
+func (a *app) cheatService() *cheatService {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.cheats
 }
 
 func seedBootstrapEnabled() bool {

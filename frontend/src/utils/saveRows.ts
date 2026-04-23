@@ -18,6 +18,9 @@ export type SaveRow = {
   latestCreatedAt: string;
   latestVersion: number;
   downloadUrl: string;
+  cheatsSupported: boolean;
+  cheatAvailableCount: number;
+  cheatEditorId?: string;
   psLogicalKey?: string;
 };
 
@@ -43,6 +46,9 @@ export function buildSaveRows(saves: SaveSummary[]): SaveRow[] {
       existing.regionFlag = regionToFlagEmoji(existing.regionCode);
       existing.languageCodes = mergeLanguageCodes(existing.languageCodes, row.languageCodes);
       existing.coverArtUrl = existing.coverArtUrl || row.coverArtUrl;
+      existing.cheatsSupported = existing.cheatsSupported || row.cheatsSupported;
+      existing.cheatAvailableCount = Math.max(existing.cheatAvailableCount, row.cheatAvailableCount);
+      existing.cheatEditorId = existing.cheatEditorId || row.cheatEditorId;
 
       if (new Date(row.latestCreatedAt).getTime() > new Date(existing.latestCreatedAt).getTime()) {
         existing.latestCreatedAt = row.latestCreatedAt;
@@ -373,6 +379,9 @@ function buildStandardSaveRow(save: SaveSummary, systemInfo: { slug: string; nam
         ? `/saves/download?id=${encodeURIComponent(save.id)}&psLogicalKey=${encodeURIComponent(logicalKey)}`
         : `/saves/download?id=${encodeURIComponent(save.id)}`
     ),
+    cheatsSupported: Boolean(save.cheats?.supported),
+    cheatAvailableCount: save.cheats?.availableCount && save.cheats.availableCount > 0 ? save.cheats.availableCount : 0,
+    cheatEditorId: save.cheats?.editorId,
     psLogicalKey: logicalKey !== "" ? logicalKey : undefined
   };
 }

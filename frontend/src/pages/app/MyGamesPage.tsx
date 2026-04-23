@@ -2,8 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { deleteManySaves, deleteSave, getSaveHistory, listSaves, rollbackSave } from "../../services/retrosaveApi";
-import type { SaveSummary } from "../../services/types";
+import {
+  applySaveCheats,
+  deleteManySaves,
+  deleteSave,
+  getSaveCheats,
+  getSaveHistory,
+  listSaves,
+  rollbackSave
+} from "../../services/retrosaveApi";
+import type { SaveCheatEditorState, SaveCheatField, SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
 import {
   buildSaveDetailsHref,
@@ -53,14 +61,20 @@ export function MyGamesPage(): JSX.Element {
   const [selectorLoading, setSelectorLoading] = useState(false);
   const [selectorError, setSelectorError] = useState<string | null>(null);
   const [selectingVersionID, setSelectingVersionID] = useState<string | null>(null);
+  const [cheatRow, setCheatRow] = useState<SaveRow | null>(null);
+  const [cheatDisplayTitle, setCheatDisplayTitle] = useState("");
+  const [cheatData, setCheatData] = useState<SaveCheatEditorState | null>(null);
+  const [cheatLoading, setCheatLoading] = useState(false);
+  const [cheatError, setCheatError] = useState<string | null>(null);
+  const [cheatApplying, setCheatApplying] = useState(false);
+  const [cheatSelectedSlot, setCheatSelectedSlot] = useState("");
+  const [cheatPendingUpdates, setCheatPendingUpdates] = useState<Record<string, unknown>>({});
 
   const loader = useCallback(async () => listSaves(), []);
 
   const { loading, error, data, reload } = useAsyncData(loader, []);
 
-  const rows = useMemo<SaveRow[]>(() => {
-    return buildSaveRows(data ?? []);
-  }, [data]);
+  const rows = useMemo<SaveRow[]>(() => buildSaveRows(data ?? []), [data]);
 
   const consoleGroups = useMemo<ConsoleGroup[]>(() => {
     const grouped = new Map<string, ConsoleGroup>();
@@ -126,26 +140,35 @@ export function MyGamesPage(): JSX.Element {
   }, [consoleGroups]);
 
   useEffect(() => {
-    if (!selectorState) {
+    if (!selectorState && !cheatRow) {
       return;
     }
 
     function handleEscape(event: KeyboardEvent): void {
       if (event.key === "Escape") {
-        setSelectorState(null);
-        setSelectorError(null);
-        setSelectorLoading(false);
-        setSelectingVersionID(null);
+        closeSaveSelector();
+        closeCheatModal();
       }
     }
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [selectorState]);
+  }, [selectorState, cheatRow]);
 
   const totalSaveCount = useMemo(() => rows.reduce((sum, row) => sum + row.saveCount, 0), [rows]);
   const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.totalBytes, 0), [rows]);
   const summaryText = `${consoleGroups.length} ${pluralize(consoleGroups.length, "system", "systems")} · ${rows.length} ${pluralize(rows.length, "game", "games")} · ${totalSaveCount} ${pluralize(totalSaveCount, "save", "saves")} · ${formatBytes(totalBytes)} total`;
+
+  const cheatCurrentValues = useMemo<Record<string, unknown>>(() => {
+    if (!cheatData) {
+      return {};
+    }
+    if (cheatData.selector?.options && cheatData.selector.options.length > 0) {
+      const slotID = cheatSelectedSlot || defaultCheatSlotId(cheatData);
+      return cheatData.slotValues?.[slotID] ?? {};
+    }
+    return cheatData.values ?? {};
+  }, [cheatData, cheatSelectedSlot]);
 
   async function handleDeleteRow(row: SaveRow): Promise<void> {
     const saveLabel = row.saveCount === 1 ? "save" : "saves";
@@ -193,11 +216,7 @@ export function MyGamesPage(): JSX.Element {
       return;
     }
 
-    setSelectorState({
-      row,
-      displayTitle: row.gameName,
-      versions: []
-    });
+    setSelectorState({ row, displayTitle: row.gameName, versions: [] });
     setSelectorLoading(true);
     setSelectorError(null);
     setSelectingVersionID(null);
@@ -252,6 +271,93 @@ export function MyGamesPage(): JSX.Element {
     }
   }
 
+  async function handleOpenCheats(row: SaveRow): Promise<void> {
+    if (!row.cheatsSupported || row.cheatAvailableCount <= 0) {
+      return;
+    }
+
+    setCheatRow(row);
+    setCheatDisplayTitle(row.gameName);
+    setCheatData(null);
+    setCheatLoading(true);
+    setCheatError(null);
+    setCheatApplying(false);
+    setCheatSelectedSlot("");
+    setCheatPendingUpdates({});
+
+    try {
+      const response = await getSaveCheats(row.primarySaveID);
+      setCheatDisplayTitle(response.displayTitle?.trim() || row.gameName);
+      setCheatData(response.cheats);
+      setCheatSelectedSlot(defaultCheatSlotId(response.cheats));
+    } catch (err: unknown) {
+      setCheatError(err instanceof Error ? err.message : "Could not load cheats.");
+    } finally {
+      setCheatLoading(false);
+    }
+  }
+
+  function closeCheatModal(): void {
+    setCheatRow(null);
+    setCheatDisplayTitle("");
+    setCheatData(null);
+    setCheatLoading(false);
+    setCheatError(null);
+    setCheatApplying(false);
+    setCheatSelectedSlot("");
+    setCheatPendingUpdates({});
+  }
+
+  function handleCheatFieldChange(field: SaveCheatField, value: unknown): void {
+    setCheatPendingUpdates((current) => ({
+      ...current,
+      [field.id]: sanitizeCheatDraftValue(field, value)
+    }));
+  }
+
+  function handleApplyPreset(updates: Record<string, unknown> | undefined): void {
+    if (!updates) {
+      return;
+    }
+    setCheatPendingUpdates((current) => ({
+      ...current,
+      ...updates
+    }));
+  }
+
+  async function handleApplyCheats(): Promise<void> {
+    if (!cheatRow || !cheatData?.supported || !cheatData.editorId) {
+      return;
+    }
+    const selectorOptions = cheatData.selector?.options ?? [];
+    const selectedSlot = selectorOptions.length > 0 ? cheatSelectedSlot || defaultCheatSlotId(cheatData) : undefined;
+    if (selectorOptions.length > 0 && !selectedSlot) {
+      setCheatError("Select a save file first.");
+      return;
+    }
+    if (Object.keys(cheatPendingUpdates).length === 0) {
+      setCheatError("Choose at least one cheat change before applying.");
+      return;
+    }
+
+    setCheatApplying(true);
+    setCheatError(null);
+    try {
+      await applySaveCheats({
+        saveId: cheatRow.primarySaveID,
+        editorId: cheatData.editorId,
+        slotId: selectedSlot,
+        updates: cheatPendingUpdates
+      });
+      closeCheatModal();
+      await reload();
+    } catch (err: unknown) {
+      setCheatError(err instanceof Error ? err.message : "Could not apply cheats.");
+    } finally {
+      setCheatApplying(false);
+    }
+  }
+
   if (loading) {
     return <LoadingState label="Loading My Saves..." />;
   }
@@ -292,6 +398,7 @@ export function MyGamesPage(): JSX.Element {
                     </button>
                   </th>
                 ))}
+                <th>Cheats</th>
                 <th>Details</th>
                 <th>Download</th>
                 <th>Delete</th>
@@ -304,7 +411,7 @@ export function MyGamesPage(): JSX.Element {
               return (
                 <tbody key={group.key} className="treegrid-group-body">
                   <tr className="treegrid-group-row" aria-expanded={expanded}>
-                    <td colSpan={9}>
+                    <td colSpan={10}>
                       <button
                         className="treegrid-group-toggle"
                         type="button"
@@ -328,12 +435,7 @@ export function MyGamesPage(): JSX.Element {
                         const detailsHref = buildSaveDetailsHref(row);
                         const platformBadge = systemBadgeForSlug(row.systemSlug);
                         return (
-                          <tr
-                            key={row.key}
-                            className="treegrid-child-row"
-                            data-treegrid-group={group.key}
-                            data-treegrid-node="child"
-                          >
+                          <tr key={row.key} className="treegrid-child-row" data-treegrid-group={group.key} data-treegrid-node="child">
                             <td data-treegrid-cell="game">
                               <div className="treegrid-game-cell treegrid-game-cell--child">
                                 <span className="treegrid-platform-badge" aria-hidden="true" title={platformBadge.title}>
@@ -366,6 +468,21 @@ export function MyGamesPage(): JSX.Element {
                             <td>{formatBytes(row.latestSizeBytes)}</td>
                             <td>{formatBytes(row.totalBytes)}</td>
                             <td>{formatCompactDate(row.latestCreatedAt)}</td>
+                            <td>
+                              {row.cheatsSupported && row.cheatAvailableCount > 0 ? (
+                                <button
+                                  className="treegrid-icon-button treegrid-icon-button--cheat"
+                                  type="button"
+                                  onClick={() => void handleOpenCheats(row)}
+                                  aria-label={`Edit cheats for ${row.gameName}`}
+                                  title={`Edit cheats for ${row.gameName}`}
+                                >
+                                  <CheatIcon />
+                                </button>
+                              ) : (
+                                <span className="treegrid-empty-cell" aria-hidden="true">-</span>
+                              )}
+                            </td>
                             <td>
                               <Link
                                 className="treegrid-icon-button"
@@ -423,12 +540,7 @@ export function MyGamesPage(): JSX.Element {
                 <h2 id="treegrid-sync-save-title">Select Sync Save</h2>
                 <p>{selectorState.displayTitle}</p>
               </div>
-              <button
-                className="treegrid-modal__close"
-                type="button"
-                onClick={closeSaveSelector}
-                aria-label="Close save selector"
-              >
+              <button className="treegrid-modal__close" type="button" onClick={closeSaveSelector} aria-label="Close save selector">
                 Close
               </button>
             </header>
@@ -436,9 +548,7 @@ export function MyGamesPage(): JSX.Element {
             <div className="treegrid-modal__body">
               {selectorError ? <p className="error-state">{selectorError}</p> : null}
               {selectorLoading ? <p className="treegrid-modal__status">Loading save history...</p> : null}
-              {!selectorLoading && selectorState.versions.length === 0 ? (
-                <p className="treegrid-modal__status">No save history found.</p>
-              ) : null}
+              {!selectorLoading && selectorState.versions.length === 0 ? <p className="treegrid-modal__status">No save history found.</p> : null}
 
               {!selectorLoading && selectorState.versions.length > 0 ? (
                 <table className="treegrid-modal-table">
@@ -451,7 +561,7 @@ export function MyGamesPage(): JSX.Element {
                       <th>Select</th>
                     </tr>
                   </thead>
-                    <tbody>
+                  <tbody>
                     {selectorState.versions.map((version, index) => {
                       const isCurrent = version.id === selectorState.row.primarySaveID || (selectorState.row.primarySaveID === "" && index === 0);
                       const isBusy = selectingVersionID === version.id;
@@ -460,9 +570,7 @@ export function MyGamesPage(): JSX.Element {
                           <td>v{version.version}</td>
                           <td>{formatCompactDate(version.createdAt)}</td>
                           <td>{formatBytes(version.fileSize)}</td>
-                          <td>
-                            {isCurrent ? <span className="treegrid-current-pill">Current Sync Save</span> : <span>Available</span>}
-                          </td>
+                          <td>{isCurrent ? <span className="treegrid-current-pill">Current Sync Save</span> : <span>Available</span>}</td>
                           <td>
                             <button
                               className="treegrid-select-button"
@@ -484,8 +592,207 @@ export function MyGamesPage(): JSX.Element {
           </section>
         </div>
       ) : null}
+
+      {cheatRow ? (
+        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeCheatModal}>
+          <section
+            className="treegrid-modal treegrid-modal--wide"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="treegrid-cheat-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="treegrid-modal__header">
+              <div>
+                <h2 id="treegrid-cheat-title">Cheat Editor</h2>
+                <p>{cheatDisplayTitle || cheatRow.gameName}</p>
+              </div>
+              <button className="treegrid-modal__close" type="button" onClick={closeCheatModal} aria-label="Close cheat editor">
+                Close
+              </button>
+            </header>
+
+            <div className="treegrid-modal__body treegrid-cheat-body">
+              {cheatError ? <p className="error-state">{cheatError}</p> : null}
+              {cheatLoading ? <p className="treegrid-modal__status">Loading cheat options...</p> : null}
+              {!cheatLoading && cheatData && !cheatData.supported ? <p className="treegrid-modal__status">No safe cheat editor is available for this save.</p> : null}
+
+              {!cheatLoading && cheatData?.supported ? (
+                <>
+                  {cheatData.selector?.options && cheatData.selector.options.length > 0 ? (
+                    <label className="treegrid-cheat-slot-picker">
+                      <span>{cheatData.selector.label}</span>
+                      <select value={cheatSelectedSlot || defaultCheatSlotId(cheatData)} onChange={(event) => {
+                        setCheatSelectedSlot(event.target.value);
+                        setCheatPendingUpdates({});
+                      }}>
+                        {cheatData.selector.options.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  {cheatData.presets && cheatData.presets.length > 0 ? (
+                    <div className="treegrid-cheat-presets">
+                      <p className="treegrid-cheat-presets__label">Presets</p>
+                      <div className="treegrid-cheat-presets__actions">
+                        {cheatData.presets.map((preset) => (
+                          <button
+                            key={preset.id}
+                            className="treegrid-cheat-preset"
+                            type="button"
+                            onClick={() => handleApplyPreset(preset.updates)}
+                            title={preset.description || preset.label}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                        {Object.keys(cheatPendingUpdates).length > 0 ? (
+                          <button className="treegrid-cheat-preset treegrid-cheat-preset--ghost" type="button" onClick={() => setCheatPendingUpdates({})}>
+                            Reset Draft
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="treegrid-cheat-sections">
+                    {cheatData.sections?.map((section) => (
+                      <section key={section.id} className="treegrid-cheat-section">
+                        <header className="treegrid-cheat-section__header">
+                          <h3>{section.title}</h3>
+                        </header>
+                        <div className="treegrid-cheat-fields">
+                          {section.fields.map((field) => {
+                            const currentValue = cheatPendingUpdates[field.id] ?? cheatCurrentValues[field.id];
+                            return (
+                              <div key={field.id} className="treegrid-cheat-field">
+                                {renderCheatField(field, currentValue, handleCheatFieldChange)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+
+                  <footer className="treegrid-cheat-actions">
+                    <button className="treegrid-select-button" type="button" onClick={handleApplyCheats} disabled={cheatApplying}>
+                      {cheatApplying ? "Applying..." : "Apply Cheats"}
+                    </button>
+                  </footer>
+                </>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+function renderCheatField(
+  field: SaveCheatField,
+  currentValue: unknown,
+  onChange: (field: SaveCheatField, value: unknown) => void
+): JSX.Element {
+  switch (field.type) {
+    case "boolean": {
+      const checked = Boolean(currentValue);
+      return (
+        <label className="treegrid-cheat-toggle">
+          <input type="checkbox" checked={checked} onChange={(event) => onChange(field, event.target.checked)} />
+          <span>{field.label}</span>
+        </label>
+      );
+    }
+    case "integer": {
+      const value = typeof currentValue === "number" ? currentValue : 0;
+      return (
+        <label className="treegrid-cheat-input">
+          <span>{field.label}</span>
+          <input
+            type="number"
+            min={field.min}
+            max={field.max}
+            step={field.step ?? 1}
+            value={value}
+            onChange={(event) => onChange(field, Number(event.target.value || 0))}
+          />
+        </label>
+      );
+    }
+    case "enum": {
+      const value = typeof currentValue === "string" ? currentValue : field.options?.[0]?.id ?? "";
+      return (
+        <label className="treegrid-cheat-input">
+          <span>{field.label}</span>
+          <select value={value} onChange={(event) => onChange(field, event.target.value)}>
+            {(field.options ?? []).map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+    case "bitmask": {
+      const selected = Array.isArray(currentValue) ? currentValue.filter((item): item is string => typeof item === "string") : [];
+      return (
+        <fieldset className="treegrid-cheat-bitmask">
+          <legend>{field.label}</legend>
+          <div className="treegrid-cheat-bitmask__options">
+            {(field.bits ?? []).map((bit) => {
+              const checked = selected.includes(bit.id);
+              return (
+                <label key={bit.id} className="treegrid-cheat-toggle treegrid-cheat-toggle--compact">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => {
+                      const next = event.target.checked
+                        ? [...selected, bit.id]
+                        : selected.filter((item) => item !== bit.id);
+                      onChange(field, next);
+                    }}
+                  />
+                  <span>{bit.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      );
+    }
+    default:
+      return (
+        <div className="treegrid-cheat-unsupported">
+          <strong>{field.label}</strong>
+          <span>Unsupported field type: {field.type}</span>
+        </div>
+      );
+  }
+}
+
+function defaultCheatSlotId(data: SaveCheatEditorState | null): string {
+  return data?.selector?.options?.[0]?.id ?? "";
+}
+
+function sanitizeCheatDraftValue(field: SaveCheatField, value: unknown): unknown {
+  switch (field.type) {
+    case "integer":
+      return typeof value === "number" && Number.isFinite(value) ? value : 0;
+    case "bitmask":
+      return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+    case "boolean":
+      return Boolean(value);
+    default:
+      return value;
+  }
 }
 
 function pluralize(value: number, singular: string, plural: string): string {
@@ -569,6 +876,16 @@ function SystemGlyph({ systemSlug, fallbackLabel }: { systemSlug: string; fallba
     default:
       return <span className="treegrid-platform-badge__label">{fallbackLabel}</span>;
   }
+}
+
+function CheatIcon(): JSX.Element {
+  return (
+    <svg className="treegrid-inline-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 17.2 16.8 6.4" />
+      <path d="m14.9 5.2 3.9 3.9" />
+      <path d="M5.2 18.8 6 17.2l1.6-.8" />
+    </svg>
+  );
 }
 
 function DetailsIcon(): JSX.Element {

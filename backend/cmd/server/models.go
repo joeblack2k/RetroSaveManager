@@ -86,6 +86,7 @@ type saveInspection struct {
 type saveSummary struct {
 	ID              string             `json:"id"`
 	Game            game               `json:"game"`
+	Cheats          *cheatCapability   `json:"cheats,omitempty"`
 	DisplayTitle    string             `json:"displayTitle,omitempty"`
 	LogicalKey      string             `json:"logicalKey,omitempty"`
 	SystemSlug      string             `json:"systemSlug,omitempty"`
