@@ -326,7 +326,7 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 			candidate.payload = true
 		})
 	}
-	if hasGBABackupSignature(payload) {
+	if hasGBASignature(payload) {
 		setScore("gba", 96, "gba backup signature", func(candidate *detectionCandidate) {
 			candidate.payload = true
 		})
@@ -504,6 +504,10 @@ func isLikelyPS1MemoryCard(payload []byte, ext string) bool {
 	}
 }
 
+func hasGBASignature(payload []byte) bool {
+	return hasGBABackupSignature(payload) || hasGBAEmbeddedGameHeader(payload)
+}
+
 func hasGBABackupSignature(payload []byte) bool {
 	if len(payload) == 0 {
 		return false
@@ -514,6 +518,37 @@ func hasGBABackupSignature(payload []byte) bool {
 	}
 	upper := strings.ToUpper(string(payload[:limit]))
 	return strings.Contains(upper, "EEPROM_V") || strings.Contains(upper, "SRAM_V") || strings.Contains(upper, "FLASH_V") || strings.Contains(upper, "FLASH1M_V")
+}
+
+func hasGBAEmbeddedGameHeader(payload []byte) bool {
+	if len(payload) < 16 {
+		return false
+	}
+	limit := len(payload)
+	if limit > 128 {
+		limit = 128
+	}
+	window := payload[:limit]
+	for idx := 0; idx+9 <= len(window); idx++ {
+		if window[idx] != 'A' || window[idx+1] != 'G' || window[idx+2] != 'B' {
+			continue
+		}
+		printable := 0
+		for j := idx + 3; j < len(window) && j < idx+24; j++ {
+			if window[j] == 0x00 {
+				break
+			}
+			if window[j] < 32 || window[j] > 126 {
+				printable = 0
+				break
+			}
+			printable++
+		}
+		if printable >= 6 {
+			return true
+		}
+	}
+	return false
 }
 
 func hasNewSuperMarioBrosNDSSignature(payload []byte) bool {

@@ -60,8 +60,8 @@ func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectio
 			AllowedSizes:        strictRawGBASizes,
 			RequireROMSHA1:      true,
 			RequireTrustedMatch: true,
-			RequireSignature:    hasGBABackupSignature,
-			SignatureReason:     "gba backup signature",
+			RequireSignature:    hasGBASignature,
+			SignatureReason:     "gba validated payload signature",
 			Warning:             "No structural GBA save decoder is available yet beyond backup-library signature validation",
 		})
 	case "snes":
@@ -127,18 +127,6 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 			RejectReason: fmt.Sprintf("%s raw save size %d is not recognized", profile.DisplayName, len(input.Payload)),
 		}
 	}
-	if allBytesEqual(input.Payload, 0x00) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0x00)", profile.DisplayName),
-		}
-	}
-	if allBytesEqual(input.Payload, 0xFF) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
-		}
-	}
 	if profile.RequireROMSHA1 && strings.TrimSpace(input.ROMSHA1) == "" {
 		return consoleValidationResult{
 			Rejected:     true,
@@ -181,6 +169,12 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 	warnings := []string(nil)
 	if strings.TrimSpace(profile.Warning) != "" {
 		warnings = append(warnings, profile.Warning)
+	}
+	if allBytesEqual(input.Payload, 0x00) {
+		warnings = append(warnings, fmt.Sprintf("%s raw save payload is entirely 0x00", profile.DisplayName))
+	}
+	if allBytesEqual(input.Payload, 0xFF) {
+		warnings = append(warnings, fmt.Sprintf("%s raw save payload is entirely 0xFF", profile.DisplayName))
 	}
 	if nonZeroBytes <= 16 {
 		warnings = append(warnings, "Payload is extremely sparse and only raw media validation is available")
