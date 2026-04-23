@@ -41,6 +41,15 @@ func TestCleanupDisplayTitleRegionAndLanguagesStripsTrailingCounterNoise(t *test
 	}
 }
 
+func TestResolveKnownSaveTitleAlias(t *testing.T) {
+	if resolved := resolveKnownSaveTitleAlias("neogeo", "doubledr"); resolved != "Double Dragon" {
+		t.Fatalf("expected Neo Geo alias to resolve, got %q", resolved)
+	}
+	if resolved := resolveKnownSaveTitleAlias("snes", "sm"); resolved != "sm" {
+		t.Fatalf("expected unknown short title to stay untouched, got %q", resolved)
+	}
+}
+
 func TestParsePlayStationMemoryCard(t *testing.T) {
 	payload := make([]byte, ps1MemoryCardTotalSize)
 	copy(payload[:2], []byte("MC"))

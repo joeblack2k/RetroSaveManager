@@ -116,6 +116,11 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		if input.Game.HasParser || consoleValidation.Inspection.ParserLevel == saveParserLevelStructural || consoleValidation.Inspection.ParserLevel == saveParserLevelSemantic {
 			input.Game.HasParser = true
 		}
+		if title := strings.TrimSpace(consoleValidation.Inspection.ValidatedGameTitle); title != "" && !normalized.IsPSMemoryCard {
+			input.DisplayTitle = canonicalDisplayTitle(title)
+			input.Game.Name = input.DisplayTitle
+			input.Game.DisplayTitle = input.DisplayTitle
+		}
 	}
 	decorateN64ProjectionFields(&input)
 	if consoleValidation.Rejected {
@@ -155,12 +160,6 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		rejected = true
 		if rejectReason == "" {
 			rejectReason = placeholderReason
-		}
-	}
-	if weakTitleReason := weakRawSaveTitleRejectReason(input); weakTitleReason != "" {
-		rejected = true
-		if rejectReason == "" {
-			rejectReason = weakTitleReason
 		}
 	}
 
@@ -251,72 +250,6 @@ func isProjectionPlaceholderTitle(systemSlug, profile, normalizedTitle string) b
 		return true
 	}
 	return false
-}
-
-func weakRawSaveTitleRejectReason(input saveCreateInput) string {
-	systemSlug := canonicalSegment(firstNonEmpty(input.SystemSlug, func() string {
-		if input.Game.System != nil {
-			return input.Game.System.Slug
-		}
-		return ""
-	}()), "")
-	if !requiresVerifiedGameTitleForWeakRawSave(systemSlug) {
-		return ""
-	}
-	if input.Inspection == nil {
-		return ""
-	}
-	if strings.TrimSpace(input.Inspection.ValidatedGameTitle) != "" {
-		return ""
-	}
-	switch strings.TrimSpace(input.Inspection.ParserLevel) {
-	case saveParserLevelStructural, saveParserLevelSemantic:
-		return ""
-	}
-	trustLevel := strings.TrimSpace(input.Inspection.TrustLevel)
-	if trustLevel != "" && trustLevel != n64TrustLevelMediaOnly {
-		return ""
-	}
-
-	title := strings.TrimSpace(firstNonEmpty(input.DisplayTitle, input.Game.DisplayTitle, input.Game.Name))
-	if generic, reason := isLikelyGenericFallbackTitle(title); generic {
-		return fmt.Sprintf("%s save title is not verified enough: %s", systemSlug, reason)
-	}
-	if weak, reason := isWeakUnverifiedRawSaveTitle(title); weak {
-		return fmt.Sprintf("%s save title is not verified enough: %s", systemSlug, reason)
-	}
-	return ""
-}
-
-func requiresVerifiedGameTitleForWeakRawSave(systemSlug string) bool {
-	switch canonicalSegment(systemSlug, "") {
-	case "gameboy", "gba", "snes", "nes", "genesis", "master-system", "game-gear", "neogeo":
-		return true
-	default:
-		return false
-	}
-}
-
-func isWeakUnverifiedRawSaveTitle(title string) (bool, string) {
-	title = strings.TrimSpace(title)
-	if title == "" {
-		return true, "empty save title"
-	}
-
-	normalized := canonicalSegment(title, "")
-	if normalized == "" || normalized == "unknown-game" {
-		return true, "empty save title"
-	}
-	if len(normalized) <= 2 {
-		return true, "title is too short"
-	}
-	if strings.ContainsAny(title, " _-/") {
-		return false, ""
-	}
-	if title == strings.ToLower(title) {
-		return true, "single-token lowercase slug title"
-	}
-	return false, ""
 }
 
 func (a *app) decorateLoadedRecord(record *saveRecord) {

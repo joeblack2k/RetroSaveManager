@@ -31,6 +31,12 @@ var (
 	productCodePattern     = regexp.MustCompile(`\b([A-Z]{4}[-_][0-9]{3}\.[0-9]{2}|[A-Z]{4}[0-9]{5})\b`)
 )
 
+var saveTitleAliasesBySystem = map[string]map[string]string{
+	"neogeo": {
+		"doubledr": "Double Dragon",
+	},
+}
+
 type normalizedSaveMetadata struct {
 	DisplayTitle   string
 	RegionCode     string
@@ -54,6 +60,7 @@ func deriveNormalizedSaveMetadata(input saveCreateInput, filename string, detect
 		originalTitle = strings.TrimSpace(strings.TrimSuffix(filename, filepath.Ext(filename)))
 	}
 	displayTitle, regionCode, languageCodes := cleanupDisplayTitleRegionAndLanguages(originalTitle)
+	displayTitle = resolveKnownSaveTitleAlias(detection.Slug, displayTitle)
 	if displayTitle == "" {
 		displayTitle = "Unknown Game"
 	}
@@ -199,6 +206,21 @@ func cleanupDisplayTitleRegionAndLanguages(raw string) (string, string, []string
 		title = "Unknown Game"
 	}
 	return title, normalizeRegionCode(detectedRegion), normalizeLanguageCodes(detectedLanguages)
+}
+
+func resolveKnownSaveTitleAlias(systemSlug, title string) string {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return title
+	}
+
+	systemSlug = canonicalSegment(systemSlug, "")
+	if aliases, ok := saveTitleAliasesBySystem[systemSlug]; ok {
+		if resolved, ok := aliases[canonicalSegment(title, "")]; ok && strings.TrimSpace(resolved) != "" {
+			return strings.TrimSpace(resolved)
+		}
+	}
+	return title
 }
 
 func looksLikeRomMetadataTag(tag string) bool {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -59,7 +58,7 @@ func TestNormalizeSaveInputAcceptsTrustedGenesisRawSaveWithInspection(t *testing
 	}
 }
 
-func TestNormalizeSaveInputRejectsWeakGenesisSlugTitle(t *testing.T) {
+func TestNormalizeSaveInputAcceptsWeakGenesisSlugTitle(t *testing.T) {
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{
 		Filename:            "daytona.ram",
@@ -71,11 +70,11 @@ func TestNormalizeSaveInputRejectsWeakGenesisSlugTitle(t *testing.T) {
 		SystemSlug:          "genesis",
 		TrustedHelperSystem: true,
 	})
-	if !result.Rejected {
-		t.Fatal("expected weak Genesis slug title to be rejected")
+	if result.Rejected {
+		t.Fatalf("expected weak Genesis slug title to be preserved, got reject=%q", result.RejectReason)
 	}
-	if !strings.Contains(result.RejectReason, "single-token lowercase slug title") {
-		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	if result.Input.DisplayTitle != "daytona" {
+		t.Fatalf("expected original title to be preserved without a proven alias, got %q", result.Input.DisplayTitle)
 	}
 }
 
@@ -132,7 +131,7 @@ func TestContractSavesMultipartRejectsGenesisWithoutROMSHA1(t *testing.T) {
 	assertJSONContentType(t, rr)
 }
 
-func TestNormalizeSaveInputRejectsWeakNeoGeoSlugTitle(t *testing.T) {
+func TestNormalizeSaveInputAcceptsWeakNeoGeoSlugTitleAndAppliesAlias(t *testing.T) {
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{
 		Filename:            "doubledr.sav",
@@ -144,10 +143,10 @@ func TestNormalizeSaveInputRejectsWeakNeoGeoSlugTitle(t *testing.T) {
 		SystemSlug:          "neogeo",
 		TrustedHelperSystem: true,
 	})
-	if !result.Rejected {
-		t.Fatal("expected weak Neo Geo slug title to be rejected")
+	if result.Rejected {
+		t.Fatalf("expected weak Neo Geo slug title to be preserved, got reject=%q", result.RejectReason)
 	}
-	if !strings.Contains(result.RejectReason, "single-token lowercase slug title") {
-		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	if result.Input.DisplayTitle != "Double Dragon" {
+		t.Fatalf("expected Neo Geo alias resolution, got %q", result.Input.DisplayTitle)
 	}
 }

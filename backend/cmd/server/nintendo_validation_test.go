@@ -1,9 +1,6 @@
 package main
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestNormalizeSaveInputAcceptsTrustedSNESRawSaveWithInspection(t *testing.T) {
 	a := &app{}
@@ -49,7 +46,7 @@ func TestNormalizeSaveInputRejectsSNESRawSaveWithoutROMSHA1(t *testing.T) {
 	}
 }
 
-func TestNormalizeSaveInputRejectsWeakSNESSlugTitle(t *testing.T) {
+func TestNormalizeSaveInputAcceptsWeakSNESSlugTitle(t *testing.T) {
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{
 		Filename:            "sm.srm",
@@ -61,11 +58,11 @@ func TestNormalizeSaveInputRejectsWeakSNESSlugTitle(t *testing.T) {
 		SystemSlug:          "snes",
 		TrustedHelperSystem: true,
 	})
-	if !result.Rejected {
-		t.Fatal("expected weak SNES slug title to be rejected")
+	if result.Rejected {
+		t.Fatalf("expected weak SNES slug title to be preserved, got reject=%q", result.RejectReason)
 	}
-	if !strings.Contains(result.RejectReason, "title is too short") {
-		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	if result.Input.DisplayTitle != "sm" {
+		t.Fatalf("expected original title to be preserved without a proven alias, got %q", result.Input.DisplayTitle)
 	}
 }
 
@@ -128,6 +125,9 @@ func TestNormalizeSaveInputReclassifiesNSMBSaveToNDS(t *testing.T) {
 	}
 	if result.Input.Inspection == nil || result.Input.Inspection.ParserID != "nds-new-super-mario-bros" {
 		t.Fatalf("expected NSMB-specific inspection metadata, got %+v", result.Input.Inspection)
+	}
+	if result.Input.DisplayTitle != "New Super Mario Bros." {
+		t.Fatalf("expected validated title to become canonical display title, got %q", result.Input.DisplayTitle)
 	}
 }
 
