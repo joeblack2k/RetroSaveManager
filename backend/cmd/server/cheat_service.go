@@ -45,6 +45,7 @@ func newCheatService(saveRoot string) (*cheatService, error) {
 		curatedRoot:   curatedRoot,
 		packsBySystem: packsBySystem,
 		editors: map[string]cheatEditor{
+			"dkc-sram":    dkcSRAMCheatEditor{},
 			"sm64-eeprom": sm64EEPROMCheatEditor{},
 			"mk64-eeprom": mk64EEPROMCheatEditor{},
 		},
