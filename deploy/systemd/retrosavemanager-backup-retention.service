@@ -5,5 +5,9 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash /opt/retrosavemanager/deploy/scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7
-
+EnvironmentFile=-/etc/default/retrosavemanager-backup-retention
+Environment=RSM_REPO_DIR=/opt/retrosavemanager
+Environment=RSM_BACKUP_ROOT=/srv/retrosavemanager/backups
+Environment=RSM_KEEP_RECENT=4
+Environment=RSM_KEEP_DAYS=7
+ExecStart=/bin/bash -lc '"$RSM_REPO_DIR"/deploy/scripts/prune-backups.sh --root "$RSM_BACKUP_ROOT" --keep-recent "$RSM_KEEP_RECENT" --keep-days "$RSM_KEEP_DAYS"'

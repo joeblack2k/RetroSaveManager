@@ -120,6 +120,12 @@ Optional host timer install:
 ```bash
 sudo install -D -m 0644 deploy/systemd/retrosavemanager-backup-retention.service /etc/systemd/system/retrosavemanager-backup-retention.service
 sudo install -D -m 0644 deploy/systemd/retrosavemanager-backup-retention.timer /etc/systemd/system/retrosavemanager-backup-retention.timer
+sudo tee /etc/default/retrosavemanager-backup-retention >/dev/null <<'EOF'
+RSM_REPO_DIR=/srv/retrosavemanager/app
+RSM_BACKUP_ROOT=/srv/retrosavemanager/backups
+RSM_KEEP_RECENT=4
+RSM_KEEP_DAYS=7
+EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now retrosavemanager-backup-retention.timer
 sudo systemctl start retrosavemanager-backup-retention.service
