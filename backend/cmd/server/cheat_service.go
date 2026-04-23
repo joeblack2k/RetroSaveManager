@@ -45,6 +45,7 @@ func newCheatService(saveRoot string) (*cheatService, error) {
 		curatedRoot:   curatedRoot,
 		packsBySystem: packsBySystem,
 		editors: map[string]cheatEditor{
+			"dkr-eeprom":  dkrEEPROMCheatEditor{},
 			"dkc-sram":    dkcSRAMCheatEditor{},
 			"sm64-eeprom": sm64EEPROMCheatEditor{},
 			"mk64-eeprom": mk64EEPROMCheatEditor{},
@@ -620,9 +621,9 @@ func normalizeCheatFieldValue(field cheatField, value any) (any, error) {
 		}
 		return nil, fmt.Errorf("invalid option %q", stringValue)
 	case "bitmask":
-		values, ok := value.([]string)
-		if !ok {
-			return nil, errors.New("expected string array")
+		values, err := normalizeCheatStringArray(value)
+		if err != nil {
+			return nil, err
 		}
 		allowed := map[string]struct{}{}
 		for _, bit := range field.Bits {
@@ -649,4 +650,22 @@ func normalizeCheatFieldValue(field cheatField, value any) (any, error) {
 	default:
 		return nil, fmt.Errorf("unsupported field type %q", field.Type)
 	}
+}
+
+func normalizeCheatStringArray(value any) ([]string, error) {
+	if values, ok := value.([]string); ok {
+		return values, nil
+	}
+	if values, ok := value.([]any); ok {
+		out := make([]string, 0, len(values))
+		for _, item := range values {
+			text, ok := item.(string)
+			if !ok {
+				return nil, errors.New("expected string array")
+			}
+			out = append(out, text)
+		}
+		return out, nil
+	}
+	return nil, errors.New("expected string array")
 }

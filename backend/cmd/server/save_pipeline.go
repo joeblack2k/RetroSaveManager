@@ -116,6 +116,7 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 			input.Game.HasParser = true
 		}
 	}
+	decorateN64ProjectionFields(&input)
 	if consoleValidation.Rejected {
 		rejected = true
 		if rejectReason == "" {
@@ -190,33 +191,36 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 	}
 
 	normalized := a.normalizeSaveInputDetailedWithOptions(saveCreateInput{
-		Filename:       record.Summary.Filename,
-		Payload:        payload,
-		Game:           record.Summary.Game,
-		Format:         record.Summary.Format,
-		Metadata:       record.Summary.Metadata,
-		ROMSHA1:        record.ROMSHA1,
-		ROMMD5:         record.ROMMD5,
-		SlotName:       record.SlotName,
-		SystemSlug:     firstNonEmpty(record.SystemSlug, record.Summary.SystemSlug),
-		GameSlug:       record.GameSlug,
-		SystemPath:     record.SystemPath,
-		GamePath:       record.GamePath,
-		DisplayTitle:   record.Summary.DisplayTitle,
-		RegionCode:     record.Summary.RegionCode,
-		RegionFlag:     record.Summary.RegionFlag,
-		LanguageCodes:  record.Summary.LanguageCodes,
-		CoverArtURL:    record.Summary.CoverArtURL,
-		MemoryCard:     record.Summary.MemoryCard,
-		Dreamcast:      record.Summary.Dreamcast,
-		Saturn:         record.Summary.Saturn,
-		Inspection:     record.Summary.Inspection,
-		RuntimeProfile: record.Summary.RuntimeProfile,
-		CardSlot:       record.Summary.CardSlot,
-		ProjectionID:   record.Summary.ProjectionID,
-		SourceImportID: record.Summary.SourceImportID,
-		Portable:       record.Summary.Portable,
-		CreatedAt:      record.Summary.CreatedAt,
+		Filename:              record.Summary.Filename,
+		Payload:               payload,
+		Game:                  record.Summary.Game,
+		Format:                record.Summary.Format,
+		Metadata:              record.Summary.Metadata,
+		ROMSHA1:               record.ROMSHA1,
+		ROMMD5:                record.ROMMD5,
+		SlotName:              record.SlotName,
+		SystemSlug:            firstNonEmpty(record.SystemSlug, record.Summary.SystemSlug),
+		GameSlug:              record.GameSlug,
+		SystemPath:            record.SystemPath,
+		GamePath:              record.GamePath,
+		DisplayTitle:          record.Summary.DisplayTitle,
+		RegionCode:            record.Summary.RegionCode,
+		RegionFlag:            record.Summary.RegionFlag,
+		LanguageCodes:         record.Summary.LanguageCodes,
+		CoverArtURL:           record.Summary.CoverArtURL,
+		MemoryCard:            record.Summary.MemoryCard,
+		Dreamcast:             record.Summary.Dreamcast,
+		Saturn:                record.Summary.Saturn,
+		Inspection:            record.Summary.Inspection,
+		MediaType:             record.Summary.MediaType,
+		ProjectionCapable:     record.Summary.ProjectionCapable,
+		SourceArtifactProfile: record.Summary.SourceArtifactProfile,
+		RuntimeProfile:        record.Summary.RuntimeProfile,
+		CardSlot:              record.Summary.CardSlot,
+		ProjectionID:          record.Summary.ProjectionID,
+		SourceImportID:        record.Summary.SourceImportID,
+		Portable:              record.Summary.Portable,
+		CreatedAt:             record.Summary.CreatedAt,
 	}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
 
 	updated := applyNormalizedSaveToRecord(*record, normalized.Input)

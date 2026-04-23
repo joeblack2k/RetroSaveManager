@@ -442,3 +442,27 @@ presets:
       thiCannon: true
       ttcCannon: true
       rrCannon: true
+  - id: unlockCastleSecretStars
+    label: Unlock Castle Secret Stars
+    description: Enable the seven castle secret stars stored in the main save flags.
+    updates:
+      castleSecretStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+  - id: unlockMainCourseStars
+    label: Unlock Main Course Stars
+    description: Mark all seven stars in each of the 15 main courses.
+    updates:
+      bobStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      wfStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      jrbStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      ccmStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      bbhStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      hmcStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      lllStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      sslStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      dddStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      slStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      wdwStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      ttmStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      thiStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      ttcStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      rrStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]

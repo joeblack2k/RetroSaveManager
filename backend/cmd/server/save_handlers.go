@@ -47,6 +47,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	slotName := normalizedSlot(r.URL.Query().Get("slotName"))
 	saturnFormat := strings.TrimSpace(r.URL.Query().Get("saturnFormat"))
 	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
+	n64Profile := canonicalN64Profile(r.URL.Query().Get("n64Profile"))
 
 	if helperCtx.IsHelper {
 		if runtimeProfile, cardSlot, ok := helperProjectionIdentity(helperCtx.Device.DeviceType, slotName); ok {
@@ -81,6 +82,26 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		shaValue := latest.Summary.SHA256
+		if saveRecordSystemSlug(latest) == "n64" {
+			if requiresN64ProfileForHelper(saveRecordSystemSlug(latest), helperCtx.IsHelper) && n64Profile == "" {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is required for N64 helper latest checks", StatusCode: http.StatusBadRequest})
+				return
+			}
+			if n64Profile != "" {
+				payload, err := os.ReadFile(latest.payloadPath)
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+					return
+				}
+				_, _, projected, err := projectN64Payload(latest.Summary, payload, n64Profile)
+				if err != nil {
+					writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
+					return
+				}
+				sum := sha256.Sum256(projected)
+				shaValue = hex.EncodeToString(sum[:])
+			}
+		}
 		if saturnFormat != "" && saveRecordSystemSlug(latest) == "saturn" {
 			payload, err := os.ReadFile(latest.payloadPath)
 			if err != nil {
@@ -148,6 +169,8 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 
 		filename := header.Filename
 		gameInfo := fallbackGameFromFilename(filename)
+		declaredSystem := safeMultipartSystemSlug(formValue("system"), gameInfo.System)
+		n64Profile := canonicalN64Profile(formValue("n64Profile"))
 		input := saveCreateInput{
 			Filename:            filename,
 			Payload:             payload,
@@ -157,9 +180,23 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			ROMSHA1:             strings.TrimSpace(formValue("rom_sha1")),
 			ROMMD5:              strings.TrimSpace(formValue("rom_md5")),
 			SlotName:            strings.TrimSpace(formValue("slotName")),
-			SystemSlug:          safeMultipartSystemSlug(formValue("system"), gameInfo.System),
+			SystemSlug:          declaredSystem,
 			GameSlug:            canonicalSegment(gameInfo.Name, "unknown-game"),
 			TrustedHelperSystem: helperCtx.IsHelper && strings.TrimSpace(formValue("system")) != "",
+		}
+		if helperCtx.IsHelper && declaredSystem == "n64" {
+			if n64Profile == "" {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is required for N64 helper uploads", StatusCode: http.StatusBadRequest})
+				return
+			}
+			input, err = normalizeN64ProjectionUpload(input, n64Profile)
+			if err != nil {
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+				return
+			}
+		} else if n64Profile != "" && declaredSystem != "n64" {
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is only valid for N64 saves", StatusCode: http.StatusBadRequest})
+			return
 		}
 		preview := a.normalizeSaveInputDetailed(input)
 		if preview.Rejected || !isSupportedSystemSlug(preview.Input.SystemSlug) {
@@ -782,28 +819,37 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 
 	rollbackMeta := mergeRollbackMetadata(sourceRecord)
 	newRecord, err := a.createSave(saveCreateInput{
-		Filename:            sourceRecord.Summary.Filename,
-		Payload:             payload,
-		Game:                sourceRecord.Summary.Game,
-		Format:              sourceRecord.Summary.Format,
-		Metadata:            rollbackMeta,
-		ROMSHA1:             sourceRecord.ROMSHA1,
-		ROMMD5:              sourceRecord.ROMMD5,
-		SlotName:            sourceRecord.SlotName,
-		SystemSlug:          sourceRecord.SystemSlug,
-		GameSlug:            sourceRecord.GameSlug,
-		SystemPath:          sourceRecord.SystemPath,
-		GamePath:            sourceRecord.GamePath,
-		TrustedHelperSystem: metadataHasTrustedSystemEvidence(sourceRecord.Summary.Metadata),
-		DisplayTitle:        sourceRecord.Summary.DisplayTitle,
-		RegionCode:          sourceRecord.Summary.RegionCode,
-		RegionFlag:          sourceRecord.Summary.RegionFlag,
-		LanguageCodes:       sourceRecord.Summary.LanguageCodes,
-		CoverArtURL:         sourceRecord.Summary.CoverArtURL,
-		MemoryCard:          sourceRecord.Summary.MemoryCard,
-		Dreamcast:           sourceRecord.Summary.Dreamcast,
-		Saturn:              sourceRecord.Summary.Saturn,
-		CreatedAt:           time.Now().UTC(),
+		Filename:              sourceRecord.Summary.Filename,
+		Payload:               payload,
+		Game:                  sourceRecord.Summary.Game,
+		Format:                sourceRecord.Summary.Format,
+		Metadata:              rollbackMeta,
+		ROMSHA1:               sourceRecord.ROMSHA1,
+		ROMMD5:                sourceRecord.ROMMD5,
+		SlotName:              sourceRecord.SlotName,
+		SystemSlug:            sourceRecord.SystemSlug,
+		GameSlug:              sourceRecord.GameSlug,
+		SystemPath:            sourceRecord.SystemPath,
+		GamePath:              sourceRecord.GamePath,
+		TrustedHelperSystem:   metadataHasTrustedSystemEvidence(sourceRecord.Summary.Metadata),
+		DisplayTitle:          sourceRecord.Summary.DisplayTitle,
+		RegionCode:            sourceRecord.Summary.RegionCode,
+		RegionFlag:            sourceRecord.Summary.RegionFlag,
+		LanguageCodes:         sourceRecord.Summary.LanguageCodes,
+		CoverArtURL:           sourceRecord.Summary.CoverArtURL,
+		MemoryCard:            sourceRecord.Summary.MemoryCard,
+		Dreamcast:             sourceRecord.Summary.Dreamcast,
+		Saturn:                sourceRecord.Summary.Saturn,
+		Inspection:            sourceRecord.Summary.Inspection,
+		MediaType:             sourceRecord.Summary.MediaType,
+		ProjectionCapable:     sourceRecord.Summary.ProjectionCapable,
+		SourceArtifactProfile: sourceRecord.Summary.SourceArtifactProfile,
+		RuntimeProfile:        sourceRecord.Summary.RuntimeProfile,
+		CardSlot:              sourceRecord.Summary.CardSlot,
+		ProjectionID:          sourceRecord.Summary.ProjectionID,
+		SourceImportID:        sourceRecord.Summary.SourceImportID,
+		Portable:              sourceRecord.Summary.Portable,
+		CreatedAt:             time.Now().UTC(),
 	})
 	if err != nil {
 		if errors.Is(err, errUnsupportedSaveFormat) {
@@ -983,6 +1029,7 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	revisionID := strings.TrimSpace(r.URL.Query().Get("revisionId"))
 	saturnFormat := strings.TrimSpace(r.URL.Query().Get("saturnFormat"))
 	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
+	n64Profile := canonicalN64Profile(r.URL.Query().Get("n64Profile"))
 	if saveID == "" {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "id is required", StatusCode: http.StatusBadRequest})
 		return
@@ -1033,6 +1080,19 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	}
 	filename := record.Summary.Filename
 	contentType := "application/octet-stream"
+	if saveRecordSystemSlug(record) == "n64" {
+		if requiresN64ProfileForHelper(saveRecordSystemSlug(record), helperCtx.IsHelper) && n64Profile == "" {
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "n64Profile is required for N64 helper downloads", StatusCode: http.StatusBadRequest})
+			return
+		}
+		if n64Profile != "" {
+			filename, contentType, payload, err = projectN64Payload(record.Summary, payload, n64Profile)
+			if err != nil {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
+				return
+			}
+		}
+	}
 	if saturnFormat != "" && saveRecordSystemSlug(record) == "saturn" {
 		filename, contentType, payload, err = saturnDownloadPayload(record, payload, saturnFormat, saturnEntry)
 		if err != nil {

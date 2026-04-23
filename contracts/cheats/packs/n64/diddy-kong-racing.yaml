@@ -1,0 +1,410 @@
+gameId: n64/diddy-kong-racing
+systemSlug: n64
+editorId: dkr-eeprom
+title: Diddy Kong Racing
+match:
+  titleAliases:
+    - Diddy Kong Racing
+    - Diddy Kong Racing USA
+    - Diddy Kong Racing Europe
+    - Diddy Kong Racing Japan
+payload:
+  exactSizes:
+    - 512
+  formats:
+    - eep
+    - bin
+    - sram
+selector:
+  id: file
+  label: Save File
+  type: save-file
+  options:
+    - id: A
+      label: File A
+    - id: B
+      label: File B
+    - id: C
+      label: File C
+sections:
+  - id: balloons
+    title: Balloons
+    fields:
+      - id: balloonsTotal
+        label: Total Balloons
+        type: integer
+        min: 0
+        max: 127
+        step: 1
+        op: { kind: dkrBalloons, field: balloonsTotal }
+      - id: balloonsDinoDomain
+        label: Dino Domain Balloons
+        type: integer
+        min: 0
+        max: 127
+        step: 1
+        op: { kind: dkrBalloons, field: balloonsDinoDomain }
+      - id: balloonsSherbetIsland
+        label: Sherbet Island Balloons
+        type: integer
+        min: 0
+        max: 127
+        step: 1
+        op: { kind: dkrBalloons, field: balloonsSherbetIsland }
+      - id: balloonsSnowflakeMount
+        label: Snowflake Mountain Balloons
+        type: integer
+        min: 0
+        max: 127
+        step: 1
+        op: { kind: dkrBalloons, field: balloonsSnowflakeMount }
+      - id: balloonsDragonForest
+        label: Dragon Forest Balloons
+        type: integer
+        min: 0
+        max: 127
+        step: 1
+        op: { kind: dkrBalloons, field: balloonsDragonForest }
+      - id: balloonsFutureFunLand
+        label: Future Fun Land Balloons
+        type: integer
+        min: 0
+        max: 127
+        step: 1
+        op: { kind: dkrBalloons, field: balloonsFutureFunLand }
+  - id: adventure-progress
+    title: Adventure Progress
+    fields:
+      - id: keys
+        label: World Keys
+        type: bitmask
+        bits:
+          - id: dinoDomainKey
+            bit: 1
+            label: Dino Domain Key
+          - id: sherbetIslandKey
+            bit: 2
+            label: Sherbet Island Key
+          - id: snowflakeMountainKey
+            bit: 3
+            label: Snowflake Mountain Key
+          - id: dragonForestKey
+            bit: 4
+            label: Dragon Forest Key
+        op:
+          kind: dkrKeys
+      - id: tajChallenges
+        label: Taj Challenges
+        type: bitmask
+        bits:
+          - id: carChallengeUnlocked
+            bit: 0
+            label: Car Challenge Unlocked
+          - id: hoverChallengeUnlocked
+            bit: 1
+            label: Hover Challenge Unlocked
+          - id: planeChallengeUnlocked
+            bit: 2
+            label: Plane Challenge Unlocked
+          - id: carChallengeCompleted
+            bit: 3
+            label: Car Challenge Completed
+          - id: hoverChallengeCompleted
+            bit: 4
+            label: Hover Challenge Completed
+          - id: planeChallengeCompleted
+            bit: 5
+            label: Plane Challenge Completed
+        op:
+          kind: dkrTajFlags
+      - id: defeatedBosses
+        label: Defeated Bosses
+        type: bitmask
+        bits:
+          - id: wizpig1
+            bit: 0
+            label: Wizpig 1
+          - id: tricky1
+            bit: 1
+            label: Tricky 1
+          - id: bubbler1
+            bit: 2
+            label: Bubbler 1
+          - id: bluey1
+            bit: 3
+            label: Bluey 1
+          - id: smokey1
+            bit: 4
+            label: Smokey 1
+          - id: wizpig2
+            bit: 5
+            label: Wizpig 2
+          - id: tricky2
+            bit: 7
+            label: Tricky 2
+          - id: bubbler2
+            bit: 8
+            label: Bubbler 2
+          - id: bluey2
+            bit: 9
+            label: Bluey 2
+          - id: smokey2
+            bit: 10
+            label: Smokey 2
+        op:
+          kind: dkrBosses
+      - id: ttAmulet
+        label: T.T. Amulet Pieces
+        type: integer
+        min: 0
+        max: 4
+        step: 1
+        op: { kind: dkrAmulet, field: ttAmulet }
+      - id: wizpigAmulet
+        label: Wizpig Amulet Pieces
+        type: integer
+        min: 0
+        max: 4
+        step: 1
+        op: { kind: dkrAmulet, field: wizpigAmulet }
+  - id: trophies
+    title: Trophy Challenge
+    fields:
+      - id: dinoDomainTrophy
+        label: Dino Domain Trophy
+        type: enum
+        options: &trophyOptions
+          - id: none
+            label: No Trophy
+          - id: thirdPlace
+            label: 3rd Place
+          - id: secondPlace
+            label: 2nd Place
+          - id: firstPlace
+            label: 1st Place
+        op: { kind: dkrTrophy, field: dinoDomainTrophy }
+      - id: sherbetIslandTrophy
+        label: Sherbet Island Trophy
+        type: enum
+        options: *trophyOptions
+        op: { kind: dkrTrophy, field: sherbetIslandTrophy }
+      - id: snowflakeMountTrophy
+        label: Snowflake Mountain Trophy
+        type: enum
+        options: *trophyOptions
+        op: { kind: dkrTrophy, field: snowflakeMountTrophy }
+      - id: dragonForestTrophy
+        label: Dragon Forest Trophy
+        type: enum
+        options: *trophyOptions
+        op: { kind: dkrTrophy, field: dragonForestTrophy }
+      - id: futureFunLandTrophy
+        label: Future Fun Land Trophy
+        type: enum
+        options: *trophyOptions
+        op: { kind: dkrTrophy, field: futureFunLandTrophy }
+  - id: tracks-a
+    title: Adventure Tracks A
+    fields:
+      - id: bluey1Status
+        label: Bluey 1
+        type: enum
+        options: &courseStatusOptions
+          - id: none
+            label: Not Visited
+          - id: visited
+            label: Visited
+          - id: completed
+            label: Completed
+          - id: silver
+            label: Silver Coins Complete
+        op: { kind: dkrCourseStatus, field: bluey1 }
+      - id: fossilCanyonStatus
+        label: Fossil Canyon
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: fossilCanyon }
+      - id: pirateLagoonStatus
+        label: Pirate Lagoon
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: pirateLagoon }
+      - id: ancientLakeStatus
+        label: Ancient Lake
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: ancientLake }
+      - id: walrusCoveStatus
+        label: Walrus Cove
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: walrusCove }
+      - id: hotTopVolcanoStatus
+        label: Hot Top Volcano
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: hotTopVolcano }
+      - id: whaleBayStatus
+        label: Whale Bay
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: whaleBay }
+      - id: snowballValleyStatus
+        label: Snowball Valley
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: snowballValley }
+      - id: crescentIslandStatus
+        label: Crescent Island
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: crescentIsland }
+      - id: fireMountainStatus
+        label: Fire Mountain
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: fireMountain }
+      - id: everfrostPeakStatus
+        label: Everfrost Peak
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: everfrostPeak }
+      - id: spaceportAlphaStatus
+        label: Spaceport Alpha
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: spaceportAlpha }
+  - id: tracks-b
+    title: Adventure Tracks B
+    fields:
+      - id: spacedustAlleyStatus
+        label: Spacedust Alley
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: spacedustAlley }
+      - id: greenwoodVillageStatus
+        label: Greenwood Village
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: greenwoodVillage }
+      - id: boulderCanyonStatus
+        label: Boulder Canyon
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: boulderCanyon }
+      - id: windmillPlainsStatus
+        label: Windmill Plains
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: windmillPlains }
+      - id: smokeyCastleStatus
+        label: Smokey Castle
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: smokeyCastle }
+      - id: darkwaterBeachStatus
+        label: Darkwater Beach
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: darkwaterBeach }
+      - id: iciclePyramidStatus
+        label: Icicle Pyramid
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: iciclePyramid }
+      - id: frostyVillageStatus
+        label: Frosty Village
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: frostyVillage }
+      - id: jungleFallsStatus
+        label: Jungle Falls
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: jungleFalls }
+      - id: treasureCavesStatus
+        label: Treasure Caves
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: treasureCaves }
+      - id: hauntedWoodsStatus
+        label: Haunted Woods
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: hauntedWoods }
+      - id: darkmoonCavernsStatus
+        label: Darkmoon Caverns
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: darkmoonCaverns }
+  - id: tracks-c
+    title: Adventure Tracks C
+    fields:
+      - id: starCityStatus
+        label: Star City
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: starCity }
+      - id: wizpig1Status
+        label: Wizpig 1
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: wizpig1 }
+      - id: tricky1Status
+        label: Tricky 1
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: tricky1 }
+      - id: bubbler1Status
+        label: Bubbler 1
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: bubbler1 }
+      - id: smokey1Status
+        label: Smokey 1
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: smokey1 }
+      - id: tricky2Status
+        label: Tricky 2
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: tricky2 }
+      - id: bluey2Status
+        label: Bluey 2
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: bluey2 }
+      - id: bubbler2Status
+        label: Bubbler 2
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: bubbler2 }
+      - id: smokey2Status
+        label: Smokey 2
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: smokey2 }
+      - id: wizpig2Status
+        label: Wizpig 2
+        type: enum
+        options: *courseStatusOptions
+        op: { kind: dkrCourseStatus, field: wizpig2 }
+presets:
+  - id: unlockAllKeys
+    label: Unlock All Keys
+    updates:
+      keys: [dinoDomainKey, sherbetIslandKey, snowflakeMountainKey, dragonForestKey]
+  - id: allFirstPlaceTrophies
+    label: All First Place Trophies
+    updates:
+      dinoDomainTrophy: firstPlace
+      sherbetIslandTrophy: firstPlace
+      snowflakeMountTrophy: firstPlace
+      dragonForestTrophy: firstPlace
+      futureFunLandTrophy: firstPlace
+  - id: maxAmulets
+    label: Max Amulets
+    updates:
+      ttAmulet: 4
+      wizpigAmulet: 4

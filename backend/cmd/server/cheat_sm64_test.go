@@ -31,8 +31,8 @@ func TestSM64CheatEditorReadAndApply(t *testing.T) {
 
 	updated, changed, err := editor.Apply(pack, payload, "A", map[string]any{
 		"haveWingCap": true,
-		"bob100Coin": 120,
-		"bobStars":   []string{"bit1", "bit2", "bit3"},
+		"bob100Coin":  120,
+		"bobStars":    []string{"bit1", "bit2", "bit3"},
 	})
 	if err != nil {
 		t.Fatalf("apply cheats: %v", err)
@@ -157,6 +157,43 @@ func TestSaveCheatApplyCreatesNewCurrentVersionOnRootAndV1(t *testing.T) {
 				t.Fatalf("expected list summary to expose cheat capability: %s", list.Body.String())
 			}
 		})
+	}
+}
+
+func TestSaveCheatApplySM64Presets(t *testing.T) {
+	h := newContractHarness(t)
+	saveID := seedSM64Save(t, h, "/saves")
+
+	applyReq := fmt.Sprintf(`{"saveId":%q,"editorId":"sm64-eeprom","slotId":"A","presetIds":["unlockCastleSecretStars","unlockMainCourseStars"]}`, saveID)
+	rr := h.json(http.MethodPost, "/save/cheats/apply", strings.NewReader(applyReq))
+	assertStatus(t, rr, http.StatusOK)
+	assertJSONContentType(t, rr)
+
+	body := decodeJSONMap(t, rr.Body)
+	if !mustBool(t, body["success"], "success") {
+		t.Fatalf("expected success=true")
+	}
+	save := mustObject(t, body["save"], "save")
+	newID := mustString(t, save["id"], "save.id")
+
+	cheatState := h.request(http.MethodGet, "/save/cheats?saveId="+newID, nil)
+	assertStatus(t, cheatState, http.StatusOK)
+	assertJSONContentType(t, cheatState)
+
+	cheatBody := decodeJSONMap(t, cheatState.Body)
+	slotValues := mustObject(t, mustObject(t, cheatBody["cheats"], "cheats")["slotValues"], "cheats.slotValues")
+	slotA := mustObject(t, slotValues["A"], "slotValues.A")
+
+	for _, fieldID := range []string{
+		"bobStars", "wfStars", "jrbStars", "ccmStars", "bbhStars",
+		"hmcStars", "lllStars", "sslStars", "dddStars", "slStars",
+		"wdwStars", "ttmStars", "thiStars", "ttcStars", "rrStars",
+		"castleSecretStars",
+	} {
+		selected := mustArray(t, slotA[fieldID], fieldID)
+		if len(selected) != 7 {
+			t.Fatalf("expected %s to contain 7 bits after preset, got %#v", fieldID, slotA[fieldID])
+		}
 	}
 }
 

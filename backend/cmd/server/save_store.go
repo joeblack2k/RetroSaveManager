@@ -37,34 +37,37 @@ type saveRecord struct {
 }
 
 type saveCreateInput struct {
-	Filename            string
-	Payload             []byte
-	Game                game
-	Format              string
-	Metadata            any
-	ROMSHA1             string
-	ROMMD5              string
-	SlotName            string
-	SystemSlug          string
-	GameSlug            string
-	SystemPath          string
-	GamePath            string
-	DisplayTitle        string
-	RegionCode          string
-	RegionFlag          string
-	LanguageCodes       []string
-	CoverArtURL         string
-	MemoryCard          *memoryCardDetails
-	Dreamcast           *dreamcastDetails
-	Saturn              *saturnDetails
-	Inspection          *saveInspection
-	TrustedHelperSystem bool
-	RuntimeProfile      string
-	CardSlot            string
-	ProjectionID        string
-	SourceImportID      string
-	Portable            *bool
-	CreatedAt           time.Time
+	Filename              string
+	Payload               []byte
+	Game                  game
+	Format                string
+	Metadata              any
+	ROMSHA1               string
+	ROMMD5                string
+	SlotName              string
+	SystemSlug            string
+	GameSlug              string
+	SystemPath            string
+	GamePath              string
+	DisplayTitle          string
+	RegionCode            string
+	RegionFlag            string
+	LanguageCodes         []string
+	CoverArtURL           string
+	MemoryCard            *memoryCardDetails
+	Dreamcast             *dreamcastDetails
+	Saturn                *saturnDetails
+	Inspection            *saveInspection
+	MediaType             string
+	ProjectionCapable     *bool
+	SourceArtifactProfile string
+	TrustedHelperSystem   bool
+	RuntimeProfile        string
+	CardSlot              string
+	ProjectionID          string
+	SourceImportID        string
+	Portable              *bool
+	CreatedAt             time.Time
 }
 
 func newSaveStoreFromEnv() (*saveStore, error) {
@@ -291,34 +294,37 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 
 	record := saveRecord{
 		Summary: saveSummary{
-			ID:              id,
-			Game:            input.Game,
-			DisplayTitle:    displayTitle,
-			SystemSlug:      systemSlug,
-			RegionCode:      regionCode,
-			RegionFlag:      regionFlag,
-			LanguageCodes:   languageCodes,
-			CoverArtURL:     coverArtURL,
-			SaveCount:       1,
-			LatestSizeBytes: len(input.Payload),
-			TotalSizeBytes:  len(input.Payload),
-			LatestVersion:   version,
-			MemoryCard:      input.MemoryCard,
-			Dreamcast:       input.Dreamcast,
-			Saturn:          input.Saturn,
-			Inspection:      input.Inspection,
-			RuntimeProfile:  strings.TrimSpace(input.RuntimeProfile),
-			CardSlot:        strings.TrimSpace(input.CardSlot),
-			ProjectionID:    strings.TrimSpace(input.ProjectionID),
-			SourceImportID:  strings.TrimSpace(input.SourceImportID),
-			Portable:        input.Portable,
-			Filename:        filename,
-			FileSize:        len(input.Payload),
-			Format:          format,
-			Version:         version,
-			SHA256:          shaHex,
-			CreatedAt:       createdAt,
-			Metadata:        input.Metadata,
+			ID:                    id,
+			Game:                  input.Game,
+			DisplayTitle:          displayTitle,
+			SystemSlug:            systemSlug,
+			RegionCode:            regionCode,
+			RegionFlag:            regionFlag,
+			LanguageCodes:         languageCodes,
+			CoverArtURL:           coverArtURL,
+			SaveCount:             1,
+			LatestSizeBytes:       len(input.Payload),
+			TotalSizeBytes:        len(input.Payload),
+			LatestVersion:         version,
+			MemoryCard:            input.MemoryCard,
+			Dreamcast:             input.Dreamcast,
+			Saturn:                input.Saturn,
+			Inspection:            input.Inspection,
+			MediaType:             strings.TrimSpace(input.MediaType),
+			ProjectionCapable:     input.ProjectionCapable,
+			SourceArtifactProfile: strings.TrimSpace(input.SourceArtifactProfile),
+			RuntimeProfile:        strings.TrimSpace(input.RuntimeProfile),
+			CardSlot:              strings.TrimSpace(input.CardSlot),
+			ProjectionID:          strings.TrimSpace(input.ProjectionID),
+			SourceImportID:        strings.TrimSpace(input.SourceImportID),
+			Portable:              input.Portable,
+			Filename:              filename,
+			FileSize:              len(input.Payload),
+			Format:                format,
+			Version:               version,
+			SHA256:                shaHex,
+			CreatedAt:             createdAt,
+			Metadata:              input.Metadata,
 		},
 		ROMSHA1:     strings.TrimSpace(input.ROMSHA1),
 		ROMMD5:      strings.TrimSpace(input.ROMMD5),

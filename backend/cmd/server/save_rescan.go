@@ -75,28 +75,31 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 		}
 
 		normalized := a.normalizeSaveInputDetailedWithOptions(saveCreateInput{
-			Filename:      original.Summary.Filename,
-			Payload:       payload,
-			Game:          original.Summary.Game,
-			Format:        original.Summary.Format,
-			Metadata:      original.Summary.Metadata,
-			ROMSHA1:       original.ROMSHA1,
-			ROMMD5:        original.ROMMD5,
-			SlotName:      original.SlotName,
-			SystemSlug:    firstNonEmpty(original.SystemSlug, original.Summary.SystemSlug),
-			GameSlug:      original.GameSlug,
-			SystemPath:    original.SystemPath,
-			GamePath:      original.GamePath,
-			DisplayTitle:  original.Summary.DisplayTitle,
-			RegionCode:    original.Summary.RegionCode,
-			RegionFlag:    original.Summary.RegionFlag,
-			LanguageCodes: original.Summary.LanguageCodes,
-			CoverArtURL:   original.Summary.CoverArtURL,
-			MemoryCard:    original.Summary.MemoryCard,
-			Dreamcast:     original.Summary.Dreamcast,
-			Saturn:        original.Summary.Saturn,
-			Inspection:    original.Summary.Inspection,
-			CreatedAt:     original.Summary.CreatedAt,
+			Filename:              original.Summary.Filename,
+			Payload:               payload,
+			Game:                  original.Summary.Game,
+			Format:                original.Summary.Format,
+			Metadata:              original.Summary.Metadata,
+			ROMSHA1:               original.ROMSHA1,
+			ROMMD5:                original.ROMMD5,
+			SlotName:              original.SlotName,
+			SystemSlug:            firstNonEmpty(original.SystemSlug, original.Summary.SystemSlug),
+			GameSlug:              original.GameSlug,
+			SystemPath:            original.SystemPath,
+			GamePath:              original.GamePath,
+			DisplayTitle:          original.Summary.DisplayTitle,
+			RegionCode:            original.Summary.RegionCode,
+			RegionFlag:            original.Summary.RegionFlag,
+			LanguageCodes:         original.Summary.LanguageCodes,
+			CoverArtURL:           original.Summary.CoverArtURL,
+			MemoryCard:            original.Summary.MemoryCard,
+			Dreamcast:             original.Summary.Dreamcast,
+			Saturn:                original.Summary.Saturn,
+			Inspection:            original.Summary.Inspection,
+			MediaType:             original.Summary.MediaType,
+			ProjectionCapable:     original.Summary.ProjectionCapable,
+			SourceArtifactProfile: original.Summary.SourceArtifactProfile,
+			CreatedAt:             original.Summary.CreatedAt,
 		}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
 
 		if normalized.Rejected || !isSupportedSystemSlug(normalized.Input.SystemSlug) {
@@ -189,6 +192,9 @@ func applyNormalizedSaveToRecord(record saveRecord, normalized saveCreateInput) 
 	updated.Summary.Dreamcast = normalized.Dreamcast
 	updated.Summary.Saturn = normalized.Saturn
 	updated.Summary.Inspection = normalized.Inspection
+	updated.Summary.MediaType = strings.TrimSpace(normalized.MediaType)
+	updated.Summary.ProjectionCapable = normalized.ProjectionCapable
+	updated.Summary.SourceArtifactProfile = strings.TrimSpace(normalized.SourceArtifactProfile)
 	updated.Summary.RuntimeProfile = strings.TrimSpace(normalized.RuntimeProfile)
 	updated.Summary.CardSlot = strings.TrimSpace(normalized.CardSlot)
 	updated.Summary.ProjectionID = strings.TrimSpace(normalized.ProjectionID)

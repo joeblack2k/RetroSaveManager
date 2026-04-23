@@ -176,6 +176,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 		"system":       "n64",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-policy",
+		"n64Profile":   n64ProfileMister,
 	}, "policy-n64.eep", buildTestN64Payload("eep", "n64-before-policy"))
 	blockedBeforePolicyID := mustString(t, mustObject(t, blockedBeforePolicy["save"], "save")["id"], "save.id")
 
@@ -191,6 +192,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 		"system":       "n64",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-policy",
+		"n64Profile":   n64ProfileMister,
 	}, "file", "policy-n64-2.eep", buildTestN64Payload("eep", "n64-after-policy"))
 	assertStatus(t, blockedUpload, http.StatusForbidden)
 
@@ -204,7 +206,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 	}, "policy-snes.srm", []byte("snes-after-policy"))
 	allowedID := mustString(t, mustObject(t, allowedUpload["save"], "save")["id"], "save.id")
 
-	latestBlocked := helperGET(t, h, "/save/latest?romSha1=policy-n64-rom&slotName=default&device_type=linux-x86&fingerprint=deck-policy", helperKey)
+	latestBlocked := helperGET(t, h, "/save/latest?romSha1=policy-n64-rom&slotName=default&device_type=linux-x86&fingerprint=deck-policy&n64Profile="+n64ProfileMister, helperKey)
 	assertStatus(t, latestBlocked, http.StatusOK)
 	latestBlockedBody := decodeJSONMap(t, latestBlocked.Body)
 	if mustBool(t, latestBlockedBody["exists"], "exists") {
@@ -218,7 +220,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 		t.Fatalf("expected allowed latest lookup to succeed: %s", prettyJSON(latestAllowedBody))
 	}
 
-	blockedDownload := helperGET(t, h, "/saves/download?id="+blockedBeforePolicyID+"&device_type=linux-x86&fingerprint=deck-policy", helperKey)
+	blockedDownload := helperGET(t, h, "/saves/download?id="+blockedBeforePolicyID+"&device_type=linux-x86&fingerprint=deck-policy&n64Profile="+n64ProfileMister, helperKey)
 	assertStatus(t, blockedDownload, http.StatusForbidden)
 
 	allowedDownload := helperGET(t, h, "/saves/download?id="+allowedID+"&device_type=linux-x86&fingerprint=deck-policy", helperKey)
