@@ -31,16 +31,25 @@ type securityDeviceStateFile struct {
 }
 
 type securityStateDevice struct {
-	ID                 int       `json:"id"`
-	DeviceType         string    `json:"deviceType"`
-	Fingerprint        string    `json:"fingerprint"`
-	Alias              *string   `json:"alias"`
-	DisplayName        string    `json:"displayName"`
-	SyncAll            *bool     `json:"syncAll,omitempty"`
-	AllowedSystemSlugs []string  `json:"allowedSystemSlugs,omitempty"`
-	BoundAppPasswordID *string   `json:"boundAppPasswordId,omitempty"`
-	LastSyncedAt       time.Time `json:"lastSyncedAt"`
-	CreatedAt          time.Time `json:"createdAt"`
+	ID                  int       `json:"id"`
+	DeviceType          string    `json:"deviceType"`
+	Fingerprint         string    `json:"fingerprint"`
+	Alias               *string   `json:"alias"`
+	DisplayName         string    `json:"displayName"`
+	Hostname            string    `json:"hostname,omitempty"`
+	HelperName          string    `json:"helperName,omitempty"`
+	HelperVersion       string    `json:"helperVersion,omitempty"`
+	Platform            string    `json:"platform,omitempty"`
+	SyncPaths           []string  `json:"syncPaths,omitempty"`
+	ReportedSystemSlugs []string  `json:"reportedSystemSlugs,omitempty"`
+	LastSeenIP          string    `json:"lastSeenIp,omitempty"`
+	LastSeenUserAgent   string    `json:"lastSeenUserAgent,omitempty"`
+	LastSeenAt          time.Time `json:"lastSeenAt"`
+	SyncAll             *bool     `json:"syncAll,omitempty"`
+	AllowedSystemSlugs  []string  `json:"allowedSystemSlugs,omitempty"`
+	BoundAppPasswordID  *string   `json:"boundAppPasswordId,omitempty"`
+	LastSyncedAt        time.Time `json:"lastSyncedAt"`
+	CreatedAt           time.Time `json:"createdAt"`
 }
 
 type securityStateAppPassword struct {
@@ -102,6 +111,26 @@ func normalizeAllowedSystemSlugs(raw []string) []string {
 		out = append(out, normalized)
 	}
 	sort.Strings(out)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeHelperPaths(raw []string) []string {
+	seen := make(map[string]struct{}, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
 	if len(out) == 0 {
 		return nil
 	}
@@ -220,16 +249,28 @@ func (a *app) loadSecurityDeviceState() error {
 			syncAll = *persisted.SyncAll
 		}
 		d := device{
-			ID:                 persisted.ID,
-			DeviceType:         strings.TrimSpace(persisted.DeviceType),
-			Fingerprint:        strings.TrimSpace(persisted.Fingerprint),
-			Alias:              copyStringPtr(persisted.Alias),
-			DisplayName:        strings.TrimSpace(persisted.DisplayName),
-			SyncAll:            syncAll,
-			AllowedSystemSlugs: normalizeAllowedSystemSlugs(persisted.AllowedSystemSlugs),
-			BoundAppPasswordID: copyStringPtr(persisted.BoundAppPasswordID),
-			LastSyncedAt:       persisted.LastSyncedAt,
-			CreatedAt:          persisted.CreatedAt,
+			ID:                  persisted.ID,
+			DeviceType:          strings.TrimSpace(persisted.DeviceType),
+			Fingerprint:         strings.TrimSpace(persisted.Fingerprint),
+			Alias:               copyStringPtr(persisted.Alias),
+			DisplayName:         strings.TrimSpace(persisted.DisplayName),
+			Hostname:            strings.TrimSpace(persisted.Hostname),
+			HelperName:          strings.TrimSpace(persisted.HelperName),
+			HelperVersion:       strings.TrimSpace(persisted.HelperVersion),
+			Platform:            strings.TrimSpace(persisted.Platform),
+			SyncPaths:           normalizeHelperPaths(persisted.SyncPaths),
+			ReportedSystemSlugs: normalizeAllowedSystemSlugs(persisted.ReportedSystemSlugs),
+			LastSeenIP:          strings.TrimSpace(persisted.LastSeenIP),
+			LastSeenUserAgent:   strings.TrimSpace(persisted.LastSeenUserAgent),
+			LastSeenAt:          persisted.LastSeenAt,
+			SyncAll:             syncAll,
+			AllowedSystemSlugs:  normalizeAllowedSystemSlugs(persisted.AllowedSystemSlugs),
+			BoundAppPasswordID:  copyStringPtr(persisted.BoundAppPasswordID),
+			LastSyncedAt:        persisted.LastSyncedAt,
+			CreatedAt:           persisted.CreatedAt,
+		}
+		if d.LastSeenAt.IsZero() && !d.LastSyncedAt.IsZero() {
+			d.LastSeenAt = d.LastSyncedAt
 		}
 		if d.DisplayName == "" {
 			d.DisplayName = defaultDeviceDisplayName(d.DeviceType, d.Fingerprint)
@@ -318,16 +359,25 @@ func (a *app) securityDeviceStateSnapshotLocked() securityDeviceStateFile {
 		d := a.devices[id]
 		syncAll := d.SyncAll
 		persistedDevices = append(persistedDevices, securityStateDevice{
-			ID:                 d.ID,
-			DeviceType:         d.DeviceType,
-			Fingerprint:        d.Fingerprint,
-			Alias:              copyStringPtr(d.Alias),
-			DisplayName:        d.DisplayName,
-			SyncAll:            copyBoolPtr(&syncAll),
-			AllowedSystemSlugs: append([]string(nil), d.AllowedSystemSlugs...),
-			BoundAppPasswordID: copyStringPtr(d.BoundAppPasswordID),
-			LastSyncedAt:       d.LastSyncedAt,
-			CreatedAt:          d.CreatedAt,
+			ID:                  d.ID,
+			DeviceType:          d.DeviceType,
+			Fingerprint:         d.Fingerprint,
+			Alias:               copyStringPtr(d.Alias),
+			DisplayName:         d.DisplayName,
+			Hostname:            strings.TrimSpace(d.Hostname),
+			HelperName:          strings.TrimSpace(d.HelperName),
+			HelperVersion:       strings.TrimSpace(d.HelperVersion),
+			Platform:            strings.TrimSpace(d.Platform),
+			SyncPaths:           append([]string(nil), normalizeHelperPaths(d.SyncPaths)...),
+			ReportedSystemSlugs: append([]string(nil), normalizeAllowedSystemSlugs(d.ReportedSystemSlugs)...),
+			LastSeenIP:          strings.TrimSpace(d.LastSeenIP),
+			LastSeenUserAgent:   strings.TrimSpace(d.LastSeenUserAgent),
+			LastSeenAt:          d.LastSeenAt,
+			SyncAll:             copyBoolPtr(&syncAll),
+			AllowedSystemSlugs:  append([]string(nil), d.AllowedSystemSlugs...),
+			BoundAppPasswordID:  copyStringPtr(d.BoundAppPasswordID),
+			LastSyncedAt:        d.LastSyncedAt,
+			CreatedAt:           d.CreatedAt,
 		})
 	}
 
@@ -382,6 +432,17 @@ func (a *app) publicDeviceLocked(input device) device {
 	out := input
 	if out.DisplayName == "" {
 		out.DisplayName = defaultDeviceDisplayName(out.DeviceType, out.Fingerprint)
+	}
+	out.Hostname = strings.TrimSpace(out.Hostname)
+	out.HelperName = strings.TrimSpace(out.HelperName)
+	out.HelperVersion = strings.TrimSpace(out.HelperVersion)
+	out.Platform = strings.TrimSpace(out.Platform)
+	out.SyncPaths = normalizeHelperPaths(out.SyncPaths)
+	out.ReportedSystemSlugs = normalizeAllowedSystemSlugs(out.ReportedSystemSlugs)
+	out.LastSeenIP = strings.TrimSpace(out.LastSeenIP)
+	out.LastSeenUserAgent = strings.TrimSpace(out.LastSeenUserAgent)
+	if out.LastSeenAt.IsZero() && !out.LastSyncedAt.IsZero() {
+		out.LastSeenAt = out.LastSyncedAt
 	}
 	out.AllowedSystemSlugs = normalizeAllowedSystemSlugs(out.AllowedSystemSlugs)
 	out.BoundAppPasswordName = ""
@@ -525,7 +586,44 @@ func (a *app) bindAppPasswordToDeviceLocked(passwordID string, d device) {
 	passwordIDCopy := passwordID
 	d.BoundAppPasswordID = &passwordIDCopy
 	d.LastSyncedAt = now
+	if d.LastSeenAt.IsZero() || d.LastSeenAt.Before(now) {
+		d.LastSeenAt = now
+	}
 	a.saveDeviceLocked(d)
+}
+
+func applyHelperMetadataToDevice(input device, metadata helperMetadata, seenAt time.Time) device {
+	out := input
+	if seenAt.IsZero() {
+		seenAt = time.Now().UTC()
+	}
+	out.LastSeenAt = seenAt.UTC()
+
+	if hostname := strings.TrimSpace(metadata.Hostname); hostname != "" {
+		out.Hostname = hostname
+	}
+	if helperName := strings.TrimSpace(metadata.HelperName); helperName != "" {
+		out.HelperName = helperName
+	}
+	if helperVersion := strings.TrimSpace(metadata.HelperVersion); helperVersion != "" {
+		out.HelperVersion = helperVersion
+	}
+	if platform := strings.TrimSpace(metadata.Platform); platform != "" {
+		out.Platform = platform
+	}
+	if len(metadata.SyncPaths) > 0 {
+		out.SyncPaths = normalizeHelperPaths(metadata.SyncPaths)
+	}
+	if len(metadata.ReportedSystemSlugs) > 0 {
+		out.ReportedSystemSlugs = normalizeAllowedSystemSlugs(metadata.ReportedSystemSlugs)
+	}
+	if ip := strings.TrimSpace(metadata.LastSeenIP); ip != "" {
+		out.LastSeenIP = ip
+	}
+	if userAgent := strings.TrimSpace(metadata.LastSeenUserAgent); userAgent != "" {
+		out.LastSeenUserAgent = userAgent
+	}
+	return out
 }
 
 func deviceIdentityMatches(deviceTypeA, fingerprintA, deviceTypeB, fingerprintB string) bool {
@@ -545,6 +643,7 @@ func (a *app) upsertDeviceLocked(deviceType, fingerprint string) device {
 	now := time.Now().UTC()
 	for id, d := range a.devices {
 		if deviceIdentityMatches(d.DeviceType, d.Fingerprint, deviceType, fingerprint) {
+			d.LastSeenAt = now
 			d.LastSyncedAt = now
 			a.devices[id] = a.publicDeviceLocked(d)
 			return a.devices[id]
@@ -559,6 +658,7 @@ func (a *app) upsertDeviceLocked(deviceType, fingerprint string) device {
 		Fingerprint:        strings.TrimSpace(fingerprint),
 		Alias:              nil,
 		DisplayName:        defaultDeviceDisplayName(deviceType, fingerprint),
+		LastSeenAt:         now,
 		SyncAll:            true,
 		AllowedSystemSlugs: nil,
 		LastSyncedAt:       now,

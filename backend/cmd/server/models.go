@@ -8,6 +8,15 @@ type device struct {
 	Fingerprint              string    `json:"fingerprint"`
 	Alias                    *string   `json:"alias"`
 	DisplayName              string    `json:"displayName"`
+	Hostname                 string    `json:"hostname,omitempty"`
+	HelperName               string    `json:"helperName,omitempty"`
+	HelperVersion            string    `json:"helperVersion,omitempty"`
+	Platform                 string    `json:"platform,omitempty"`
+	SyncPaths                []string  `json:"syncPaths,omitempty"`
+	ReportedSystemSlugs      []string  `json:"reportedSystemSlugs,omitempty"`
+	LastSeenIP               string    `json:"lastSeenIp,omitempty"`
+	LastSeenUserAgent        string    `json:"lastSeenUserAgent,omitempty"`
+	LastSeenAt               time.Time `json:"lastSeenAt"`
 	SyncAll                  bool      `json:"syncAll"`
 	AllowedSystemSlugs       []string  `json:"allowedSystemSlugs,omitempty"`
 	BoundAppPasswordID       *string   `json:"boundAppPasswordId,omitempty"`

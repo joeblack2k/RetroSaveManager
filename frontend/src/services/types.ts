@@ -109,6 +109,15 @@ export type Device = {
   fingerprint: string;
   alias: string | null;
   displayName: string;
+  hostname?: string;
+  helperName?: string;
+  helperVersion?: string;
+  platform?: string;
+  syncPaths?: string[];
+  reportedSystemSlugs?: string[];
+  lastSeenIp?: string;
+  lastSeenUserAgent?: string;
+  lastSeenAt: string;
   syncAll: boolean;
   allowedSystemSlugs?: string[];
   boundAppPasswordId?: string | null;

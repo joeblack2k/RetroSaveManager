@@ -98,6 +98,7 @@ func newApp() *app {
 				Fingerprint:        "seed0001",
 				Alias:              nil,
 				DisplayName:        "internal seed0001",
+				LastSeenAt:         now,
 				SyncAll:            true,
 				AllowedSystemSlugs: nil,
 				LastSyncedAt:       now,

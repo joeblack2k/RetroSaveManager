@@ -419,6 +419,16 @@ code {
   background: linear-gradient(145deg, #416ecf, #5184ef);
 }
 
+.btn-danger {
+  border-color: #7c3531;
+  color: #ffd7d4;
+}
+
+.btn-danger:hover {
+  background: #362122;
+  border-color: #a74640;
+}
+
 .btn-ghost {
   border-color: #4f5362;
   background: #242833;
@@ -797,6 +807,109 @@ code {
   gap: 0.8rem;
 }
 
+.device-list {
+  gap: 0.8rem;
+}
+
+.device-card {
+  border: 1px solid #464c5d;
+  background: linear-gradient(180deg, #242832, #1d212a);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.device-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.device-card__title-block strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.device-card__title-block p {
+  margin: 0.24rem 0 0;
+  color: var(--text-muted);
+}
+
+.device-card__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.device-meta-block {
+  border: 1px solid #394050;
+  background: #191d25;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.device-meta-block h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #dbe5ff;
+}
+
+.device-meta-list {
+  margin: 0;
+  display: grid;
+  gap: 0.48rem;
+}
+
+.device-meta-row {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.device-meta-row dt {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.device-meta-row dd {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.device-meta-row--compact dd {
+  word-break: break-word;
+}
+
+.device-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.device-chip {
+  border: 1px solid #42506a;
+  background: #212938;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.8rem;
+}
+
+.device-path-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.device-path-list li {
+  margin: 0;
+}
+
 .load-state {
   display: inline-flex;
   align-items: center;
@@ -962,6 +1075,11 @@ code {
   }
 
   .list-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .device-card__header {
     flex-direction: column;
     align-items: flex-start;
   }

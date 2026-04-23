@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -9,6 +11,17 @@ import (
 type helperIdentity struct {
 	DeviceType  string
 	Fingerprint string
+}
+
+type helperMetadata struct {
+	Hostname            string
+	HelperName          string
+	HelperVersion       string
+	Platform            string
+	SyncPaths           []string
+	ReportedSystemSlugs []string
+	LastSeenIP          string
+	LastSeenUserAgent   string
 }
 
 type helperAuthContext struct {
@@ -27,26 +40,156 @@ func (h helperIdentity) isComplete() bool {
 }
 
 func extractHelperIdentity(r *http.Request, formValue func(string) string) helperIdentity {
-	fromForm := func(key string) string {
-		if formValue == nil {
-			return ""
-		}
-		return strings.TrimSpace(formValue(key))
-	}
-
 	deviceType := firstNonEmpty(
-		fromForm("device_type"),
-		fromForm("deviceType"),
-		strings.TrimSpace(r.URL.Query().Get("device_type")),
-		strings.TrimSpace(r.URL.Query().Get("deviceType")),
-		strings.TrimSpace(r.Header.Get("X-RSM-Device-Type")),
+		helperFieldValue(r, formValue, []string{"device_type", "deviceType"}, []string{"X-RSM-Device-Type"}),
 	)
 	fingerprint := firstNonEmpty(
-		fromForm("fingerprint"),
-		strings.TrimSpace(r.URL.Query().Get("fingerprint")),
-		strings.TrimSpace(r.Header.Get("X-RSM-Fingerprint")),
+		helperFieldValue(r, formValue, []string{"fingerprint"}, []string{"X-RSM-Fingerprint"}),
 	)
 	return helperIdentity{DeviceType: deviceType, Fingerprint: fingerprint}
+}
+
+func extractHelperMetadata(r *http.Request, formValue func(string) string) helperMetadata {
+	return helperMetadata{
+		Hostname: helperFieldValue(r, formValue,
+			[]string{"hostname", "host_name", "helper_hostname", "helperHostname"},
+			[]string{"X-RSM-Hostname"},
+		),
+		HelperName: helperFieldValue(r, formValue,
+			[]string{"helper_name", "helperName", "client_name", "clientName"},
+			[]string{"X-RSM-Helper-Name"},
+		),
+		HelperVersion: helperFieldValue(r, formValue,
+			[]string{"helper_version", "helperVersion", "client_version", "clientVersion"},
+			[]string{"X-RSM-Helper-Version"},
+		),
+		Platform: helperFieldValue(r, formValue,
+			[]string{"platform", "os", "os_name", "osName"},
+			[]string{"X-RSM-Platform"},
+		),
+		SyncPaths: normalizeHelperPaths(helperListFieldValues(r, formValue,
+			[]string{"sync_paths", "syncPaths", "sync_path", "syncPath", "save_root", "saveRoot", "save_roots", "saveRoots"},
+			[]string{"X-RSM-Sync-Paths"},
+		)),
+		ReportedSystemSlugs: normalizeAllowedSystemSlugs(helperListFieldValues(r, formValue,
+			[]string{"systems", "system_slugs", "systemSlugs", "supported_systems", "supportedSystems"},
+			[]string{"X-RSM-Systems"},
+		)),
+		LastSeenIP:        requestClientIP(r),
+		LastSeenUserAgent: strings.TrimSpace(r.Header.Get("User-Agent")),
+	}
+}
+
+func helperFieldValue(r *http.Request, formValue func(string) string, formKeys []string, headerKeys []string) string {
+	for _, key := range formKeys {
+		if formValue != nil {
+			if value := strings.TrimSpace(formValue(key)); value != "" {
+				return value
+			}
+		}
+		if r != nil {
+			for _, value := range r.Form[key] {
+				if trimmed := strings.TrimSpace(value); trimmed != "" {
+					return trimmed
+				}
+			}
+			for _, value := range r.URL.Query()[key] {
+				if trimmed := strings.TrimSpace(value); trimmed != "" {
+					return trimmed
+				}
+			}
+		}
+	}
+	if r != nil {
+		for _, key := range headerKeys {
+			for _, value := range r.Header.Values(key) {
+				if trimmed := strings.TrimSpace(value); trimmed != "" {
+					return trimmed
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func helperListFieldValues(r *http.Request, formValue func(string) string, formKeys []string, headerKeys []string) []string {
+	out := make([]string, 0, 8)
+	for _, key := range formKeys {
+		if formValue != nil {
+			out = append(out, splitHelperListField(formValue(key))...)
+		}
+		if r != nil {
+			for _, value := range r.Form[key] {
+				out = append(out, splitHelperListField(value)...)
+			}
+			for _, value := range r.URL.Query()[key] {
+				out = append(out, splitHelperListField(value)...)
+			}
+		}
+	}
+	if r != nil {
+		for _, key := range headerKeys {
+			for _, value := range r.Header.Values(key) {
+				out = append(out, splitHelperListField(value)...)
+			}
+		}
+	}
+	return out
+}
+
+func splitHelperListField(raw string) []string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		var values []string
+		if err := json.Unmarshal([]byte(trimmed), &values); err == nil {
+			out := make([]string, 0, len(values))
+			for _, value := range values {
+				if value = strings.TrimSpace(value); value != "" {
+					out = append(out, value)
+				}
+			}
+			return out
+		}
+	}
+	parts := strings.FieldsFunc(trimmed, func(r rune) bool {
+		return r == ',' || r == ';' || r == '\n' || r == '|'
+	})
+	if len(parts) == 0 {
+		return []string{trimmed}
+	}
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func requestClientIP(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	for _, header := range []string{"X-Forwarded-For", "X-Real-IP"} {
+		value := strings.TrimSpace(r.Header.Get(header))
+		if value == "" {
+			continue
+		}
+		if header == "X-Forwarded-For" {
+			value = strings.TrimSpace(strings.Split(value, ",")[0])
+		}
+		if value != "" {
+			return value
+		}
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err == nil {
+		return strings.TrimSpace(host)
+	}
+	return strings.TrimSpace(r.RemoteAddr)
 }
 
 func extractHelperAppPassword(r *http.Request, formValue func(string) string) string {
@@ -100,6 +243,7 @@ func firstNonEmpty(values ...string) string {
 
 func (a *app) authorizeHelperSyncRequest(w http.ResponseWriter, r *http.Request, formValue func(string) string) (helperAuthContext, bool) {
 	identity := extractHelperIdentity(r, formValue)
+	metadata := extractHelperMetadata(r, formValue)
 	rawKey := extractHelperAppPassword(r, formValue)
 	isHelperRequest := strings.TrimSpace(rawKey) != "" || identity.hasAnyMarker()
 	if !isHelperRequest {
@@ -107,7 +251,7 @@ func (a *app) authorizeHelperSyncRequest(w http.ResponseWriter, r *http.Request,
 	}
 
 	if strings.TrimSpace(rawKey) == "" {
-		ctx, status, msg := a.authenticateHelperWithoutKey(identity)
+		ctx, status, msg := a.authenticateHelperWithoutKey(identity, metadata)
 		if status != 0 {
 			errorLabel := "Unauthorized"
 			if status == http.StatusBadRequest {
@@ -131,7 +275,7 @@ func (a *app) authorizeHelperSyncRequest(w http.ResponseWriter, r *http.Request,
 		return helperAuthContext{}, false
 	}
 
-	ctx, status, msg := a.authenticateHelperKey(compact, identity)
+	ctx, status, msg := a.authenticateHelperKey(compact, identity, metadata)
 	if status != 0 {
 		errorLabel := "Forbidden"
 		if status == http.StatusBadRequest {
@@ -148,7 +292,7 @@ func (a *app) authorizeHelperSyncRequest(w http.ResponseWriter, r *http.Request,
 	return ctx, true
 }
 
-func (a *app) authenticateHelperWithoutKey(identity helperIdentity) (helperAuthContext, int, string) {
+func (a *app) authenticateHelperWithoutKey(identity helperIdentity, metadata helperMetadata) (helperAuthContext, int, string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -163,10 +307,11 @@ func (a *app) authenticateHelperWithoutKey(identity helperIdentity) (helperAuthC
 	if !foundDevice {
 		boundDevice = a.upsertDeviceLocked(identity.DeviceType, identity.Fingerprint)
 	}
+	now := time.Now().UTC()
+	boundDevice = applyHelperMetadataToDevice(boundDevice, metadata, now)
 
 	if existingKeyID, hasExistingKey := a.appPasswordIDForDeviceLocked(boundDevice.ID); hasExistingKey {
 		record := a.appPasswords[existingKeyID]
-		now := time.Now().UTC()
 		record.LastUsed = &now
 		a.appPasswords[existingKeyID] = record
 		boundDevice.LastSyncedAt = now
@@ -178,7 +323,7 @@ func (a *app) authenticateHelperWithoutKey(identity helperIdentity) (helperAuthC
 	}
 
 	name := defaultDeviceDisplayName(identity.DeviceType, identity.Fingerprint)
-	record, plainTextKey := a.createAppPasswordLocked(name, time.Now().UTC())
+	record, plainTextKey := a.createAppPasswordLocked(name, now)
 	a.bindAppPasswordToDeviceLocked(record.ID, boundDevice)
 	_ = a.persistSecurityDeviceStateLocked()
 
@@ -192,7 +337,7 @@ func (a *app) authenticateHelperWithoutKey(identity helperIdentity) (helperAuthC
 	}, 0, ""
 }
 
-func (a *app) authenticateHelperKey(compactKey string, identity helperIdentity) (helperAuthContext, int, string) {
+func (a *app) authenticateHelperKey(compactKey string, identity helperIdentity, metadata helperMetadata) (helperAuthContext, int, string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -241,6 +386,7 @@ func (a *app) authenticateHelperKey(compactKey string, identity helperIdentity) 
 	}
 
 	now := time.Now().UTC()
+	boundDevice = applyHelperMetadataToDevice(boundDevice, metadata, now)
 	record.BoundDeviceType = strings.TrimSpace(identity.DeviceType)
 	record.BoundFingerprint = strings.TrimSpace(identity.Fingerprint)
 	record.BoundDeviceID = &boundDevice.ID

@@ -96,11 +96,17 @@ func TestHelperAutoEnrollmentWindowAllowsNoKeyProvisioning(t *testing.T) {
 	}
 
 	authorized := h.multipart("/saves", map[string]string{
-		"rom_sha1":    "auto-enroll-rom-ok",
-		"slotName":    "default",
-		"system":      "snes",
-		"device_type": "linux-x86",
-		"fingerprint": "deck-auto",
+		"rom_sha1":       "auto-enroll-rom-ok",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "deck-auto",
+		"hostname":       "mister-01.example.invalid",
+		"helper_name":    "RSM Helper",
+		"helper_version": "1.4.0",
+		"platform":       "MiSTer",
+		"sync_paths":     "/media/fat/saves/SNES;/media/fat/saves/PSX",
+		"systems":        "snes,psx",
 	}, "file", "auto-authorized.srm", []byte("auto-authorized"))
 	assertStatus(t, authorized, http.StatusOK)
 	if headerValue := authorized.Header().Get("X-RSM-Auto-App-Password"); headerValue == "" {
@@ -114,6 +120,29 @@ func TestHelperAutoEnrollmentWindowAllowsNoKeyProvisioning(t *testing.T) {
 	deviceObject := mustObject(t, deviceBody["device"], "device")
 	if deviceObject["boundAppPasswordId"] == nil {
 		t.Fatalf("expected auto-provisioned device to have bound app password: %s", prettyJSON(deviceObject))
+	}
+	if mustString(t, deviceObject["hostname"], "hostname") != "mister-01.example.invalid" {
+		t.Fatalf("expected hostname metadata to persist: %s", prettyJSON(deviceObject))
+	}
+	if mustString(t, deviceObject["helperName"], "helperName") != "RSM Helper" {
+		t.Fatalf("expected helperName metadata to persist: %s", prettyJSON(deviceObject))
+	}
+	if mustString(t, deviceObject["helperVersion"], "helperVersion") != "1.4.0" {
+		t.Fatalf("expected helperVersion metadata to persist: %s", prettyJSON(deviceObject))
+	}
+	if mustString(t, deviceObject["platform"], "platform") != "MiSTer" {
+		t.Fatalf("expected platform metadata to persist: %s", prettyJSON(deviceObject))
+	}
+	if mustString(t, deviceObject["lastSeenIp"], "lastSeenIp") == "" {
+		t.Fatalf("expected lastSeenIp metadata to persist: %s", prettyJSON(deviceObject))
+	}
+	syncPaths := mustArray(t, deviceObject["syncPaths"], "syncPaths")
+	if len(syncPaths) != 2 {
+		t.Fatalf("expected syncPaths metadata to persist: %s", prettyJSON(deviceObject))
+	}
+	reportedSystems := mustArray(t, deviceObject["reportedSystemSlugs"], "reportedSystemSlugs")
+	if len(reportedSystems) != 2 {
+		t.Fatalf("expected reportedSystemSlugs metadata to persist: %s", prettyJSON(deviceObject))
 	}
 
 	appPasswordsResp := h.request(http.MethodGet, "/auth/app-passwords", nil)
@@ -214,6 +243,44 @@ func TestAuthTokenAppPasswordAutoProvisionRequiresWindow(t *testing.T) {
 	plainTextKey := mustString(t, allowedBody["plainTextKey"], "plainTextKey")
 	if _, _, ok := normalizeAppPasswordInput(plainTextKey); !ok {
 		t.Fatalf("expected auth/token/app-password to return key format XXX-XXX, got %q", plainTextKey)
+	}
+}
+
+func TestAuthTokenAppPasswordPersistsHelperMetadata(t *testing.T) {
+	h := newContractHarness(t)
+
+	enable := h.json(http.MethodPost, "/auth/app-passwords/auto-enroll", strings.NewReader(`{"minutes":15}`))
+	assertStatus(t, enable, http.StatusOK)
+
+	allowed := h.json(http.MethodPost, "/auth/token/app-password", strings.NewReader(`{
+		"name":"Living Room MiSTer",
+		"deviceType":"mister",
+		"fingerprint":"mister-token",
+		"hostname":"mister-02.example.invalid",
+		"helperName":"RSM Helper",
+		"helperVersion":"2.0.1",
+		"platform":"MiSTer",
+		"syncPaths":["/media/fat/saves/SNES","/media/fat/saves/PSX"],
+		"systems":["snes","psx"]
+	}`))
+	assertStatus(t, allowed, http.StatusOK)
+
+	deviceID := findDeviceIDByFingerprint(t, h, "mister-token")
+	deviceResp := h.request(http.MethodGet, fmt.Sprintf("/devices/%d", deviceID), nil)
+	assertStatus(t, deviceResp, http.StatusOK)
+	deviceBody := decodeJSONMap(t, deviceResp.Body)
+	deviceObject := mustObject(t, deviceBody["device"], "device")
+	if mustString(t, deviceObject["hostname"], "hostname") != "mister-02.example.invalid" {
+		t.Fatalf("expected hostname metadata on token auto-provisioned device: %s", prettyJSON(deviceObject))
+	}
+	if mustString(t, deviceObject["helperVersion"], "helperVersion") != "2.0.1" {
+		t.Fatalf("expected helperVersion metadata on token auto-provisioned device: %s", prettyJSON(deviceObject))
+	}
+	if mustString(t, deviceObject["platform"], "platform") != "MiSTer" {
+		t.Fatalf("expected platform metadata on token auto-provisioned device: %s", prettyJSON(deviceObject))
+	}
+	if len(mustArray(t, deviceObject["reportedSystemSlugs"], "reportedSystemSlugs")) != 2 {
+		t.Fatalf("expected reported systems on token auto-provisioned device: %s", prettyJSON(deviceObject))
 	}
 }
 

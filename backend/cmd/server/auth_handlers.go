@@ -47,10 +47,20 @@ func (a *app) handleAuthTokenAppPassword(w http.ResponseWriter, r *http.Request)
 	_ = requestPrincipal(r)
 
 	var payload struct {
-		Name          string `json:"name"`
-		DeviceType    string `json:"device_type"`
-		DeviceTypeAlt string `json:"deviceType"`
-		Fingerprint   string `json:"fingerprint"`
+		Name          string   `json:"name"`
+		DeviceType    string   `json:"device_type"`
+		DeviceTypeAlt string   `json:"deviceType"`
+		Fingerprint   string   `json:"fingerprint"`
+		Hostname      string   `json:"hostname"`
+		HelperName    string   `json:"helper_name"`
+		HelperNameAlt string   `json:"helperName"`
+		HelperVersion string   `json:"helper_version"`
+		HelperVerAlt  string   `json:"helperVersion"`
+		Platform      string   `json:"platform"`
+		SyncPaths     []string `json:"syncPaths"`
+		SyncPathsAlt  []string `json:"sync_paths"`
+		Systems       []string `json:"systems"`
+		SystemSlugs   []string `json:"systemSlugs"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&payload)
 
@@ -87,6 +97,16 @@ func (a *app) handleAuthTokenAppPassword(w http.ResponseWriter, r *http.Request)
 	}
 
 	deviceRecord := a.upsertDeviceLocked(deviceType, fingerprint)
+	deviceRecord = applyHelperMetadataToDevice(deviceRecord, helperMetadata{
+		Hostname:            strings.TrimSpace(payload.Hostname),
+		HelperName:          firstNonEmpty(payload.HelperName, payload.HelperNameAlt),
+		HelperVersion:       firstNonEmpty(payload.HelperVersion, payload.HelperVerAlt),
+		Platform:            strings.TrimSpace(payload.Platform),
+		SyncPaths:           append(append([]string(nil), payload.SyncPaths...), payload.SyncPathsAlt...),
+		ReportedSystemSlugs: append(append([]string(nil), payload.Systems...), payload.SystemSlugs...),
+		LastSeenIP:          requestClientIP(r),
+		LastSeenUserAgent:   strings.TrimSpace(r.Header.Get("User-Agent")),
+	}, now)
 	if existingKeyID, hasExistingKey := a.appPasswordIDForDeviceLocked(deviceRecord.ID); hasExistingKey {
 		delete(a.appPasswords, existingKeyID)
 	}

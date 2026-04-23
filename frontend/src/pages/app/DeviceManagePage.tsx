@@ -17,7 +17,7 @@ export function DeviceManagePage(): JSX.Element {
 
   const loader = useCallback(async () => {
     if (!Number.isFinite(deviceId) || deviceId <= 0) {
-      throw new Error("Ongeldig device id");
+      throw new Error("Invalid device id");
     }
     const [device, systems] = await Promise.all([getDevice(deviceId), listSaveSystems()]);
     return { device, systems };
@@ -93,18 +93,18 @@ export function DeviceManagePage(): JSX.Element {
         syncAll,
         allowedSystemSlugs: syncAll ? [] : allowedSystems
       });
-      setSaveMessage("Device settings opgeslagen");
+      setSaveMessage("Device settings saved");
       reload();
     } catch (err: unknown) {
-      setSaveError(err instanceof Error ? err.message : "Opslaan mislukt");
+      setSaveError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <SectionCard title="Manage Device" subtitle="Hernoem het device en beheer welke consoles mogen syncen.">
-      {loading ? <LoadingState label="Device laden..." /> : null}
+    <SectionCard title="Manage Device" subtitle="Rename the helper and choose which consoles it may sync.">
+      {loading ? <LoadingState label="Loading device..." /> : null}
       {error ? <ErrorState message={error} /> : null}
       {saveError ? <ErrorState message={saveError} /> : null}
       {saveMessage ? <p className="success-state">{saveMessage}</p> : null}
@@ -120,13 +120,13 @@ export function DeviceManagePage(): JSX.Element {
             <input
               value={alias}
               onChange={(event) => setAlias(event.target.value)}
-              placeholder="Bijv. SteamDeck"
+              placeholder="For example: Steam Deck"
             />
           </label>
 
           <label className="sync-toggle-row">
             <input type="checkbox" checked={syncAll} onChange={(event) => setSyncAll(event.target.checked)} />
-            <span>Console sync: All</span>
+            <span>Console sync: all supported systems</span>
           </label>
 
           {!syncAll ? (
@@ -135,7 +135,7 @@ export function DeviceManagePage(): JSX.Element {
                 <details key={group.manufacturer} className="device-group" open>
                   <summary>
                     <strong>{group.manufacturer}</strong>
-                    <span>{group.systems.length} consoles</span>
+                    <span>{group.systems.length} systems</span>
                   </summary>
                   <div className="device-group__list">
                     {group.systems.map((system) => {
