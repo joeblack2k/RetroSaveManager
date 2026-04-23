@@ -1,5 +1,7 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { clearFrontendAuthSession, isFrontendAuthRequired } from "../../services/authSession";
+import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus } from "../../services/retrosaveApi";
 
 const appNav: Array<{ label: string; to: string }> = [
   { label: "My Saves", to: "/app/my-games" },
@@ -37,6 +39,8 @@ export function AppLayout(): JSX.Element {
           ))}
         </nav>
 
+        <SidebarHelperPanel />
+
         <div className="side-nav__spacer" />
 
         {authRequired ? (
@@ -53,4 +57,109 @@ export function AppLayout(): JSX.Element {
       </main>
     </div>
   );
+}
+
+function SidebarHelperPanel(): JSX.Element {
+  const [enabledUntil, setEnabledUntil] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [loading, setLoading] = useState(true);
+  const [activating, setActivating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStatus(): Promise<void> {
+      try {
+        const status = await getAutoAppPasswordEnrollmentStatus();
+        if (!cancelled) {
+          setEnabledUntil(status.active ? status.enabledUntil ?? null : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setEnabledUntil(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const remainingSeconds = useMemo(() => {
+    if (!enabledUntil) {
+      return 0;
+    }
+    const target = Date.parse(enabledUntil);
+    if (Number.isNaN(target)) {
+      return 0;
+    }
+    return Math.max(0, Math.ceil((target - now) / 1000));
+  }, [enabledUntil, now]);
+
+  useEffect(() => {
+    if (!enabledUntil || remainingSeconds <= 0) {
+      if (enabledUntil && remainingSeconds <= 0) {
+        setEnabledUntil(null);
+      }
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [enabledUntil, remainingSeconds]);
+
+  async function handleActivate(): Promise<void> {
+    setActivating(true);
+    try {
+      const status = await enableAutoAppPasswordEnrollment(15);
+      setNow(Date.now());
+      setEnabledUntil(status.active ? status.enabledUntil ?? null : null);
+    } catch {
+      setEnabledUntil(null);
+    } finally {
+      setActivating(false);
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="sidebar-helper" aria-label="Helper pairing">
+      <p className="sidebar-helper__eyebrow">Helper pairing</p>
+      <p className="sidebar-helper__copy">Open a 15 minute helper window.</p>
+      <div className="sidebar-helper__control">
+        {enabledUntil && remainingSeconds > 0 ? (
+          <div className="sidebar-helper__timer" role="status" aria-live="polite">
+            {formatSidebarHelperCountdown(remainingSeconds)}
+          </div>
+        ) : (
+          <button
+            className="sidebar-helper__button"
+            type="button"
+            onClick={() => void handleActivate()}
+            disabled={loading || activating}
+          >
+            {activating ? "Opening..." : "Add helper"}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatSidebarHelperCountdown(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }

@@ -5,8 +5,6 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import { apiBaseForUi } from "../../services/apiClient";
 import {
   createAppPassword,
-  enableAutoAppPasswordEnrollment,
-  getAutoAppPasswordEnrollmentStatus,
   getCurrentUser,
   listAppPasswords,
   revokeAppPassword
@@ -15,12 +13,8 @@ import { formatBytes, formatDate } from "../../utils/format";
 
 export function SettingsPage(): JSX.Element {
   const loader = useCallback(async () => {
-    const [user, appPasswords, autoEnrollment] = await Promise.all([
-      getCurrentUser(),
-      listAppPasswords(),
-      getAutoAppPasswordEnrollmentStatus()
-    ]);
-    return { user, appPasswords, autoEnrollment };
+    const [user, appPasswords] = await Promise.all([getCurrentUser(), listAppPasswords()]);
+    return { user, appPasswords };
   }, []);
   const { loading, error, data, reload } = useAsyncData(loader, []);
 
@@ -29,8 +23,6 @@ export function SettingsPage(): JSX.Element {
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [enablingAutoEnrollment, setEnablingAutoEnrollment] = useState(false);
-
   async function onGenerate(event: FormEvent): Promise<void> {
     event.preventDefault();
     setGenerateBusy(true);
@@ -74,19 +66,6 @@ export function SettingsPage(): JSX.Element {
     }
   }
 
-  async function onEnableAutoEnrollment(): Promise<void> {
-    setEnablingAutoEnrollment(true);
-    setActionError(null);
-    try {
-      await enableAutoAppPasswordEnrollment(15);
-      reload();
-    } catch (err: unknown) {
-      setActionError(err instanceof Error ? err.message : "Auto password venster activeren mislukt");
-    } finally {
-      setEnablingAutoEnrollment(false);
-    }
-  }
-
   return (
     <SectionCard title="Settings" subtitle="Runtime en device-auth instellingen voor deze web app.">
       <p>
@@ -121,17 +100,7 @@ export function SettingsPage(): JSX.Element {
           <div className="stack compact">
             <h3>App Passwords</h3>
             <p>Genereer per helper/device een aparte sleutel. De sleutel wordt maar één keer volledig getoond.</p>
-            <div className="inline-actions">
-              <button className="btn btn-ghost" type="button" onClick={() => void onEnableAutoEnrollment()} disabled={enablingAutoEnrollment}>
-                {enablingAutoEnrollment ? "Activating..." : "Enable auto passwords for 15min"}
-              </button>
-              <small>
-                Auto-enroll:{" "}
-                {data.autoEnrollment.active
-                  ? `active tot ${formatDate(data.autoEnrollment.enabledUntil ?? null)}`
-                  : "uitgeschakeld"}
-              </small>
-            </div>
+            <small>Use the sidebar Add helper control to open a temporary 15 minute helper window.</small>
           </div>
 
           <form className="inline-actions" onSubmit={(event) => void onGenerate(event)}>
