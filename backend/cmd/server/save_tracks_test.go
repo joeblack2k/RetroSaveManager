@@ -8,10 +8,10 @@ import (
 func TestCanonicalTrackDedupesFilenameVariantsInListAndHistory(t *testing.T) {
 	h := newContractHarness(t)
 
-	first := uploadSave(t, h, "/saves", map[string]string{}, "Star Fox 64 (USA).eep", []byte("star-fox-v1"))
+	first := uploadSave(t, h, "/saves", map[string]string{}, "Star Fox 64 (USA).eep", buildTestN64Payload("eep", "star-fox-v1"))
 	firstID := mustString(t, mustObject(t, first["save"], "save")["id"], "save.id")
 
-	second := uploadSave(t, h, "/saves", map[string]string{}, "Star Fox 64 (USA) (Rev 1).eep", []byte("star-fox-v2"))
+	second := uploadSave(t, h, "/saves", map[string]string{}, "Star Fox 64 (USA) (Rev 1).eep", buildTestN64Payload("eep", "star-fox-v2"))
 	secondID := mustString(t, mustObject(t, second["save"], "save")["id"], "save.id")
 
 	list := h.request(http.MethodGet, "/saves?limit=20&offset=0", nil)
@@ -58,8 +58,8 @@ func TestCanonicalTrackDedupesFilenameVariantsInListAndHistory(t *testing.T) {
 func TestCanonicalTrackSeparatesRegions(t *testing.T) {
 	h := newContractHarness(t)
 
-	uploadSave(t, h, "/saves", map[string]string{}, "Wave Race 64 (USA).eep", []byte("wave-race-us"))
-	uploadSave(t, h, "/saves", map[string]string{}, "Wave Race 64 (Japan).eep", []byte("wave-race-jp"))
+	uploadSave(t, h, "/saves", map[string]string{}, "Wave Race 64 (USA).eep", buildTestN64Payload("eep", "wave-race-us"))
+	uploadSave(t, h, "/saves", map[string]string{}, "Wave Race 64 (Japan).eep", buildTestN64Payload("eep", "wave-race-jp"))
 
 	list := h.request(http.MethodGet, "/saves?limit=20&offset=0", nil)
 	assertStatus(t, list, http.StatusOK)

@@ -38,6 +38,8 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 	switch systemSlug {
 	case "dreamcast":
 		return validateDreamcastSave(input, normalized)
+	case "n64":
+		return validateN64Save(input, detection)
 	case "saturn":
 		return validateSaturnSave(input, normalized)
 	case "genesis", "master-system", "game-gear":

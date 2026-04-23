@@ -176,7 +176,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 		"system":       "n64",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-policy",
-	}, "policy-n64.eep", []byte("n64-before-policy"))
+	}, "policy-n64.eep", buildTestN64Payload("eep", "n64-before-policy"))
 	blockedBeforePolicyID := mustString(t, mustObject(t, blockedBeforePolicy["save"], "save")["id"], "save.id")
 
 	deviceID := findDeviceIDByFingerprint(t, h, "deck-policy")
@@ -191,7 +191,7 @@ func TestHelperPolicyEnforcedForUploadLatestAndDownload(t *testing.T) {
 		"system":       "n64",
 		"device_type":  "linux-x86",
 		"fingerprint":  "deck-policy",
-	}, "file", "policy-n64-2.eep", []byte("n64-after-policy"))
+	}, "file", "policy-n64-2.eep", buildTestN64Payload("eep", "n64-after-policy"))
 	assertStatus(t, blockedUpload, http.StatusForbidden)
 
 	allowedUpload := uploadSave(t, h, "/saves", map[string]string{

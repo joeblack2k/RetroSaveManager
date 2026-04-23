@@ -94,7 +94,7 @@ func TestContractSaveLatestMissingAndSuccessShape(t *testing.T) {
 		}
 	}
 
-	uploadSave(t, h, "/saves", map[string]string{"rom_sha1": "rom-success", "slotName": "default", "system": "n64"}, "slot1.eep", []byte("save-latest-success"))
+	uploadSave(t, h, "/saves", map[string]string{"rom_sha1": "rom-success", "slotName": "default", "system": "n64"}, "slot1.eep", buildTestN64Payload("eep", "save-latest-success"))
 	success := h.request(http.MethodGet, "/save/latest?romSha1=rom-success&slotName=default", nil)
 	assertStatus(t, success, http.StatusOK)
 	successBody := decodeJSONMap(t, success.Body)
@@ -165,14 +165,14 @@ func TestContractSaveHistoryAndRollbackPromoteCopy(t *testing.T) {
 	first := uploadSave(t, h, "/saves", map[string]string{
 		"rom_sha1": "rollback-rom",
 		"slotName": "slot-a",
-	}, "Yoshi's Story (USA) (En,Ja).eep", []byte("rollback-v1"))
+	}, "Yoshi's Story (USA) (En,Ja).eep", buildTestN64Payload("eep", "rollback-v1"))
 	firstSave := mustObject(t, first["save"], "save")
 	firstID := mustString(t, firstSave["id"], "save.id")
 
 	second := uploadSave(t, h, "/saves", map[string]string{
 		"rom_sha1": "rollback-rom",
 		"slotName": "slot-a",
-	}, "Yoshi's Story (USA) (En,Ja).eep", []byte("rollback-v2"))
+	}, "Yoshi's Story (USA) (En,Ja).eep", buildTestN64Payload("eep", "rollback-v2"))
 	secondID := mustString(t, mustObject(t, second["save"], "save")["id"], "save.id")
 
 	historyBefore := h.request(http.MethodGet, "/save?saveId="+firstID, nil)

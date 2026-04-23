@@ -37,7 +37,7 @@ func TestAgentAPIOverviewAndSystems(t *testing.T) {
 		"rom_sha1": "agent-overview-rom",
 		"slotName": "default",
 		"system":   "n64",
-	}, "Mario Kart 64 (USA).eep", []byte("agent-overview-save"))
+	}, "Mario Kart 64 (USA).eep", buildTestN64Payload("eep", "agent-overview-save"))
 
 	overview := h.request(http.MethodGet, "/api/overview", nil)
 	assertStatus(t, overview, http.StatusOK)
@@ -81,7 +81,7 @@ func TestAgentAPISaveAndRomFlow(t *testing.T) {
 		"rom_md5":  "agent-rom-md5",
 		"slotName": "default",
 		"system":   "n64",
-	}, "Star Fox 64 (USA).eep", []byte("agent-save-v1"))
+	}, "Star Fox 64 (USA).eep", buildTestN64Payload("eep", "agent-save-v1"))
 	save := mustObject(t, upload["save"], "save")
 	saveID := mustString(t, save["id"], "save.id")
 
@@ -143,7 +143,7 @@ func TestAgentAPIRescan(t *testing.T) {
 		"rom_sha1": "agent-rescan-rom",
 		"slotName": "default",
 		"system":   "n64",
-	}, "Wave Race 64 (USA).eep", []byte("agent-rescan-save"))
+	}, "Wave Race 64 (USA).eep", buildTestN64Payload("eep", "agent-rescan-save"))
 
 	rr := h.json(http.MethodPost, "/api/saves/rescan", strings.NewReader(`{"dryRun":false,"pruneUnsupported":true}`))
 	assertStatus(t, rr, http.StatusOK)
@@ -166,7 +166,7 @@ func TestAgentAPILogs(t *testing.T) {
 		"rom_sha1": "agent-log-rom",
 		"slotName": "default",
 		"system":   "n64",
-	}, "F-Zero X (USA).eep", []byte("agent-log-save"))
+	}, "F-Zero X (USA).eep", buildTestN64Payload("eep", "agent-log-save"))
 
 	rr := h.request(http.MethodGet, "/api/logs?hours=72&page=1&limit=50", nil)
 	assertStatus(t, rr, http.StatusOK)
