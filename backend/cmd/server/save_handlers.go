@@ -17,6 +17,25 @@ import (
 	"time"
 )
 
+func unsupportedSaveRejectReason(err error) string {
+	if err == nil || !errors.Is(err, errUnsupportedSaveFormat) {
+		return ""
+	}
+	full := strings.TrimSpace(err.Error())
+	if full == "" {
+		return ""
+	}
+	base := errUnsupportedSaveFormat.Error()
+	if full == base {
+		return ""
+	}
+	prefix := base + ":"
+	if strings.HasPrefix(full, prefix) {
+		return strings.TrimSpace(strings.TrimPrefix(full, prefix))
+	}
+	return full
+}
+
 func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
@@ -144,16 +163,22 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		}
 		preview := a.normalizeSaveInputDetailed(input)
 		if preview.Rejected || !isSupportedSystemSlug(preview.Input.SystemSlug) {
+			rejectReason := strings.TrimSpace(preview.RejectReason)
+			logMessage := errUnsupportedSaveFormat.Error()
+			if rejectReason != "" {
+				logMessage = logMessage + ": " + rejectReason
+			}
 			a.appendSyncLog(syncLogInput{
 				DeviceName:   deviceName,
 				Action:       "upload",
 				Game:         syncLogGameLabelFromFilename(filename),
-				ErrorMessage: errUnsupportedSaveFormat.Error(),
+				ErrorMessage: logMessage,
 				SystemSlug:   preview.Input.SystemSlug,
 			})
 			writeJSON(w, http.StatusUnprocessableEntity, apiError{
 				Error:      "Unprocessable Entity",
 				Message:    errUnsupportedSaveFormat.Error(),
+				Reason:     rejectReason,
 				StatusCode: http.StatusUnprocessableEntity,
 			})
 			return
@@ -226,7 +251,12 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				SystemSlug:   preview.Input.SystemSlug,
 			})
 			if errors.Is(err, errUnsupportedSaveFormat) {
-				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: errUnsupportedSaveFormat.Error(), StatusCode: http.StatusUnprocessableEntity})
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{
+					Error:      "Unprocessable Entity",
+					Message:    errUnsupportedSaveFormat.Error(),
+					Reason:     unsupportedSaveRejectReason(err),
+					StatusCode: http.StatusUnprocessableEntity,
+				})
 				return
 			}
 			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
@@ -304,12 +334,17 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				SystemSlug:   safeMultipartSystemSlug("", gameInfo.System),
 			})
 			if errors.Is(err, errUnsupportedSaveFormat) {
-				errorCount++
-				results = append(results, map[string]any{
+				rejectReason := unsupportedSaveRejectReason(err)
+				result := map[string]any{
 					"filename": item.Filename,
 					"success":  false,
 					"error":    errUnsupportedSaveFormat.Error(),
-				})
+				}
+				if rejectReason != "" {
+					result["reason"] = rejectReason
+				}
+				errorCount++
+				results = append(results, result)
 				continue
 			}
 			errorCount++
@@ -772,7 +807,12 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, errUnsupportedSaveFormat) {
-			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: errUnsupportedSaveFormat.Error(), StatusCode: http.StatusUnprocessableEntity})
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{
+				Error:      "Unprocessable Entity",
+				Message:    errUnsupportedSaveFormat.Error(),
+				Reason:     unsupportedSaveRejectReason(err),
+				StatusCode: http.StatusUnprocessableEntity,
+			})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})

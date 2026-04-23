@@ -18,6 +18,7 @@ type tokenResponse struct {
 type apiError struct {
 	Error      string `json:"error"`
 	Message    string `json:"message"`
+	Reason     string `json:"reason,omitempty"`
 	StatusCode int    `json:"statusCode"`
 }
 

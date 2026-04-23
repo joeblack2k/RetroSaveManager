@@ -1,6 +1,6 @@
 # Sega Saturn Backend + Helper Contract
 
-Last updated: 2026-04-23 13:25 Europe/Amsterdam
+Last updated: 2026-04-23 14:18 Europe/Amsterdam
 
 ## Goal
 
@@ -54,16 +54,17 @@ If those checks pass, backend stores the file as a normal save track and adds Sa
 
 ### Saturn-specific Errors
 
-The backend must return Saturn-specific `422` reasons for Saturn rejects:
+Saturn validation itself already produces specific reject reasons:
 
 - `saturn requires a validated backup RAM image`
 - `saturn backup RAM image has no active save entries`
 
-The generic error:
+Current API behavior:
 
-- `unsupported or unrecognized save format; only known consoles/arcade are allowed`
-
-should no longer be the Saturn failure mode on a current build.
+- upload routes keep the stable generic `422` message  
+  `unsupported or unrecognized save format; only known consoles/arcade are allowed`
+- when available, backend now also returns a specific `reason` field in the same error response
+  (for example `saturn backup RAM image has no active save entries`)
 
 ### Download Conversions
 
@@ -84,6 +85,11 @@ The backend supports these Saturn download targets through `saturnFormat`:
 
 Without `saturnFormat`, the original stored payload is returned.
 
+For `bup`, `ymir`, and `ymbp`:
+
+- if the Saturn image contains multiple entries, caller must provide `saturnEntry=<entry filename>`
+- without `saturnEntry`, backend returns an explicit bad request error
+
 ### Helper-facing Endpoints
 
 The Saturn helper flow is expected to work through:
@@ -92,11 +98,18 @@ The Saturn helper flow is expected to work through:
 - `GET /save/latest`
 - `GET /saves/download`
 
-With helper-auth semantics:
+API aliases:
+
+- primary agent API bases are `/api` and `/api/v1`
+- helper compatibility routes at `/` and `/v1` remain valid for current helper builds
+
+With helper-auth semantics (when auth mode is enabled):
 
 - app-password required outside auto-enroll window
 - key bound to `device_type + fingerprint`
 - no silent rebinding to a different helper identity
+
+When auth mode is disabled, requests without app-password are accepted, but helper identity metadata should still be sent.
 
 For MiSTer Saturn, runtime identity remains:
 
@@ -202,4 +215,4 @@ Saturn is considered stable when all of these hold:
 ## Open Items
 
 - Add and validate a real `Alien Trilogy (USA).sav` fixture before marking that title/path as supported
-- Expand helper logging so skipped Saturn files are clearly visible in diagnostics
+- Add helper ingest support for Mednafen cartridge source files (`.bcr` and optionally `.bcr.gz`) if we want parity for that local-save shape
