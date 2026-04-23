@@ -71,16 +71,19 @@ type memoryCardDetails struct {
 }
 
 type saveInspection struct {
-	ParserLevel       string         `json:"parserLevel,omitempty"`
-	ParserID          string         `json:"parserId,omitempty"`
-	ValidatedSystem   string         `json:"validatedSystem,omitempty"`
-	Evidence          []string       `json:"evidence,omitempty"`
-	Warnings          []string       `json:"warnings,omitempty"`
-	PayloadSizeBytes  int            `json:"payloadSizeBytes,omitempty"`
-	SlotCount         int            `json:"slotCount,omitempty"`
-	ActiveSlotIndexes []int          `json:"activeSlotIndexes,omitempty"`
-	ChecksumValid     *bool          `json:"checksumValid,omitempty"`
-	SemanticFields    map[string]any `json:"semanticFields,omitempty"`
+	ParserLevel        string         `json:"parserLevel,omitempty"`
+	ParserID           string         `json:"parserId,omitempty"`
+	ValidatedSystem    string         `json:"validatedSystem,omitempty"`
+	ValidatedGameID    string         `json:"validatedGameId,omitempty"`
+	ValidatedGameTitle string         `json:"validatedGameTitle,omitempty"`
+	TrustLevel         string         `json:"trustLevel,omitempty"`
+	Evidence           []string       `json:"evidence,omitempty"`
+	Warnings           []string       `json:"warnings,omitempty"`
+	PayloadSizeBytes   int            `json:"payloadSizeBytes,omitempty"`
+	SlotCount          int            `json:"slotCount,omitempty"`
+	ActiveSlotIndexes  []int          `json:"activeSlotIndexes,omitempty"`
+	ChecksumValid      *bool          `json:"checksumValid,omitempty"`
+	SemanticFields     map[string]any `json:"semanticFields,omitempty"`
 }
 
 type saveSummary struct {

@@ -108,18 +108,59 @@ func validateN64Save(input saveCreateInput, detection saveSystemDetectionResult)
 		warnings = append(warnings, "Payload is extremely sparse; title-specific semantic validation is not available yet")
 	}
 
+	parserID := "n64-save-media"
+	parserLevel := saveParserLevelContainer
+	trustLevel := n64TrustLevelMediaOnly
+	slotCount := 0
+	activeSlotIndexes := []int(nil)
+	var checksumValid *bool
+	semanticFields := map[string]any{
+		"extension":    ext,
+		"mediaType":    profile.mediaType,
+		"nonZeroBytes": nonZeroBytes,
+	}
+	validatedGameID := ""
+	validatedGameTitle := ""
+	for _, validator := range n64GameValidators {
+		result, ok := validator.Validate(n64ValidationContext{
+			Extension: ext,
+			MediaType: profile.mediaType,
+			Filename:  input.Filename,
+			ROMSHA1:   input.ROMSHA1,
+		}, input.Payload)
+		if !ok {
+			continue
+		}
+		parserID = validator.ID()
+		parserLevel = result.ParserLevel
+		trustLevel = firstNonEmpty(result.TrustLevel, n64TrustLevelGameValidated)
+		validatedGameID = strings.TrimSpace(result.GameID)
+		validatedGameTitle = strings.TrimSpace(result.GameTitle)
+		evidence = append(evidence, result.Evidence...)
+		warnings = append(warnings, result.Warnings...)
+		slotCount = result.SlotCount
+		activeSlotIndexes = append([]int(nil), result.ActiveSlotIndexes...)
+		checksumValid = result.ChecksumValid
+		for key, value := range result.SemanticFields {
+			semanticFields[key] = value
+		}
+		break
+	}
+
 	inspection := &saveInspection{
-		ParserLevel:      saveParserLevelContainer,
-		ParserID:         "n64-save-media",
-		ValidatedSystem:  "n64",
-		Evidence:         evidence,
-		Warnings:         warnings,
-		PayloadSizeBytes: len(input.Payload),
-		SemanticFields: map[string]any{
-			"extension":    ext,
-			"mediaType":    profile.mediaType,
-			"nonZeroBytes": nonZeroBytes,
-		},
+		ParserLevel:        parserLevel,
+		ParserID:           parserID,
+		ValidatedSystem:    "n64",
+		ValidatedGameID:    validatedGameID,
+		ValidatedGameTitle: validatedGameTitle,
+		TrustLevel:         trustLevel,
+		Evidence:           evidence,
+		Warnings:           warnings,
+		PayloadSizeBytes:   len(input.Payload),
+		SlotCount:          slotCount,
+		ActiveSlotIndexes:  activeSlotIndexes,
+		ChecksumValid:      checksumValid,
+		SemanticFields:     semanticFields,
 	}
 	return consoleValidationResult{Inspection: inspection}
 }
