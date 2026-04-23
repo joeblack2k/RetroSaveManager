@@ -82,6 +82,14 @@ cd deploy
 ./scripts/pull-up.sh macvlan
 ```
 
+4. Optional backup retention cleanup:
+
+```bash
+cd deploy
+./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7 --dry-run
+./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7
+```
+
 Development-only local image build:
 
 ```bash

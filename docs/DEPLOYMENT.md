@@ -76,3 +76,33 @@ Set these backend env vars in `deploy/.env` to enable live cover lookup:
 - `IGDB_CLIENT_ID`
 - `IGDB_CLIENT_SECRET`
 - `RAWG_API_KEY`
+
+## Backup Retention
+
+If you keep host-side deploy backups outside the repo checkout, prune them with:
+
+```bash
+cd deploy
+./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7 --dry-run
+./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7
+```
+
+Behavior:
+
+- keeps the newest `N` backup directories regardless of age
+- also keeps any backup directory newer than `KEEP_DAYS`
+- only prunes immediate child directories below the chosen backup root
+- never touches `deploy/data/config` or `deploy/data/saves`
+- respects an optional `.keep` marker inside a backup directory
+
+For host automation, run the same script from a systemd timer or cron job with explicit `--root`, `--keep-recent`, and `--keep-days` values.
+
+Example systemd install:
+
+```bash
+sudo install -D -m 0644 deploy/systemd/retrosavemanager-backup-retention.service /etc/systemd/system/retrosavemanager-backup-retention.service
+sudo install -D -m 0644 deploy/systemd/retrosavemanager-backup-retention.timer /etc/systemd/system/retrosavemanager-backup-retention.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now retrosavemanager-backup-retention.timer
+sudo systemctl start retrosavemanager-backup-retention.service
+```

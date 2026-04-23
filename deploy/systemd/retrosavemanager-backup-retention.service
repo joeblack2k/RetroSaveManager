@@ -1,0 +1,9 @@
+[Unit]
+Description=RetroSaveManager backup retention cleanup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/retrosavemanager/deploy/scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7
+

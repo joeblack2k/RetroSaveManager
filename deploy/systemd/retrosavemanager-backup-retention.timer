@@ -1,0 +1,9 @@
+[Unit]
+Description=Run RetroSaveManager backup retention cleanup daily
+
+[Timer]
+OnCalendar=*-*-* 04:17:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

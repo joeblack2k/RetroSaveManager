@@ -107,6 +107,24 @@ curl -fsS 'http://<deploy-host>/saves?limit=5&offset=0'
 curl -fsS http://<deploy-host>/app/my-games > /dev/null
 ```
 
+Backup retention cleanup:
+
+```bash
+cd <workspace-root>/RetroSaveManager/deploy
+./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7 --dry-run
+./scripts/prune-backups.sh --root /srv/retrosavemanager/backups --keep-recent 4 --keep-days 7
+```
+
+Optional host timer install:
+
+```bash
+sudo install -D -m 0644 deploy/systemd/retrosavemanager-backup-retention.service /etc/systemd/system/retrosavemanager-backup-retention.service
+sudo install -D -m 0644 deploy/systemd/retrosavemanager-backup-retention.timer /etc/systemd/system/retrosavemanager-backup-retention.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now retrosavemanager-backup-retention.timer
+sudo systemctl start retrosavemanager-backup-retention.service
+```
+
 ## Session Checklist
 
 1. Read `AGENTS.md`, this file, and `README.md`.
