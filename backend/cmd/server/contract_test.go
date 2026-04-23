@@ -112,6 +112,57 @@ func TestContractSaveLatestMissingAndSuccessShape(t *testing.T) {
 	}
 }
 
+func TestContractSaveLatestHelperNonPlayStationDoesNotRequireRuntimeProfile(t *testing.T) {
+	h := newContractHarness(t)
+	helperKey := createHelperAppPassword(t, h, "", "latest-non-ps-helper")
+
+	uploadSave(t, h, "/saves", map[string]string{
+		"app_password": helperKey,
+		"rom_sha1":     "gb-rom-latest",
+		"slotName":     "default",
+		"system":       "gameboy",
+		"device_type":  "retroarch",
+		"fingerprint":  "deck-non-ps",
+	}, "Pokemon Red.sav", []byte("non-ps-save"))
+
+	latest := helperGET(
+		t,
+		h,
+		"/save/latest?romSha1=gb-rom-latest&slotName=default&device_type=retroarch&fingerprint=deck-non-ps",
+		helperKey,
+	)
+	assertStatus(t, latest, http.StatusOK)
+	assertJSONContentType(t, latest)
+
+	body := decodeJSONMap(t, latest.Body)
+	if !mustBool(t, body["success"], "success") || !mustBool(t, body["exists"], "exists") {
+		t.Fatalf("expected helper latest check to succeed without runtimeProfile for non-PS systems: %s", prettyJSON(body))
+	}
+	if mustString(t, body["id"], "id") == "" {
+		t.Fatalf("expected non-empty save id")
+	}
+}
+
+func TestContractSaveLatestHelperPlayStationStillRequiresRuntimeProfile(t *testing.T) {
+	h := newContractHarness(t)
+	helperKey := createHelperAppPassword(t, h, "", "latest-ps-helper")
+
+	latest := helperGET(
+		t,
+		h,
+		"/save/latest?romSha1=psx::retroarch::memory-card-1&slotName=Memory%20Card%201&device_type=retroarch&fingerprint=deck-ps",
+		helperKey,
+	)
+	assertStatus(t, latest, http.StatusBadRequest)
+	assertJSONContentType(t, latest)
+
+	body := decodeJSONMap(t, latest.Body)
+	message := mustString(t, body["message"], "message")
+	if !strings.Contains(strings.ToLower(message), "runtimeprofile is required for playstation helper latest checks") {
+		t.Fatalf("unexpected validation message: %s", prettyJSON(body))
+	}
+}
+
 func TestContractSavesMultipartSuccessAndMissingFileFailure(t *testing.T) {
 	h := newContractHarness(t)
 	helperKey := createHelperAppPassword(t, h, "", "contract-helper")

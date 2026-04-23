@@ -70,9 +70,11 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-		} else if runtimeProfile == "" && helperProjectionDeviceType(helperCtx.Device.DeviceType) != "" && slotName != "" {
-			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for PlayStation helper latest checks", StatusCode: http.StatusBadRequest})
-			return
+		} else if runtimeProfile == "" {
+			if _, _, projectionCheck := helperProjectionIdentity(helperCtx.Device.DeviceType, slotName); projectionCheck {
+				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for PlayStation helper latest checks", StatusCode: http.StatusBadRequest})
+				return
+			}
 		}
 	}
 
