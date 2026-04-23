@@ -344,7 +344,7 @@ func TestDetectSaveSystemRejectsStoredFallbackArcadeWithoutMachineEvidence(t *te
 	}
 }
 
-func TestDetectSaveSystemRecognizesStrictNeoGeoSave(t *testing.T) {
+func TestDetectSaveSystemDoesNotPromoteNeoGeoFromPayloadAlone(t *testing.T) {
 	payload := make([]byte, neoGeoCompoundSaveSize)
 	for i := 0; i < neoGeoSaveRAMSize; i++ {
 		payload[i] = 0xff
@@ -358,11 +358,8 @@ func TestDetectSaveSystemRecognizesStrictNeoGeoSave(t *testing.T) {
 		DisplayTitle: "doubledr",
 		Payload:      payload,
 	})
-	if detected.Slug != "neogeo" {
-		t.Fatalf("expected strict neo geo detection, got %q", detected.Slug)
-	}
-	if detected.System == nil || detected.System.Slug != "neogeo" {
-		t.Fatalf("expected neo geo system details, got %#v", detected.System)
+	if detected.System != nil || detected.Slug != "unknown-system" {
+		t.Fatalf("expected neo geo payload without trusted console evidence to stay unknown, got slug=%q system=%#v", detected.Slug, detected.System)
 	}
 }
 
@@ -381,7 +378,33 @@ func TestDetectSaveSystemDoesNotPromoteNeoGeoWithoutKnownSetName(t *testing.T) {
 		Payload:      payload,
 	})
 	if detected.System != nil || detected.Slug != "unknown-system" {
-		t.Fatalf("expected unknown system without trusted neo geo set-name, got slug=%q system=%#v", detected.Slug, detected.System)
+		t.Fatalf("expected unknown system without trusted neo geo evidence, got slug=%q system=%#v", detected.Slug, detected.System)
+	}
+}
+
+func TestDetectSaveSystemRecognizesNewSuperMarioBrosNDSSignature(t *testing.T) {
+	payload := make([]byte, 8192)
+	copy(payload[2:], []byte("Mario2d"))
+	copy(payload[258:], []byte("Mario2d"))
+	copy(payload[898:], []byte("Mario2d"))
+	copy(payload[1538:], []byte("Mario2d"))
+	copy(payload[4098:], []byte("Mario2d"))
+	copy(payload[4354:], []byte("Mario2d"))
+
+	detected := detectSaveSystem(saveSystemDetectionInput{
+		Filename:             "New Super Mario Bros. (USA).sav",
+		DisplayTitle:         "New Super Mario Bros.",
+		Payload:              payload,
+		DeclaredSystemSlug:   "gameboy",
+		DeclaredSystem:       &system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"},
+		DeclaredFallbackOnly: true,
+		TrustedStoredSystem:  true,
+	})
+	if detected.Slug != "nds" {
+		t.Fatalf("expected NSMB DS payload to override stale gameboy fallback, got %q", detected.Slug)
+	}
+	if detected.System == nil || detected.System.Slug != "nds" {
+		t.Fatalf("expected Nintendo DS system details, got %#v", detected.System)
 	}
 }
 

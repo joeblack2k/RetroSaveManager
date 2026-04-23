@@ -339,6 +339,7 @@ func multipartBody(t *testing.T, fields map[string]string, fileField, fileName s
 		if err != nil {
 			t.Fatalf("create multipart file %s: %v", fileName, err)
 		}
+		payload = normalizeTestUploadPayload(fields, fileName, payload)
 		if _, err := part.Write(payload); err != nil {
 			t.Fatalf("write multipart payload: %v", err)
 		}

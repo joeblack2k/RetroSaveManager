@@ -5,7 +5,7 @@
     {
       "createdAt": "<timestamp>",
       "displayTitle": "Wario Land II",
-      "fileSize": 17,
+      "fileSize": 8192,
       "filename": "Wario Land II.srm",
       "format": "sram",
       "game": {
@@ -25,7 +25,28 @@
         }
       },
       "id": "<redacted>",
-      "latestSizeBytes": 17,
+      "inspection": {
+        "evidence": [
+          "validated raw save class",
+          "extension=srm",
+          "payloadSize=8192",
+          "nonZeroBytes=35",
+          "trusted stored system"
+        ],
+        "parserId": "gameboy-raw-sram",
+        "parserLevel": "container",
+        "payloadSizeBytes": 8192,
+        "semanticFields": {
+          "extension": "srm",
+          "nonZeroBytes": 35
+        },
+        "trustLevel": "media-only",
+        "validatedSystem": "gameboy",
+        "warnings": [
+          "No structural Game Boy save decoder is available yet for this raw SRAM payload"
+        ]
+      },
+      "latestSizeBytes": 8192,
       "latestVersion": 1,
       "metadata": {
         "rsm": {
@@ -50,9 +71,9 @@
       "regionCode": "UNKNOWN",
       "regionFlag": "unknown",
       "saveCount": 1,
-      "sha256": "6f1535549c71b4cfb9f193123e8dca7912db841cf87d46e4336ec5d9c19f0e48",
+      "sha256": "3f9f617bfc458f57076fdb02d15a6f77a8a035c9c9232d816c100c51b4a08137",
       "systemSlug": "gameboy",
-      "totalSizeBytes": 17,
+      "totalSizeBytes": 8192,
       "version": 1
     }
   ],

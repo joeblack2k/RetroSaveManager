@@ -134,10 +134,6 @@ type saveSystemDetectionResult struct {
 	Evidence   saveDetectionEvidence
 }
 
-var strictNeoGeoSetNames = map[string]struct{}{
-	"doubledr": {},
-}
-
 var numberedSaveSlotTitlePattern = regexp.MustCompile(`^\s*[0-9]{1,3}\s*-\s*[A-Za-z]`)
 
 func allSupportedSystems() []system {
@@ -335,8 +331,8 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 			candidate.payload = true
 		})
 	}
-	if isLikelyStrictNeoGeoSave(filename, displayTitle, payload) {
-		setScore("neogeo", 97, "known neo geo set-name with strict save layout", func(candidate *detectionCandidate) {
+	if hasNewSuperMarioBrosNDSSignature(payload) {
+		setScore("nds", 98, "new super mario bros nds save signature", func(candidate *detectionCandidate) {
 			candidate.payload = true
 		})
 	}
@@ -520,28 +516,14 @@ func hasGBABackupSignature(payload []byte) bool {
 	return strings.Contains(upper, "EEPROM_V") || strings.Contains(upper, "SRAM_V") || strings.Contains(upper, "FLASH_V") || strings.Contains(upper, "FLASH1M_V")
 }
 
-func isLikelyStrictNeoGeoSave(filename, displayTitle string, payload []byte) bool {
-	if !isKnownNeoGeoSetName(filename, displayTitle) {
+func hasNewSuperMarioBrosNDSSignature(payload []byte) bool {
+	if len(payload) != 8192 {
 		return false
 	}
-	return hasStrictNeoGeoSaveLayout(payload)
-}
-
-func isKnownNeoGeoSetName(filename, displayTitle string) bool {
-	candidates := []string{
-		strings.TrimSuffix(filepath.Base(strings.TrimSpace(filename)), filepath.Ext(strings.TrimSpace(filename))),
-		strings.TrimSpace(displayTitle),
+	if looksLikeMostlyTextPayload(payload) {
+		return false
 	}
-	for _, candidate := range candidates {
-		key := canonicalSegment(candidate, "")
-		if key == "" {
-			continue
-		}
-		if _, ok := strictNeoGeoSetNames[key]; ok {
-			return true
-		}
-	}
-	return false
+	return bytes.Count(payload, []byte("Mario2d")) >= 6
 }
 
 func hasStrictNeoGeoSaveLayout(payload []byte) bool {

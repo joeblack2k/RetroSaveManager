@@ -229,11 +229,11 @@ func (a *app) bootstrapSeedSave() error {
 	gbc := system{ID: 19, Name: "Nintendo Game Boy", Slug: "gameboy"}
 	_, err := a.createSave(saveCreateInput{
 		Filename:            "Wario Land II.srm",
-		Payload:             []byte("seed-save-content"),
+		Payload:             bootstrapSeedGameBoyPayload(),
 		Game:                game{ID: 281, Name: "Wario Land II", Boxart: nil, BoxartThumb: nil, HasParser: false, System: &gbc},
 		Format:              "sram",
 		Metadata:            nil,
-		ROMSHA1:             "",
+		ROMSHA1:             "bootstrap-wario-land-ii-rom",
 		ROMMD5:              "",
 		SlotName:            "default",
 		SystemSlug:          gbc.Slug,
@@ -242,6 +242,17 @@ func (a *app) bootstrapSeedSave() error {
 		CreatedAt:           time.Unix(1700000000, 0).UTC(),
 	})
 	return err
+}
+
+func bootstrapSeedGameBoyPayload() []byte {
+	payload := make([]byte, 8192)
+	for idx := 0; idx < len(payload); idx += 257 {
+		payload[idx] = 0x19
+	}
+	payload[32] = 0x42
+	payload[33] = 0x10
+	payload[34] = 0x7A
+	return payload
 }
 
 func (a *app) createSave(input saveCreateInput) (saveRecord, error) {

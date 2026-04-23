@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -226,12 +227,12 @@ func TestRescanSavesPrunesPlayStationSaveStateNoise(t *testing.T) {
 	}
 }
 
-func TestRescanSavesPrunesNintendoDSStoredFallbackMetadataWithoutTrustedEvidence(t *testing.T) {
+func TestRescanSavesReclassifiesNintendoDSStoredFallbackWhenPayloadMatches(t *testing.T) {
 	h := newContractHarness(t)
 
 	record, err := h.app.createSave(saveCreateInput{
 		Filename:            "New Super Mario Bros. (USA).sav",
-		Payload:             make([]byte, 8192),
+		Payload:             buildNSMBNDSSaveFixture(),
 		Game:                game{Name: "New Super Mario Bros."},
 		Format:              "sram",
 		ROMSHA1:             "nds-rom-sha1",
@@ -274,8 +275,8 @@ func TestRescanSavesPrunesNintendoDSStoredFallbackMetadataWithoutTrustedEvidence
 	if err != nil {
 		t.Fatalf("rescan ds save: %v", err)
 	}
-	if result.Removed < 1 {
-		t.Fatalf("expected stale DS fallback save to be removed, got %+v", result)
+	if result.Updated < 1 {
+		t.Fatalf("expected stale DS fallback save to be reclassified, got %+v", result)
 	}
 
 	records := h.app.snapshotSaveRecords()
@@ -283,18 +284,15 @@ func TestRescanSavesPrunesNintendoDSStoredFallbackMetadataWithoutTrustedEvidence
 		if candidate.Summary.DisplayTitle != "New Super Mario Bros." {
 			continue
 		}
-		t.Fatalf("expected stale fallback DS record to be pruned, still found %+v", candidate)
-	}
-	for _, rejection := range result.Rejections {
-		if rejection.SaveID != record.Summary.ID {
-			continue
+		if candidate.SystemSlug != "nds" {
+			t.Fatalf("expected NSMB save to be reclassified to nds, got %+v", candidate)
 		}
-		if rejection.Reason == "" {
-			t.Fatalf("expected rejection reason for pruned DS record, got %+v", rejection)
+		if candidate.Summary.Inspection == nil || candidate.Summary.Inspection.ParserID != "nds-new-super-mario-bros" {
+			t.Fatalf("expected NSMB DS inspection metadata, got %+v", candidate.Summary.Inspection)
 		}
 		return
 	}
-	t.Fatalf("expected rejection entry for pruned DS record, got %+v", result.Rejections)
+	t.Fatalf("expected stale DS record %s after rescan", record.Summary.ID)
 }
 
 func TestRescanSavesPrunesGenericStoredFallbackSlots(t *testing.T) {
@@ -444,87 +442,57 @@ func TestRescanSavesPrunesStoredFallbackArcadeGuesses(t *testing.T) {
 	}
 }
 
-func TestRescanSavesReclassifiesStrictNeoGeoSetSave(t *testing.T) {
+func TestRescanSavesPrunesBlankTrustedNeoGeoSave(t *testing.T) {
 	h := newContractHarness(t)
-	records := h.app.snapshotSaveRecords()
-	if len(records) == 0 {
-		t.Fatal("expected seeded save record")
-	}
-
-	seed := records[0]
-	dir := filepath.Join(filepath.Dir(seed.dirPath), "Game Boy Advance", "doubledr", "neogeo-doubledr-1")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir strict neogeo dir: %v", err)
-	}
-
-	payload := make([]byte, neoGeoCompoundSaveSize)
-	for i := 0; i < neoGeoSaveRAMSize; i++ {
-		payload[i] = 0xff
-	}
-	for i := neoGeoSaveRAMSize; i < len(payload); i += 2 {
-		payload[i] = byte((i / 2) % 251)
-	}
-
-	payloadPath := filepath.Join(dir, "payload.sav")
-	if err := os.WriteFile(payloadPath, payload, 0o644); err != nil {
-		t.Fatalf("write strict neogeo payload: %v", err)
-	}
-
-	record := seed
-	record.dirPath = dir
-	record.payloadPath = payloadPath
-	record.PayloadFile = "payload.sav"
-	record.SystemSlug = "gba"
-	record.SystemPath = "Game Boy Advance"
-	record.GamePath = "doubledr"
-	record.GameSlug = "doubledr"
-	record.Summary.ID = "neogeo-doubledr-1"
-	record.Summary.Filename = "doubledr.sav"
-	record.Summary.DisplayTitle = "doubledr"
-	record.Summary.Format = "sram"
-	record.Summary.SystemSlug = "gba"
-	record.Summary.Game = game{
-		ID:           deterministicGameID("doubledr"),
-		Name:         "doubledr",
-		DisplayTitle: "doubledr",
-		System:       &system{ID: 24, Name: "Game Boy Advance", Slug: "gba"},
-	}
-
-	metadataBytes, err := json.MarshalIndent(record, "", "  ")
+	record, err := h.app.createSave(saveCreateInput{
+		Filename:            "doubledr.sav",
+		Payload:             buildValidNeoGeoCompoundPayload(),
+		Game:                game{Name: "doubledr"},
+		Format:              "sram",
+		ROMSHA1:             "neogeo-doubledr-rom",
+		SlotName:            "default",
+		SystemSlug:          "neogeo",
+		GameSlug:            "doubledr",
+		TrustedHelperSystem: true,
+	})
 	if err != nil {
-		t.Fatalf("marshal strict neogeo metadata: %v", err)
+		t.Fatalf("create trusted neo geo save: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "metadata.json"), metadataBytes, 0o644); err != nil {
-		t.Fatalf("write strict neogeo metadata: %v", err)
+	blank := make([]byte, neoGeoCompoundSaveSize)
+	for i := range blank {
+		blank[i] = 0xff
+	}
+	if err := os.WriteFile(record.payloadPath, blank, 0o644); err != nil {
+		t.Fatalf("overwrite neo geo payload with blank media: %v", err)
+	}
+	if err := h.app.reloadSavesFromDisk(); err != nil {
+		t.Fatalf("reload neo geo saves: %v", err)
 	}
 
 	result, err := h.app.rescanSaves(saveRescanOptions{DryRun: false, PruneUnsupported: true})
 	if err != nil {
-		t.Fatalf("rescan strict neogeo save: %v", err)
+		t.Fatalf("rescan blank neo geo save: %v", err)
 	}
-	if result.Updated < 1 {
-		t.Fatalf("expected strict neogeo save to be updated, got %+v", result)
+	if result.Removed < 1 {
+		t.Fatalf("expected blank neo geo save to be pruned, got %+v", result)
 	}
-
-	records = h.app.snapshotSaveRecords()
-	found := false
-	for _, candidate := range records {
-		if candidate.Summary.ID != "neogeo-doubledr-1" {
+	for _, candidate := range h.app.snapshotSaveRecords() {
+		if candidate.Summary.ID == record.Summary.ID {
+			t.Fatalf("expected blank neo geo save to be pruned, still found %+v", candidate)
+		}
+	}
+	foundRejection := false
+	for _, rejection := range result.Rejections {
+		if rejection.SaveID != record.Summary.ID {
 			continue
 		}
-		found = true
-		if candidate.SystemSlug != "neogeo" {
-			t.Fatalf("expected neogeo system slug after rescan, got %q", candidate.SystemSlug)
-		}
-		if candidate.Summary.Game.System == nil || candidate.Summary.Game.System.Slug != "neogeo" {
-			t.Fatalf("expected neogeo game system after rescan, got %#v", candidate.Summary.Game.System)
-		}
-		if candidate.SystemPath != "Neo Geo" {
-			t.Fatalf("expected Neo Geo system path after rescan, got %q", candidate.SystemPath)
+		foundRejection = true
+		if !strings.Contains(strings.ToLower(rejection.Reason), "neo geo") {
+			t.Fatalf("expected neo geo rejection reason, got %+v", rejection)
 		}
 	}
-	if !found {
-		t.Fatal("expected strict neogeo record after rescan")
+	if !foundRejection {
+		t.Fatalf("expected rejection entry for %s, got %+v", record.Summary.ID, result.Rejections)
 	}
 }
 

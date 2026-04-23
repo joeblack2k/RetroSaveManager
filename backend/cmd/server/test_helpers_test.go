@@ -88,6 +88,7 @@ func (h *contractHarness) multipart(path string, fields map[string]string, fileF
 		if err != nil {
 			h.t.Fatalf("create multipart file: %v", err)
 		}
+		payload = normalizeTestUploadPayload(fields, fileName, payload)
 		if _, err := part.Write(payload); err != nil {
 			h.t.Fatalf("write multipart payload: %v", err)
 		}
@@ -101,6 +102,50 @@ func (h *contractHarness) multipart(path string, fields map[string]string, fileF
 	req.Header.Set("Authorization", "Bearer ignored-in-no-auth")
 	req.Header.Set("X-CSRF-Protection", "1")
 	return h.do(req)
+}
+
+func normalizeTestUploadPayload(fields map[string]string, fileName string, payload []byte) []byte {
+	if len(payload) == 0 || !looksLikeMostlyTextPayload(payload) {
+		return payload
+	}
+
+	systemSlug := canonicalSegment(fields["system"], "")
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(strings.TrimSpace(fileName))), ".")
+	switch systemSlug {
+	case "gameboy":
+		if ext == "sav" || ext == "srm" || ext == "ram" || ext == "rtc" || ext == "gme" {
+			return buildNonBlankPayload(8192, 0x19)
+		}
+	case "snes":
+		if ext == "sav" || ext == "srm" || ext == "sa1" {
+			size := 2048
+			if ext == "sa1" {
+				size = 8192
+			}
+			return buildNonBlankPayload(size, 0x23)
+		}
+	case "gba":
+		if ext == "sav" || ext == "srm" || ext == "sa1" {
+			data := make([]byte, 32768)
+			copy(data[:16], []byte("SRAM_V113"))
+			return data
+		}
+	case "genesis", "master-system", "game-gear":
+		if ext == "sav" || ext == "srm" || ext == "ram" {
+			return buildNonBlankPayload(8192, 0x05)
+		}
+	case "n64":
+		switch ext {
+		case "eep":
+			return buildTestN64Payload("eep", "test-helper")
+		case "sra":
+			return buildTestN64Payload("sra", "test-helper")
+		case "fla":
+			return buildTestN64Payload("fla", "test-helper")
+		}
+	}
+
+	return payload
 }
 
 func decodeJSONMap(t *testing.T, body *bytes.Buffer) map[string]any {
