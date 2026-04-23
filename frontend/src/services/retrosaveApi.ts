@@ -12,7 +12,8 @@ import type {
   RoadmapSuggestion,
   SaveSystem,
   SaveHistoryResponse,
-  SaveSummary
+  SaveSummary,
+  SyncLogPage
 } from "./types";
 
 export function login(email: string, password: string): Promise<{ success: boolean; message: string }> {
@@ -154,6 +155,14 @@ export async function listConflicts(): Promise<Conflict[]> {
 export async function listDevices(): Promise<Device[]> {
   const response = await apiFetchJSON<{ devices: Device[] }>("/devices");
   return response.devices;
+}
+
+export function listSyncLogs(params?: { hours?: number; page?: number; limit?: number }): Promise<SyncLogPage> {
+  const search = new URLSearchParams();
+  search.set("hours", String(params?.hours ?? 72));
+  search.set("page", String(params?.page ?? 1));
+  search.set("limit", String(params?.limit ?? 50));
+  return apiFetchJSON<SyncLogPage>(`/logs?${search.toString()}`);
 }
 
 export async function getDevice(id: number): Promise<Device> {

@@ -104,6 +104,7 @@ func isReservedAPIPath(path string) bool {
 	}
 
 	prefixes := []string{
+		"/api",
 		"/v1",
 		"/auth",
 		"/save",
@@ -111,6 +112,7 @@ func isReservedAPIPath(path string) bool {
 		"/rom",
 		"/conflicts",
 		"/devices",
+		"/logs",
 		"/events",
 		"/games",
 		"/catalog",

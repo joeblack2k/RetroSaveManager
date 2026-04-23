@@ -22,6 +22,8 @@ func newRouter(app *app) http.Handler {
 
 	registerCompatRoutes(r, app, "")
 	registerCompatRoutes(r, app, "/v1")
+	registerAgentRoutes(r, app, "/api")
+	registerAgentRoutes(r, app, "/api/v1")
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		if isReservedAPIPath(r.URL.Path) {
@@ -130,6 +132,7 @@ func mountCompatRoutes(r chi.Router, app *app) {
 	r.Get("/devices/{id}", app.handleDevicesGet)
 	r.Patch("/devices/{id}", app.handleDevicesPatch)
 	r.Delete("/devices/{id}", app.handleDevicesDelete)
+	r.Get("/logs", app.handleSyncLogs)
 
 	r.Get("/events", app.handleEvents)
 }

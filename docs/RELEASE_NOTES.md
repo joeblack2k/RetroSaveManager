@@ -1,12 +1,18 @@
 # Release Notes
 
-## v0.1.2 - 2026-04-23
+## v0.1.3 - 2026-04-23
 
 ### Included
 
 - Security gate sanitization:
   - removed private-network fixture references from Saturn testdata notes
   - retained fixture hashes, sizes, and source-path examples without leaking internal host details
+- Agent and ops API expansion:
+  - added no-auth `/api` and `/api/v1` automation surface for saves, ROMs, devices, sync status, conflicts, helper auto-enroll, and logs
+  - added paginated sync-log endpoint for the last 72 hours of helper and web save activity
+- Logs UI:
+  - added `Logs` to the sidebar
+  - added a paginated web table for recent sync activity with device, action, game, and error state
 
 ### Validation Summary
 

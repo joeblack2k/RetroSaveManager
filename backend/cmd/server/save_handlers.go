@@ -112,6 +112,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		identity := extractHelperIdentity(r, formValue)
+		deviceName := syncLogDeviceNameFromHelperContext(helperCtx, identity)
 
 		file, header, err := r.FormFile("file")
 		if err != nil {
@@ -143,6 +144,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		}
 		preview := a.normalizeSaveInputDetailed(input)
 		if preview.Rejected || !isSupportedSystemSlug(preview.Input.SystemSlug) {
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   deviceName,
+				Action:       "upload",
+				Game:         syncLogGameLabelFromFilename(filename),
+				ErrorMessage: errUnsupportedSaveFormat.Error(),
+				SystemSlug:   preview.Input.SystemSlug,
+			})
 			writeJSON(w, http.StatusUnprocessableEntity, apiError{
 				Error:      "Unprocessable Entity",
 				Message:    errUnsupportedSaveFormat.Error(),
@@ -151,6 +159,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, preview.Input.SystemSlug) {
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   deviceName,
+				Action:       "upload",
+				Game:         syncLogGameLabelFromFilename(filename),
+				ErrorMessage: "this device is not allowed to sync saves for this console",
+				SystemSlug:   preview.Input.SystemSlug,
+			})
 			writeJSON(w, http.StatusForbidden, apiError{
 				Error:      "Forbidden",
 				Message:    "this device is not allowed to sync saves for this console",
@@ -164,6 +179,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			deviceType := firstNonEmpty(helperCtx.Device.DeviceType, identity.DeviceType)
 			record, conflict, err := a.createPlayStationProjectionSave(input, preview, deviceType, identity.Fingerprint)
 			if err != nil {
+				a.appendSyncLog(syncLogInput{
+					DeviceName:   deviceName,
+					Action:       "upload",
+					Game:         syncLogGameLabelFromFilename(filename),
+					ErrorMessage: err.Error(),
+					SystemSlug:   preview.Input.SystemSlug,
+				})
 				writeJSON(w, http.StatusUnprocessableEntity, apiError{
 					Error:      "Unprocessable Entity",
 					Message:    err.Error(),
@@ -177,6 +199,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			if !helperCtx.IsHelper && identity.isComplete() {
 				a.upsertDevice(identity.DeviceType, identity.Fingerprint)
 			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: deviceName,
+				Action:     "upload",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
 			writeJSON(w, http.StatusOK, map[string]any{
 				"success": true,
 				"save": map[string]any{
@@ -189,6 +218,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 
 		record, err := a.createSave(input)
 		if err != nil {
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   deviceName,
+				Action:       "upload",
+				Game:         syncLogGameLabelFromFilename(filename),
+				ErrorMessage: err.Error(),
+				SystemSlug:   preview.Input.SystemSlug,
+			})
 			if errors.Is(err, errUnsupportedSaveFormat) {
 				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: errUnsupportedSaveFormat.Error(), StatusCode: http.StatusUnprocessableEntity})
 				return
@@ -203,6 +239,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 
 		a.saveCreatedEvent(record)
 		a.resolveConflictForSave(record)
+		a.appendSyncLog(syncLogInput{
+			DeviceName: deviceName,
+			Action:     "upload",
+			Game:       syncLogGameLabelFromRecord(record),
+			SystemSlug: saveRecordSystemSlug(record),
+			SaveID:     record.Summary.ID,
+		})
 
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
@@ -227,6 +270,12 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 	for _, item := range req.Items {
 		payload, err := decodeSaveBatchData(item.Data)
 		if err != nil {
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   "Web UI",
+				Action:       "upload",
+				Game:         syncLogGameLabelFromFilename(item.Filename),
+				ErrorMessage: "invalid base64 data",
+			})
 			errorCount++
 			results = append(results, map[string]any{
 				"filename": item.Filename,
@@ -247,6 +296,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			GameSlug:   canonicalSegment(gameInfo.Name, "unknown-game"),
 		})
 		if err != nil {
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   "Web UI",
+				Action:       "upload",
+				Game:         syncLogGameLabelFromFilename(item.Filename),
+				ErrorMessage: err.Error(),
+				SystemSlug:   safeMultipartSystemSlug("", gameInfo.System),
+			})
 			if errors.Is(err, errUnsupportedSaveFormat) {
 				errorCount++
 				results = append(results, map[string]any{
@@ -276,6 +332,13 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		})
 		a.saveCreatedEvent(record)
 		a.resolveConflictForSave(record)
+		a.appendSyncLog(syncLogInput{
+			DeviceName: "Web UI",
+			Action:     "upload",
+			Game:       syncLogGameLabelFromRecord(record),
+			SystemSlug: saveRecordSystemSlug(record),
+			SaveID:     record.Summary.ID,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -635,6 +698,13 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 			return
 		}
+		a.appendSyncLog(syncLogInput{
+			DeviceName: "Web UI",
+			Action:     "rollback",
+			Game:       syncLogGameLabelFromRecord(record),
+			SystemSlug: saveRecordSystemSlug(record),
+			SaveID:     record.Summary.ID,
+		})
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success":      true,
 			"sourceSaveId": sourceRecord.Summary.ID,
@@ -655,6 +725,13 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 		}
 		a.saveCreatedEvent(record)
 		a.resolveConflictForSave(record)
+		a.appendSyncLog(syncLogInput{
+			DeviceName: "Web UI",
+			Action:     "rollback",
+			Game:       syncLogGameLabelFromRecord(record),
+			SystemSlug: saveRecordSystemSlug(record),
+			SaveID:     record.Summary.ID,
+		})
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success":      true,
 			"sourceSaveId": sourceRecord.Summary.ID,
@@ -704,6 +781,13 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 
 	a.saveCreatedEvent(newRecord)
 	a.resolveConflictForSave(newRecord)
+	a.appendSyncLog(syncLogInput{
+		DeviceName: "Web UI",
+		Action:     "rollback",
+		Game:       syncLogGameLabelFromRecord(newRecord),
+		SystemSlug: saveRecordSystemSlug(newRecord),
+		SaveID:     newRecord.Summary.ID,
+	})
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success":      true,
@@ -746,13 +830,21 @@ func (a *app) handleDeleteSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "id is required", StatusCode: http.StatusBadRequest})
 		return
 	}
-	if record, ok := a.findSaveRecordByID(saveID); ok {
+	record, ok := a.findSaveRecordByID(saveID)
+	if ok {
 		if psLogicalKey != "" {
 			remainingVersions, err := a.deletePlayStationLogicalSave(record, psLogicalKey)
 			if err != nil {
 				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 				return
 			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: "Web UI",
+				Action:     "delete",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
 			writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
 			return
 		}
@@ -762,6 +854,13 @@ func (a *app) handleDeleteSave(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 				return
 			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: "Web UI",
+				Action:     "delete",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
 			writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
 			return
 		}
@@ -776,6 +875,15 @@ func (a *app) handleDeleteSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
 		return
 	}
+	if ok {
+		a.appendSyncLog(syncLogInput{
+			DeviceName: "Web UI",
+			Action:     "delete",
+			Game:       syncLogGameLabelFromRecord(record),
+			SystemSlug: saveRecordSystemSlug(record),
+			SaveID:     record.Summary.ID,
+		})
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
 }
 
@@ -788,10 +896,20 @@ func (a *app) handleDeleteManySaves(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	deletedRecords := a.saveRecordsByIDs(ids)
 	remainingVersions, _, err := a.deleteSaveRecordsByIDs(ids)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 		return
+	}
+	for _, record := range deletedRecords {
+		a.appendSyncLog(syncLogInput{
+			DeviceName: "Web UI",
+			Action:     "delete",
+			Game:       syncLogGameLabelFromRecord(record),
+			SystemSlug: saveRecordSystemSlug(record),
+			SaveID:     record.Summary.ID,
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
 }
@@ -845,6 +963,13 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
 			return
 		}
+		a.appendSyncLog(syncLogInput{
+			DeviceName: firstNonEmpty(helperCtx.Device.DisplayName, "Web UI"),
+			Action:     "download",
+			Game:       syncLogGameLabelFromRecord(record),
+			SystemSlug: saveRecordSystemSlug(record),
+			SaveID:     record.Summary.ID,
+		})
 		if contentType == "" {
 			contentType = "application/octet-stream"
 		}
@@ -875,6 +1000,13 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	a.appendSyncLog(syncLogInput{
+		DeviceName: firstNonEmpty(helperCtx.Device.DisplayName, "Web UI"),
+		Action:     "download",
+		Game:       syncLogGameLabelFromRecord(record),
+		SystemSlug: saveRecordSystemSlug(record),
+		SaveID:     record.Summary.ID,
+	})
 	w.Header().Set("Content-Type", "application/octet-stream")
 	if contentType != "" {
 		w.Header().Set("Content-Type", contentType)
@@ -920,6 +1052,11 @@ func (a *app) handleDownloadManySaves(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 		return
 	}
+	a.appendSyncLog(syncLogInput{
+		DeviceName: firstNonEmpty(helperCtx.Device.DisplayName, "Web UI"),
+		Action:     "download_many",
+		Game:       fmt.Sprintf("%d saves", len(records)),
+	})
 
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="saves.zip"`)

@@ -16,6 +16,7 @@ import { DeviceManagePage } from "../pages/app/DeviceManagePage";
 import { DevicesPage } from "../pages/app/DevicesPage";
 import { GamesPage } from "../pages/app/GamesPage";
 import { MyGamesPage } from "../pages/app/MyGamesPage";
+import { LogsPage } from "../pages/app/LogsPage";
 import { SaveDetailPage } from "../pages/app/SaveDetailPage";
 import { SettingsPage } from "../pages/app/SettingsPage";
 import { hasFrontendAuthSession, isFrontendAuthRequired } from "../services/authSession";
@@ -114,6 +115,7 @@ export const appRouter = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/app/my-games" replace /> },
       { path: "my-games", element: <MyGamesPage /> },
+      { path: "logs", element: <LogsPage /> },
       { path: "games", element: <GamesPage /> },
       { path: "saves/:saveId", element: <SaveDetailPage /> },
       { path: "conflicts", element: <ConflictsPage /> },

@@ -127,6 +127,30 @@ export type Device = {
   createdAt: string;
 };
 
+export type SyncLogEntry = {
+  id: string;
+  createdAt: string;
+  deviceName: string;
+  action: string;
+  game: string;
+  error: boolean;
+  errorMessage?: string;
+  systemSlug?: string;
+  saveId?: string;
+  conflictId?: string;
+};
+
+export type SyncLogPage = {
+  success?: boolean;
+  generatedAt?: string;
+  hours: number;
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  logs: SyncLogEntry[];
+};
+
 export type AppPassword = {
   id: string;
   name: string;

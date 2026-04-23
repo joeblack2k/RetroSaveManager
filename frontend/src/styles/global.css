@@ -1686,6 +1686,106 @@ code {
   stroke-linejoin: round;
 }
 
+.logs-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.logs-panel__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9099ad;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.logs-panel__empty {
+  margin: 0;
+  color: #b6bece;
+  font-size: 12px;
+}
+
+.logs-table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(71, 78, 95, 0.72);
+  background: rgba(24, 28, 37, 0.92);
+}
+
+.logs-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.logs-table th {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(80, 87, 103, 0.74);
+  background: rgba(29, 33, 43, 0.94);
+  color: #f5f7fb;
+  font-size: 10px;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.logs-table td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(71, 78, 95, 0.72);
+  color: #edf1f7;
+  font-size: 11px;
+  line-height: 1.25;
+  vertical-align: top;
+}
+
+.logs-table tbody tr:hover {
+  background: rgba(37, 42, 54, 0.98);
+}
+
+.logs-table__game {
+  color: #f5f8fd;
+}
+
+.logs-table__message {
+  margin-top: 4px;
+  color: #9ea7bc;
+  font-size: 10px;
+}
+
+.logs-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(84, 96, 116, 0.72);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.logs-badge--ok {
+  border-color: rgba(80, 141, 104, 0.78);
+  background: rgba(18, 41, 26, 0.98);
+  color: #c8f5d3;
+}
+
+.logs-badge--error {
+  border-color: rgba(160, 87, 87, 0.84);
+  background: rgba(57, 20, 20, 0.98);
+  color: #ffd4d4;
+}
+
+.logs-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: #c2cada;
+  font-size: 11px;
+}
+
 @media (max-width: 1040px) {
   .app-shell {
     grid-template-columns: 1fr;

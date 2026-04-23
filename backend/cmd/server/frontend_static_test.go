@@ -81,6 +81,20 @@ func TestRouterUnknownAPIPathReturnsAPI404(t *testing.T) {
 	if strings.Contains(strings.ToLower(rr.Body.String()), "<html") {
 		t.Fatalf("expected api 404 payload instead of html body=%s", rr.Body.String())
 	}
+
+	rr = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/api/does-not-exist", nil)
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("unexpected api status: %d body=%s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("expected api json content type, got %q", rr.Header().Get("Content-Type"))
+	}
+	if strings.Contains(strings.ToLower(rr.Body.String()), "<html") {
+		t.Fatalf("expected api 404 payload instead of html body=%s", rr.Body.String())
+	}
 }
 
 func TestIsReservedAPIPath(t *testing.T) {
@@ -91,8 +105,13 @@ func TestIsReservedAPIPath(t *testing.T) {
 	}{
 		{name: "auth root", path: "/auth", want: true},
 		{name: "auth child", path: "/auth/me", want: true},
+		{name: "api root", path: "/api", want: true},
+		{name: "api child", path: "/api/saves", want: true},
+		{name: "apiish should not match api", path: "/apiish", want: false},
 		{name: "authentic should not match auth", path: "/authentic", want: false},
 		{name: "saves child", path: "/saves/download", want: true},
+		{name: "logs root", path: "/logs", want: true},
+		{name: "logs child", path: "/logs/archive", want: true},
 		{name: "catalog child", path: "/catalog/123", want: true},
 		{name: "healthz exact", path: "/healthz", want: true},
 		{name: "healthz child should not match", path: "/healthz/extra", want: false},

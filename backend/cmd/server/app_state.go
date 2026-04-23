@@ -38,6 +38,7 @@ type authStateSnapshot struct {
 type app struct {
 	mu                          sync.Mutex
 	securityStateFile           string
+	syncLogStateFile            string
 	autoAppPasswordEnabledUntil *time.Time
 	nextDeviceID                int
 	nextAppPasswordID           int
@@ -56,6 +57,7 @@ type app struct {
 	saveRecords                 []saveRecord
 	enricher                    *gameEnricher
 	conflicts                   map[string]conflictRecord
+	syncLogs                    []syncLogRecord
 	nextEventSubscriberID       int
 	eventSubscribers            map[int]chan sseEvent
 }
@@ -91,6 +93,7 @@ func newApp() *app {
 		nextLibraryID:     2,
 		nextSuggestionID:  2,
 		securityStateFile: securityDeviceStateFilePathFromEnv(),
+		syncLogStateFile:  syncLogStateFilePathFromEnv(),
 		devices: map[int]device{
 			1: {
 				ID:                 1,
@@ -151,11 +154,15 @@ func newApp() *app {
 		roadmapSuggestions: map[string]roadmapSuggestion{},
 		saves:              []saveSummary{},
 		saveRecords:        []saveRecord{},
+		syncLogs:           []syncLogRecord{},
 		enricher:           newGameEnricherFromEnv(),
 		conflicts:          map[string]conflictRecord{},
 		eventSubscribers:   map[int]chan sseEvent{},
 	}
 	if err := a.loadSecurityDeviceState(); err != nil {
+		// Keep in-memory defaults when persisted state is unavailable.
+	}
+	if err := a.loadSyncLogState(); err != nil {
 		// Keep in-memory defaults when persisted state is unavailable.
 	}
 	return a
@@ -366,6 +373,31 @@ func (a *app) reportConflict(romSHA1, slotName, localSHA256, cloudSHA256, device
 		"cloudSaveId":  record.CloudSaveID,
 		"status":       record.Status,
 	})
+	a.appendSyncLog(syncLogInput{
+		CreatedAt:  record.CreatedAt,
+		DeviceName: firstNonEmpty(record.DeviceName, "Unknown device"),
+		Action:     "conflict",
+		Game: firstNonEmpty(func() string {
+			if hasLatest {
+				return syncLogGameLabelFromRecord(latest)
+			}
+			return ""
+		}(), cleanFilename),
+		ErrorMessage: "Conflict detected",
+		SystemSlug: func() string {
+			if hasLatest {
+				return saveRecordSystemSlug(latest)
+			}
+			return ""
+		}(),
+		SaveID: func() string {
+			if hasLatest {
+				return latest.Summary.ID
+			}
+			return ""
+		}(),
+		ConflictID: record.ConflictID,
+	})
 	return record
 }
 
@@ -429,6 +461,25 @@ func (a *app) resolveConflictByID(id string) (conflictRecord, bool) {
 		"cloudSaveId":  resolved.CloudSaveID,
 		"status":       "resolved",
 	})
+	gameLabel := resolved.DeviceFilename
+	systemSlug := ""
+	saveID := ""
+	if resolved.CloudSaveID != nil {
+		saveID = strings.TrimSpace(*resolved.CloudSaveID)
+		if record, found := a.findSaveRecordByID(saveID); found {
+			gameLabel = syncLogGameLabelFromRecord(record)
+			systemSlug = saveRecordSystemSlug(record)
+		}
+	}
+	a.appendSyncLog(syncLogInput{
+		CreatedAt:  time.Now().UTC(),
+		DeviceName: firstNonEmpty(resolved.DeviceName, "System"),
+		Action:     "conflict_resolved",
+		Game:       firstNonEmpty(gameLabel, "Unknown"),
+		SystemSlug: systemSlug,
+		SaveID:     saveID,
+		ConflictID: resolved.ConflictID,
+	})
 	return resolved, true
 }
 
@@ -458,6 +509,15 @@ func (a *app) resolveConflictForSave(record saveRecord) {
 		"cloudVersion": version,
 		"cloudSaveId":  saveID,
 		"status":       "resolved",
+	})
+	a.appendSyncLog(syncLogInput{
+		CreatedAt:  time.Now().UTC(),
+		DeviceName: firstNonEmpty(conflict.DeviceName, "System"),
+		Action:     "conflict_resolved",
+		Game:       syncLogGameLabelFromRecord(record),
+		SystemSlug: saveRecordSystemSlug(record),
+		SaveID:     record.Summary.ID,
+		ConflictID: conflict.ConflictID,
 	})
 }
 

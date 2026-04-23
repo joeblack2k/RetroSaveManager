@@ -256,7 +256,7 @@ func normalizeForGolden(value any) any {
 					out[key] = "<redacted>"
 					continue
 				}
-			case "createdAt", "lastSeenAt", "lastSyncedAt", "time":
+			case "createdAt", "generatedAt", "lastSeenAt", "lastSyncedAt", "time":
 				if _, ok := child.(string); ok {
 					out[key] = "<timestamp>"
 					continue

@@ -19,6 +19,7 @@ func TestContractAliasParityForStableEndpoints(t *testing.T) {
 		{name: "auth me", path: "/auth/me"},
 		{name: "save latest missing", path: "/save/latest?romSha1=missing-rom"},
 		{name: "saves list envelope", path: "/saves?limit=2&offset=0"},
+		{name: "logs list envelope", path: "/logs?limit=2&page=1"},
 		{name: "devices list", path: "/devices"},
 		{name: "conflicts check missing", path: "/conflicts/check?romSha1=missing-rom&slotName=default"},
 		{name: "rom lookup", path: "/rom/lookup?filenameStem=Wario%20Land%20II"},
