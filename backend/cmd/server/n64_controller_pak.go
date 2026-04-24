@@ -132,6 +132,12 @@ type n64ControllerPakBuiltProjection struct {
 type n64ControllerPakImportResult struct {
 	PrimaryProjectionLineKey string
 	Built                    []n64ControllerPakBuiltProjection
+	Disposition              uploadDuplicateDisposition
+}
+
+type n64ControllerPakProjectionSaveResult struct {
+	Record      saveRecord
+	Disposition uploadDuplicateDisposition
 }
 
 type n64ControllerPakLogicalContext struct {
@@ -467,6 +473,16 @@ func (logical n64ControllerPakLogicalSave) revisionByID(id string) (n64Controlle
 	target := strings.TrimSpace(id)
 	for _, revision := range logical.Revisions {
 		if strings.TrimSpace(revision.ID) == target {
+			return revision, true
+		}
+	}
+	return n64ControllerPakLogicalRevision{}, false
+}
+
+func (logical n64ControllerPakLogicalSave) revisionBySHA(sha string) (n64ControllerPakLogicalRevision, bool) {
+	target := strings.TrimSpace(sha)
+	for _, revision := range logical.Revisions {
+		if strings.TrimSpace(revision.SHA256) == target {
 			return revision, true
 		}
 	}
@@ -823,6 +839,14 @@ func (s *n64ControllerPakStore) rebuildProjectionLinesLocked(syncLineKey, source
 			return nil, err
 		}
 		sum := sha256.Sum256(projectedPayload)
+		shaHex := hex.EncodeToString(sum[:])
+		if !strings.HasPrefix(strings.TrimSpace(sourceImportID), "rollback:") {
+			if line, ok := s.state.ProjectionLines[n64ControllerPakProjectionLineKey(syncLineKey, runtimeProfile)]; ok && strings.TrimSpace(line.LatestProjectionID) != "" {
+				if latest, exists := s.state.Projections[strings.TrimSpace(line.LatestProjectionID)]; exists && strings.TrimSpace(latest.SHA256) == shaHex {
+					continue
+				}
+			}
+		}
 		payloadPath, err := s.writeArtifactPayload("projections", projectedPayload, filepath.Ext(projectedFilename))
 		if err != nil {
 			return nil, err
@@ -835,7 +859,7 @@ func (s *n64ControllerPakStore) rebuildProjectionLinesLocked(syncLineKey, source
 			SyncLineKey:       syncLineKey,
 			RuntimeProfile:    runtimeProfile,
 			Filename:          projectedFilename,
-			SHA256:            hex.EncodeToString(sum[:]),
+			SHA256:            shaHex,
 			PayloadPath:       payloadPath,
 			CreatedAt:         createdAt,
 			SourceImportID:    sourceImportID,
@@ -883,6 +907,9 @@ func (s *n64ControllerPakStore) importControllerPak(req n64ControllerPakImportRe
 	manifest := make([]n64ControllerPakManifestEntry, 0, len(entries))
 	seen := make(map[string]struct{}, len(entries))
 	importID := "n64-cpk-import-" + createdAt.Format("20060102150405.000000000") + "-" + hash12(syncLineKey+"::"+hex.EncodeToString(sum[:]))
+	changed := false
+	sawLatestDuplicate := false
+	sawHistoricalDuplicate := false
 	for _, entry := range entries {
 		logical := s.state.LogicalSaves[entry.LogicalKey]
 		logical.Key = entry.LogicalKey
@@ -899,6 +926,22 @@ func (s *n64ControllerPakStore) importControllerPak(req n64ControllerPakImportRe
 				logical.RegionCode = normalizeRegionCode(entry.Catalog.RegionCode)
 			}
 		}
+		tombstoneKey := n64ControllerPakTombstoneKey(syncLineKey, logical.Key)
+		_, tombstoned := s.state.Tombstones[tombstoneKey]
+		if latest, ok := logical.latestRevision(); ok && strings.TrimSpace(latest.SHA256) == strings.TrimSpace(entry.SHA256) && !tombstoned {
+			s.state.LogicalSaves[logical.Key] = logical
+			sawLatestDuplicate = true
+			seen[logical.Key] = struct{}{}
+			manifest = append(manifest, n64ControllerPakManifestEntry{LogicalKey: logical.Key, RevisionID: latest.ID, GameCode: logical.GameCode, PublisherCode: logical.PublisherCode, NoteName: logical.NoteName})
+			continue
+		}
+		if matched, ok := logical.revisionBySHA(entry.SHA256); ok {
+			s.state.LogicalSaves[logical.Key] = logical
+			sawHistoricalDuplicate = true
+			seen[logical.Key] = struct{}{}
+			manifest = append(manifest, n64ControllerPakManifestEntry{LogicalKey: logical.Key, RevisionID: matched.ID, GameCode: logical.GameCode, PublisherCode: logical.PublisherCode, NoteName: logical.NoteName})
+			continue
+		}
 		revisionPayloadPath, err := s.writeArtifactPayload("revisions", entry.Payload, ".bin")
 		if err != nil {
 			return n64ControllerPakImportResult{}, err
@@ -907,7 +950,10 @@ func (s *n64ControllerPakStore) importControllerPak(req n64ControllerPakImportRe
 		logical.Revisions = append(logical.Revisions, revision)
 		logical.LatestRevisionID = revision.ID
 		s.state.LogicalSaves[logical.Key] = logical
-		delete(s.state.Tombstones, n64ControllerPakTombstoneKey(syncLineKey, logical.Key))
+		if tombstoned {
+			delete(s.state.Tombstones, tombstoneKey)
+		}
+		changed = true
 		seen[logical.Key] = struct{}{}
 		manifest = append(manifest, n64ControllerPakManifestEntry{LogicalKey: logical.Key, RevisionID: revision.ID, GameCode: logical.GameCode, PublisherCode: logical.PublisherCode, NoteName: logical.NoteName})
 	}
@@ -918,9 +964,26 @@ func (s *n64ControllerPakStore) importControllerPak(req n64ControllerPakImportRe
 		if _, ok := seen[logical.Key]; ok {
 			continue
 		}
-		s.state.Tombstones[n64ControllerPakTombstoneKey(syncLineKey, logical.Key)] = n64ControllerPakTombstone{LogicalKey: logical.Key, SyncLineKey: syncLineKey, CreatedAt: createdAt, Reason: "missing from latest controller pak import"}
+		tombstoneKey := n64ControllerPakTombstoneKey(syncLineKey, logical.Key)
+		tombstone := n64ControllerPakTombstone{LogicalKey: logical.Key, SyncLineKey: syncLineKey, CreatedAt: createdAt, Reason: "missing from latest controller pak import"}
+		if existing, exists := s.state.Tombstones[tombstoneKey]; !exists || existing.CreatedAt != tombstone.CreatedAt {
+			changed = true
+		}
+		s.state.Tombstones[tombstoneKey] = tombstone
 	}
 	s.state.Imports[importID] = n64ControllerPakImportArtifact{ID: importID, SyncLineKey: syncLineKey, RuntimeProfile: req.RuntimeProfile, Filename: req.Filename, SHA256: hex.EncodeToString(sum[:]), PayloadPath: payloadPath, CreatedAt: createdAt, ProjectionLineKey: projectionLineKey, Manifest: manifest}
+	if !changed {
+		if err := s.persistLocked(); err != nil {
+			return n64ControllerPakImportResult{}, err
+		}
+		disposition := uploadDuplicateNone
+		if sawHistoricalDuplicate {
+			disposition = uploadDuplicateStaleHistorical
+		} else if sawLatestDuplicate {
+			disposition = uploadDuplicateIgnoredLatest
+		}
+		return n64ControllerPakImportResult{PrimaryProjectionLineKey: projectionLineKey, Disposition: disposition}, nil
+	}
 	built, err := s.rebuildProjectionLinesLocked(syncLineKey, importID, createdAt)
 	if err != nil {
 		return n64ControllerPakImportResult{}, err
@@ -928,7 +991,7 @@ func (s *n64ControllerPakStore) importControllerPak(req n64ControllerPakImportRe
 	if err := s.persistLocked(); err != nil {
 		return n64ControllerPakImportResult{}, err
 	}
-	return n64ControllerPakImportResult{PrimaryProjectionLineKey: projectionLineKey, Built: built}, nil
+	return n64ControllerPakImportResult{PrimaryProjectionLineKey: projectionLineKey, Built: built, Disposition: uploadDuplicateNone}, nil
 }
 
 func (a *app) n64ControllerPakStore() *n64ControllerPakStore {
@@ -1001,24 +1064,42 @@ func (a *app) materializeN64ControllerPakProjections(template saveCreateInput, r
 	return recordsByLine, nil
 }
 
-func (a *app) createN64ControllerPakProjectionSave(input saveCreateInput, preview normalizedSaveInputResult) (saveRecord, error) {
+func (a *app) createN64ControllerPakProjectionSaveDetailed(input saveCreateInput, preview normalizedSaveInputResult) (n64ControllerPakProjectionSaveResult, error) {
 	store := a.n64ControllerPakStore()
 	if store == nil {
-		return saveRecord{}, fmt.Errorf("n64 controller pak store is not initialized")
+		return n64ControllerPakProjectionSaveResult{}, fmt.Errorf("n64 controller pak store is not initialized")
 	}
 	result, err := store.importControllerPak(n64ControllerPakImportRequest{CanonicalPayload: input.Payload, Filename: input.Filename, RuntimeProfile: input.RuntimeProfile, ROMSHA1: input.ROMSHA1, SlotName: input.SlotName, CreatedAt: input.CreatedAt})
 	if err != nil {
-		return saveRecord{}, err
+		return n64ControllerPakProjectionSaveResult{}, err
 	}
-	recordsByLine, err := a.materializeN64ControllerPakProjections(saveCreateInput{CreatedAt: firstNonZeroTime(input.CreatedAt, preview.Input.CreatedAt)}, input.ROMSHA1, input.SlotName, result.Built)
+	recordsByLine := map[string]saveRecord{}
+	if len(result.Built) > 0 {
+		recordsByLine, err = a.materializeN64ControllerPakProjections(saveCreateInput{CreatedAt: firstNonZeroTime(input.CreatedAt, preview.Input.CreatedAt)}, input.ROMSHA1, input.SlotName, result.Built)
+		if err != nil {
+			return n64ControllerPakProjectionSaveResult{}, err
+		}
+	}
+	if primary, ok := recordsByLine[result.PrimaryProjectionLineKey]; ok {
+		return n64ControllerPakProjectionSaveResult{Record: primary, Disposition: result.Disposition}, nil
+	}
+	saveID, ok := store.latestProjectionSaveRecord(n64ControllerPakSyncLineKey(input.ROMSHA1, input.SlotName), input.RuntimeProfile)
+	if !ok {
+		return n64ControllerPakProjectionSaveResult{}, fmt.Errorf("primary n64 controller pak projection was not created")
+	}
+	record, found := a.findSaveRecordByID(saveID)
+	if !found {
+		return n64ControllerPakProjectionSaveResult{}, fmt.Errorf("n64 controller pak projection save record %s not found", saveID)
+	}
+	return n64ControllerPakProjectionSaveResult{Record: record, Disposition: result.Disposition}, nil
+}
+
+func (a *app) createN64ControllerPakProjectionSave(input saveCreateInput, preview normalizedSaveInputResult) (saveRecord, error) {
+	result, err := a.createN64ControllerPakProjectionSaveDetailed(input, preview)
 	if err != nil {
 		return saveRecord{}, err
 	}
-	primary, ok := recordsByLine[result.PrimaryProjectionLineKey]
-	if !ok {
-		return saveRecord{}, fmt.Errorf("primary n64 controller pak projection was not created")
-	}
-	return primary, nil
+	return result.Record, nil
 }
 
 func firstNonZeroTime(values ...time.Time) time.Time {

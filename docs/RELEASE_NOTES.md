@@ -1,5 +1,28 @@
 # Release Notes
 
+## v0.1.7 - 2026-04-24
+
+### Included
+
+- Save upload idempotency:
+  - generic save ingest now suppresses exact-latest duplicate uploads on the same canonical save line
+  - historical duplicate uploads now return a stale conflict instead of creating a new version
+  - duplicate/stale handling is enforced server-side instead of trusting helpers
+- PlayStation and N64 logical duplicate suppression:
+  - PlayStation logical ingest now checks the full logical revision history, not only the latest revision
+  - N64 controller-pak logical ingest now checks the full logical revision history too
+  - identical projection payload rebuilds no longer create duplicate projection save records
+- Duplicate cleanup during rescan:
+  - rescan now collapses redundant generic, PlayStation, and N64 duplicate history
+  - oldest duplicates survive by default, while current latest state is preserved when needed to avoid rolling cloud truth backward
+  - rollback-created audit versions remain exempt from cleanup
+  - rescan reporting now includes duplicate group and removed-version counts
+
+### Validation Summary
+
+- Backend duplicate/idempotency regression tests passed locally
+- Full backend test suite passed locally
+
 ## v0.1.6 - 2026-04-24
 
 ### Included

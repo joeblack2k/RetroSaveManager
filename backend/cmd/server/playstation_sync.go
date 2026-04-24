@@ -195,6 +195,7 @@ type psImportResult struct {
 	PrimaryProjectionLineKey string
 	Built                    []psBuiltProjection
 	Conflict                 *psImportConflict
+	Disposition              uploadDuplicateDisposition
 }
 
 type psImportConflict struct {
@@ -498,6 +499,9 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	dev.UpdatedAt = now
 
 	var conflict *psImportConflict
+	changed := false
+	sawLatestDuplicate := false
+	sawHistoricalDuplicate := false
 	if dev.LastDownloadedProjection != "" {
 		artifact.BaselineProjection = dev.LastDownloadedProjection
 		if baseline, ok := state.Projections[dev.LastDownloadedProjection]; ok {
@@ -507,15 +511,19 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 			if len(missing) > 0 {
 				if line.LatestProjectionID != "" && line.LatestProjectionID == dev.LastDownloadedProjection {
 					for _, logicalKey := range missing {
+						tombstoneKey := psTombstoneKey(scopeKey, logicalKey)
 						tombstone := psTombstone{
-							ID:           deterministicConflictID(psTombstoneKey(scopeKey, logicalKey)),
+							ID:           deterministicConflictID(tombstoneKey),
 							LogicalKey:   logicalKey,
 							ScopeKey:     scopeKey,
 							Reason:       "device upload removed logical save",
 							CreatedAt:    now,
 							SourceImport: importID,
 						}
-						state.Tombstones[psTombstoneKey(scopeKey, logicalKey)] = tombstone
+						if existing, exists := state.Tombstones[tombstoneKey]; !exists || existing.CreatedAt != tombstone.CreatedAt || existing.SourceImport != tombstone.SourceImport {
+							changed = true
+						}
+						state.Tombstones[tombstoneKey] = tombstone
 					}
 				} else {
 					conflict = &psImportConflict{
@@ -540,10 +548,18 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 		logical.RegionCode = entry.RegionCode
 		logical.ProductCode = entry.ProductCode
 		logical.Portable = entry.Portable
-		if latest, ok := logical.latestRevision(); ok && latest.SHA256 == entry.SHA256 {
+		tombstoneKey := psTombstoneKey(entry.ScopeKey, entry.LogicalKey)
+		_, tombstoned := state.Tombstones[tombstoneKey]
+		if latest, ok := logical.latestRevision(); ok && latest.SHA256 == entry.SHA256 && !tombstoned {
 			manifest[i].RevisionID = latest.ID
-			delete(state.Tombstones, psTombstoneKey(entry.ScopeKey, entry.LogicalKey))
 			state.LogicalSaves[entry.LogicalKey] = logical
+			sawLatestDuplicate = true
+			continue
+		}
+		if matched, ok := logical.revisionBySHA(entry.SHA256); ok {
+			manifest[i].RevisionID = matched.ID
+			state.LogicalSaves[entry.LogicalKey] = logical
+			sawHistoricalDuplicate = true
 			continue
 		}
 		revisionID := "ps-rev-" + now.Format("20060102150405.000000000") + "-" + hash12(entry.SHA256+entry.LogicalKey)
@@ -560,7 +576,10 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 		logical.LatestRevisionID = revisionID
 		state.LogicalSaves[entry.LogicalKey] = logical
 		manifest[i].RevisionID = revisionID
-		delete(state.Tombstones, psTombstoneKey(entry.ScopeKey, entry.LogicalKey))
+		if tombstoned {
+			delete(state.Tombstones, tombstoneKey)
+		}
+		changed = true
 	}
 
 	artifact.Manifest = manifest
@@ -570,6 +589,19 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 
 	line.LatestProjectionID = line.LatestProjectionID
 	state.ProjectionLines[lineKey] = line
+
+	if !changed {
+		if err := s.persistLocked(); err != nil {
+			return psImportResult{}, err
+		}
+		disposition := uploadDuplicateNone
+		if sawHistoricalDuplicate {
+			disposition = uploadDuplicateStaleHistorical
+		} else if sawLatestDuplicate {
+			disposition = uploadDuplicateIgnoredLatest
+		}
+		return psImportResult{PrimaryProjectionLineKey: lineKey, Conflict: conflict, Disposition: disposition}, nil
+	}
 
 	built, err := s.rebuildProjectionLinesLocked(req.SystemSlug, req.CardSlot, req.RuntimeProfile, importID, details.Name)
 	if err != nil {
@@ -581,7 +613,7 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	if err := s.persistLocked(); err != nil {
 		return psImportResult{}, err
 	}
-	return psImportResult{PrimaryProjectionLineKey: lineKey, Built: built, Conflict: conflict}, nil
+	return psImportResult{PrimaryProjectionLineKey: lineKey, Built: built, Conflict: conflict, Disposition: uploadDuplicateNone}, nil
 }
 
 func manifestKeysByScope(entries []psManifestEntry, projectionLineKey, syncLineKey string) map[string]struct{} {
@@ -942,6 +974,12 @@ func (s *playStationStore) rebuildProjectionLinesLocked(systemSlug, cardSlot, or
 		}
 		sha := sha256.Sum256(payload)
 		shaHex := hex.EncodeToString(sha[:])
+		if !strings.HasPrefix(strings.TrimSpace(sourceImportID), "rollback:") && strings.TrimSpace(line.LatestProjectionID) != "" {
+			if latest, ok := s.state.Projections[strings.TrimSpace(line.LatestProjectionID)]; ok && strings.TrimSpace(latest.SHA256) == shaHex {
+				s.state.ProjectionLines[lineKey] = line
+				continue
+			}
+		}
 		projectionID := "ps-projection-" + time.Now().UTC().Format("20060102150405.000000000") + "-" + shaHex[:12]
 		payloadPath := filepath.Join(s.root, "projections", projectionID, "card.bin")
 		if err := os.MkdirAll(filepath.Dir(payloadPath), 0o755); err != nil {
@@ -1749,6 +1787,16 @@ func (logical psLogicalSave) latestRevision() (psLogicalSaveRevision, bool) {
 		return psLogicalSaveRevision{}, false
 	}
 	return logical.Revisions[len(logical.Revisions)-1], true
+}
+
+func (logical psLogicalSave) revisionBySHA(sha string) (psLogicalSaveRevision, bool) {
+	target := strings.TrimSpace(sha)
+	for _, revision := range logical.Revisions {
+		if strings.TrimSpace(revision.SHA256) == target {
+			return revision, true
+		}
+	}
+	return psLogicalSaveRevision{}, false
 }
 
 func psLogicalSaveLatestSize(logical psLogicalSave) int {

@@ -23,11 +23,13 @@ type saveRescanRejection struct {
 }
 
 type saveRescanResult struct {
-	Scanned    int                   `json:"scanned"`
-	Updated    int                   `json:"updated"`
-	Rejected   int                   `json:"rejected"`
-	Removed    int                   `json:"removed"`
-	Rejections []saveRescanRejection `json:"rejections,omitempty"`
+	Scanned                  int                   `json:"scanned"`
+	Updated                  int                   `json:"updated"`
+	Rejected                 int                   `json:"rejected"`
+	Removed                  int                   `json:"removed"`
+	DuplicateGroups          int                   `json:"duplicateGroups,omitempty"`
+	DuplicateVersionsRemoved int                   `json:"duplicateVersionsRemoved,omitempty"`
+	Rejections               []saveRescanRejection `json:"rejections,omitempty"`
 }
 
 func runSaveRescan(args []string) error {
@@ -51,8 +53,8 @@ func runSaveRescan(args []string) error {
 		return err
 	}
 
-	log.Printf("save rescan complete: scanned=%d updated=%d rejected=%d removed=%d dry_run=%v prune_unsupported=%v",
-		result.Scanned, result.Updated, result.Rejected, result.Removed, *dryRun, *pruneUnsupported)
+	log.Printf("save rescan complete: scanned=%d updated=%d rejected=%d removed=%d duplicate_groups=%d duplicate_versions_removed=%d dry_run=%v prune_unsupported=%v",
+		result.Scanned, result.Updated, result.Rejected, result.Removed, result.DuplicateGroups, result.DuplicateVersionsRemoved, *dryRun, *pruneUnsupported)
 	for _, rejected := range result.Rejections {
 		log.Printf("rejected save: id=%s filename=%s reason=%s", rejected.SaveID, rejected.Filename, rejected.Reason)
 	}
@@ -149,6 +151,14 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 			return result, err
 		}
 	}
+
+	cleanup, err := a.cleanupDuplicateSaveHistory(options.DryRun)
+	if err != nil {
+		return result, err
+	}
+	result.DuplicateGroups = cleanup.DuplicateGroups
+	result.DuplicateVersionsRemoved = cleanup.DuplicateVersionsRemoved
+	result.Updated += cleanup.Updated
 
 	return result, nil
 }

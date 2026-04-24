@@ -17,6 +17,12 @@ import (
 	"time"
 )
 
+type playStationProjectionSaveResult struct {
+	Record      saveRecord
+	Conflict    *psImportConflict
+	Disposition uploadDuplicateDisposition
+}
+
 func unsupportedSaveRejectReason(err error) string {
 	if err == nil || !errors.Is(err, errUnsupportedSaveFormat) {
 		return ""
@@ -299,7 +305,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for PlayStation helper uploads", StatusCode: http.StatusBadRequest})
 				return
 			}
-			record, conflict, err := a.createPlayStationProjectionSave(input, preview, deviceType, runtimeProfile, identity.Fingerprint)
+			result, err := a.createPlayStationProjectionSaveDetailed(input, preview, deviceType, runtimeProfile, identity.Fingerprint)
 			if err != nil {
 				a.appendSyncLog(syncLogInput{
 					DeviceName:   deviceName,
@@ -315,8 +321,32 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			if conflict != nil {
-				a.reportConflict(conflict.ConflictKey, record.Summary.CardSlot, conflict.LocalSHA256, conflict.CloudSHA256, helperCtx.Device.DisplayName, record.Summary.Filename, record.Summary.FileSize)
+			record := result.Record
+			if result.Disposition == uploadDuplicateStaleHistorical {
+				a.appendSyncLog(syncLogInput{
+					DeviceName:   deviceName,
+					Action:       "upload_stale_rejected",
+					Game:         syncLogGameLabelFromRecord(record),
+					ErrorMessage: "newest cloud save already differs from uploaded historical duplicate",
+					SystemSlug:   saveRecordSystemSlug(record),
+					SaveID:       record.Summary.ID,
+				})
+				writeJSON(w, http.StatusConflict, staleHistoricalUploadResponse(record, "stale_historical_duplicate"))
+				return
+			}
+			if result.Conflict != nil {
+				a.reportConflict(result.Conflict.ConflictKey, record.Summary.CardSlot, result.Conflict.LocalSHA256, result.Conflict.CloudSHA256, helperCtx.Device.DisplayName, record.Summary.Filename, record.Summary.FileSize)
+			}
+			if result.Disposition == uploadDuplicateIgnoredLatest {
+				a.appendSyncLog(syncLogInput{
+					DeviceName: deviceName,
+					Action:     "upload_duplicate_ignored",
+					Game:       syncLogGameLabelFromRecord(record),
+					SystemSlug: saveRecordSystemSlug(record),
+					SaveID:     record.Summary.ID,
+				})
+				writeJSON(w, http.StatusOK, duplicateUploadResponse(record, result.Disposition))
+				return
 			}
 			if !helperCtx.IsHelper && identity.isComplete() {
 				a.upsertDevice(identity.DeviceType, identity.Fingerprint)
@@ -338,7 +368,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if preview.Input.SystemSlug == "n64" && strings.TrimSpace(preview.Input.MediaType) == "controller-pak" {
-			record, err := a.createN64ControllerPakProjectionSave(input, preview)
+			result, err := a.createN64ControllerPakProjectionSaveDetailed(input, preview)
 			if err != nil {
 				a.appendSyncLog(syncLogInput{
 					DeviceName:   deviceName,
@@ -352,6 +382,30 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 					Message:    err.Error(),
 					StatusCode: http.StatusUnprocessableEntity,
 				})
+				return
+			}
+			record := result.Record
+			if result.Disposition == uploadDuplicateStaleHistorical {
+				a.appendSyncLog(syncLogInput{
+					DeviceName:   deviceName,
+					Action:       "upload_stale_rejected",
+					Game:         syncLogGameLabelFromRecord(record),
+					ErrorMessage: "newest cloud save already differs from uploaded historical duplicate",
+					SystemSlug:   saveRecordSystemSlug(record),
+					SaveID:       record.Summary.ID,
+				})
+				writeJSON(w, http.StatusConflict, staleHistoricalUploadResponse(record, "stale_historical_duplicate"))
+				return
+			}
+			if result.Disposition == uploadDuplicateIgnoredLatest {
+				a.appendSyncLog(syncLogInput{
+					DeviceName: deviceName,
+					Action:     "upload_duplicate_ignored",
+					Game:       syncLogGameLabelFromRecord(record),
+					SystemSlug: saveRecordSystemSlug(record),
+					SaveID:     record.Summary.ID,
+				})
+				writeJSON(w, http.StatusOK, duplicateUploadResponse(record, result.Disposition))
 				return
 			}
 			if !helperCtx.IsHelper && identity.isComplete() {
@@ -371,6 +425,30 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 					"sha256": record.Summary.SHA256,
 				},
 			})
+			return
+		}
+
+		if duplicate := checkUploadDuplicate(a.snapshotSaveRecords(), preview.Input); duplicate.Found {
+			if duplicate.Disposition == uploadDuplicateIgnoredLatest {
+				a.appendSyncLog(syncLogInput{
+					DeviceName: deviceName,
+					Action:     "upload_duplicate_ignored",
+					Game:       syncLogGameLabelFromRecord(duplicate.Latest),
+					SystemSlug: saveRecordSystemSlug(duplicate.Latest),
+					SaveID:     duplicate.Latest.Summary.ID,
+				})
+				writeJSON(w, http.StatusOK, duplicateUploadResponse(duplicate.Latest, duplicate.Disposition))
+				return
+			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   deviceName,
+				Action:       "upload_stale_rejected",
+				Game:         syncLogGameLabelFromRecord(duplicate.Latest),
+				ErrorMessage: "newest cloud save already differs from uploaded historical duplicate",
+				SystemSlug:   saveRecordSystemSlug(duplicate.Latest),
+				SaveID:       duplicate.Latest.Summary.ID,
+			})
+			writeJSON(w, http.StatusConflict, staleHistoricalUploadResponse(duplicate.Latest, "stale_historical_duplicate"))
 			return
 		}
 
@@ -449,7 +527,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		}
 
 		gameInfo := buildBatchGame(item.Game, item.Filename)
-		record, err := a.createSave(saveCreateInput{
+		input := saveCreateInput{
 			Filename:   item.Filename,
 			Payload:    payload,
 			Game:       gameInfo,
@@ -457,7 +535,40 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			Metadata:   nil,
 			SystemSlug: safeMultipartSystemSlug("", gameInfo.System),
 			GameSlug:   canonicalSegment(gameInfo.Name, "unknown-game"),
-		})
+		}
+		preview := a.normalizeSaveInputDetailed(input)
+		if !preview.Rejected && isSupportedSystemSlug(preview.Input.SystemSlug) {
+			if duplicate := checkUploadDuplicate(a.snapshotSaveRecords(), preview.Input); duplicate.Found {
+				if duplicate.Disposition == uploadDuplicateIgnoredLatest {
+					successCount++
+					result := duplicateUploadResponse(duplicate.Latest, duplicate.Disposition)
+					result["filename"] = item.Filename
+					results = append(results, result)
+					a.appendSyncLog(syncLogInput{
+						DeviceName: "Web UI",
+						Action:     "upload_duplicate_ignored",
+						Game:       syncLogGameLabelFromRecord(duplicate.Latest),
+						SystemSlug: saveRecordSystemSlug(duplicate.Latest),
+						SaveID:     duplicate.Latest.Summary.ID,
+					})
+					continue
+				}
+				errorCount++
+				result := staleHistoricalUploadResponse(duplicate.Latest, "stale_historical_duplicate")
+				result["filename"] = item.Filename
+				results = append(results, result)
+				a.appendSyncLog(syncLogInput{
+					DeviceName:   "Web UI",
+					Action:       "upload_stale_rejected",
+					Game:         syncLogGameLabelFromRecord(duplicate.Latest),
+					ErrorMessage: "newest cloud save already differs from uploaded historical duplicate",
+					SystemSlug:   saveRecordSystemSlug(duplicate.Latest),
+					SaveID:       duplicate.Latest.Summary.ID,
+				})
+				continue
+			}
+		}
+		record, err := a.createSave(input)
 		if err != nil {
 			a.appendSyncLog(syncLogInput{
 				DeviceName:   "Web UI",
@@ -1547,10 +1658,10 @@ func (a *app) playStationSyncStore() *playStationStore {
 	return a.playStationStore
 }
 
-func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview normalizedSaveInputResult, deviceType, requestedProfile, fingerprint string) (saveRecord, *psImportConflict, error) {
+func (a *app) createPlayStationProjectionSaveDetailed(input saveCreateInput, preview normalizedSaveInputResult, deviceType, requestedProfile, fingerprint string) (playStationProjectionSaveResult, error) {
 	store := a.playStationSyncStore()
 	if store == nil {
-		return saveRecord{}, nil, fmt.Errorf("playstation store is not initialized")
+		return playStationProjectionSaveResult{}, fmt.Errorf("playstation store is not initialized")
 	}
 	createdAt := input.CreatedAt.UTC()
 	if createdAt.IsZero() {
@@ -1559,11 +1670,11 @@ func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview nor
 	artifactKind := classifyPlayStationArtifact(preview.Input.Game.System, input.Format, input.Filename, input.Payload)
 	runtimeProfile, systemSlug, err := resolvePlayStationRuntimeProfile(deviceType, requestedProfile, artifactKind)
 	if err != nil {
-		return saveRecord{}, nil, err
+		return playStationProjectionSaveResult{}, err
 	}
 	cardSlot, ok := deriveExplicitMemoryCardName(input.SlotName, input.Filename)
 	if !ok {
-		return saveRecord{}, nil, fmt.Errorf("PlayStation sync requires an explicit Memory Card 1/2 slot")
+		return playStationProjectionSaveResult{}, fmt.Errorf("PlayStation sync requires an explicit Memory Card 1/2 slot")
 	}
 	result, err := store.importMemoryCard(psImportRequest{
 		Payload:        input.Payload,
@@ -1577,24 +1688,44 @@ func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview nor
 		HelperDevice:   strings.TrimSpace(deviceType),
 	})
 	if err != nil {
-		return saveRecord{}, nil, err
+		return playStationProjectionSaveResult{}, err
 	}
-	recordsByLine, err := a.materializePlayStationProjections(saveCreateInput{
-		Metadata:      input.Metadata,
-		RegionCode:    preview.Input.RegionCode,
-		RegionFlag:    preview.Input.RegionFlag,
-		LanguageCodes: preview.Input.LanguageCodes,
-		CoverArtURL:   preview.Input.CoverArtURL,
-		CreatedAt:     createdAt,
-	}, result.Built)
+
+	recordsByLine := map[string]saveRecord{}
+	if len(result.Built) > 0 {
+		recordsByLine, err = a.materializePlayStationProjections(saveCreateInput{
+			Metadata:      input.Metadata,
+			RegionCode:    preview.Input.RegionCode,
+			RegionFlag:    preview.Input.RegionFlag,
+			LanguageCodes: preview.Input.LanguageCodes,
+			CoverArtURL:   preview.Input.CoverArtURL,
+			CreatedAt:     createdAt,
+		}, result.Built)
+		if err != nil {
+			return playStationProjectionSaveResult{}, err
+		}
+	}
+
+	if primary, ok := recordsByLine[result.PrimaryProjectionLineKey]; ok {
+		return playStationProjectionSaveResult{Record: primary, Conflict: result.Conflict, Disposition: result.Disposition}, nil
+	}
+	saveID, _, ok := store.latestProjectionSaveRecord(runtimeProfile, cardSlot)
+	if !ok {
+		return playStationProjectionSaveResult{}, fmt.Errorf("primary PlayStation projection was not created")
+	}
+	record, found := a.findSaveRecordByID(saveID)
+	if !found {
+		return playStationProjectionSaveResult{}, fmt.Errorf("playstation projection save record %s not found", saveID)
+	}
+	return playStationProjectionSaveResult{Record: record, Conflict: result.Conflict, Disposition: result.Disposition}, nil
+}
+
+func (a *app) createPlayStationProjectionSave(input saveCreateInput, preview normalizedSaveInputResult, deviceType, requestedProfile, fingerprint string) (saveRecord, *psImportConflict, error) {
+	result, err := a.createPlayStationProjectionSaveDetailed(input, preview, deviceType, requestedProfile, fingerprint)
 	if err != nil {
 		return saveRecord{}, nil, err
 	}
-	primary, ok := recordsByLine[result.PrimaryProjectionLineKey]
-	if !ok {
-		return saveRecord{}, nil, fmt.Errorf("primary PlayStation projection was not created")
-	}
-	return primary, result.Conflict, nil
+	return result.Record, result.Conflict, nil
 }
 
 func (a *app) replaceSaveRecord(updated saveRecord) {
