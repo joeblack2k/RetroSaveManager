@@ -1,5 +1,36 @@
 # Release Notes
 
+## v0.1.6 - 2026-04-24
+
+### Included
+
+- Unified runtime-profile handling:
+  - projection-capable helper uploads, latest checks, and downloads now resolve through explicit `runtimeProfile`
+  - backward-compatible aliases such as `n64Profile` and `saturnFormat` still map into the shared runtime-profile contract
+  - placeholder runtime-profile rows are rejected before they can pollute the save dataset
+- Runtime-aware web downloads:
+  - `My Saves` and save detail downloads now open a runtime/profile selector first
+  - backend save responses expose `downloadProfiles[]` so the web UI only offers compatible targets
+  - non-converted saves still show `Original file` as a safe fallback choice
+- Nintendo 64 controller pak sync:
+  - added parser-backed controller pak ingest and projection handling for N64
+  - controller pak entries are extracted into logical save tracks instead of being treated as opaque whole-pak blobs
+  - N64 projection downloads now stay aligned with the requested runtime profile
+- Cheat pack management:
+  - added managed cheat-pack storage plus create, enable, disable, delete, and adapter-catalog API endpoints
+  - added a web `Cheats` page for publishing YAML packs and reviewing adapter capabilities
+  - agent/API consumers can now inspect cheat adapters and managed packs directly
+- Save validation tightening:
+  - weak raw-save placeholder titles are rejected or cleaned up before listing
+  - title alias cleanup preserves real saves while removing noisy placeholder-style rows
+  - PlayStation helper `save/latest` runtime-profile enforcement is scoped to the projection flows that actually require it
+
+### Validation Summary
+
+- Backend test suite passed locally
+- Frontend test suite passed locally
+- Frontend production build passed locally
+
 ## v0.1.5 - 2026-04-23
 
 ### Included
