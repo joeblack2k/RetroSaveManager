@@ -67,6 +67,8 @@ func mountAgentRoutes(r chi.Router, app *app) {
 	r.Delete("/cheats/packs/{id}", app.handleCheatPackDelete)
 	r.Post("/cheats/packs/{id}/disable", app.handleCheatPackDisable)
 	r.Post("/cheats/packs/{id}/enable", app.handleCheatPackEnable)
+	r.Get("/cheats/library", app.handleCheatLibraryGet)
+	r.Post("/cheats/library/sync", app.handleCheatLibrarySync)
 	r.Get("/cheats/adapters", app.handleCheatAdaptersList)
 	r.Get("/cheats/adapters/{id}", app.handleCheatAdapterGet)
 
@@ -88,24 +90,26 @@ func (a *app) handleAgentAPIIndex(w http.ResponseWriter, r *http.Request) {
 			"compatBases":   []string{"/", "/v1"},
 		},
 		"endpoints": map[string]any{
-			"overview":        basePath + "/overview",
-			"syncStatus":      basePath + "/sync/status",
-			"systems":         basePath + "/systems",
-			"devices":         basePath + "/devices",
-			"logs":            basePath + "/logs",
-			"saves":           basePath + "/saves",
-			"saveLatest":      basePath + "/save/latest",
-			"roms":            basePath + "/roms",
-			"romLookup":       basePath + "/roms/lookup",
-			"conflicts":       basePath + "/conflicts",
-			"autoEnroll":      basePath + "/helpers/auto-enroll",
-			"cheatPacks":      basePath + "/cheats/packs",
-			"cheatAdapters":   basePath + "/cheats/adapters",
-			"events":          basePath + "/events",
-			"bulkDownload":    basePath + "/saves/download-many",
-			"saveRescan":      basePath + "/saves/rescan",
-			"compatRootBase":  "/",
-			"compatAliasBase": "/v1",
+			"overview":         basePath + "/overview",
+			"syncStatus":       basePath + "/sync/status",
+			"systems":          basePath + "/systems",
+			"devices":          basePath + "/devices",
+			"logs":             basePath + "/logs",
+			"saves":            basePath + "/saves",
+			"saveLatest":       basePath + "/save/latest",
+			"roms":             basePath + "/roms",
+			"romLookup":        basePath + "/roms/lookup",
+			"conflicts":        basePath + "/conflicts",
+			"autoEnroll":       basePath + "/helpers/auto-enroll",
+			"cheatPacks":       basePath + "/cheats/packs",
+			"cheatLibrary":     basePath + "/cheats/library",
+			"cheatLibrarySync": basePath + "/cheats/library/sync",
+			"cheatAdapters":    basePath + "/cheats/adapters",
+			"events":           basePath + "/events",
+			"bulkDownload":     basePath + "/saves/download-many",
+			"saveRescan":       basePath + "/saves/rescan",
+			"compatRootBase":   "/",
+			"compatAliasBase":  "/v1",
 		},
 	})
 }

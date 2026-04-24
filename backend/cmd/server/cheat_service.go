@@ -670,26 +670,7 @@ func (s *cheatService) createManagedPack(req cheatPackCreateRequest, principal m
 	if err != nil {
 		return cheatManagedPack{}, err
 	}
-	if pack.SchemaVersion <= 0 {
-		return cheatManagedPack{}, errors.New("schemaVersion is required")
-	}
-	if strings.TrimSpace(pack.AdapterID) == "" {
-		return cheatManagedPack{}, errors.New("adapterId is required")
-	}
-	adapter := s.adapters[strings.TrimSpace(pack.AdapterID)]
-	if adapter == nil {
-		return cheatManagedPack{}, fmt.Errorf("unknown adapterId %q", pack.AdapterID)
-	}
-	if !adapter.SupportsLiveUpload() {
-		return cheatManagedPack{}, fmt.Errorf("adapter %q does not accept live uploads", pack.AdapterID)
-	}
-	if len(pack.Sections) == 0 {
-		return cheatManagedPack{}, errors.New("pack must contain at least one section")
-	}
-	if err := validateCheatPackForAdapter(adapter, pack); err != nil {
-		return cheatManagedPack{}, err
-	}
-	if _, err := adapter.PreparePack(pack); err != nil {
+	if _, err := s.validateLiveCheatPack(pack); err != nil {
 		return cheatManagedPack{}, err
 	}
 	publishedBy := strings.TrimSpace(firstNonEmpty(req.PublishedBy, principalString(principal, "email"), principalString(principal, "displayName")))
@@ -706,6 +687,33 @@ func (s *cheatService) createManagedPack(req cheatPackCreateRequest, principal m
 		return cheatManagedPack{}, err
 	}
 	return managed, nil
+}
+
+func (s *cheatService) validateLiveCheatPack(pack cheatPack) (cheatPack, error) {
+	if pack.SchemaVersion <= 0 {
+		return cheatPack{}, errors.New("schemaVersion is required")
+	}
+	if strings.TrimSpace(pack.AdapterID) == "" {
+		return cheatPack{}, errors.New("adapterId is required")
+	}
+	adapter := s.adapters[strings.TrimSpace(pack.AdapterID)]
+	if adapter == nil {
+		return cheatPack{}, fmt.Errorf("unknown adapterId %q", pack.AdapterID)
+	}
+	if !adapter.SupportsLiveUpload() {
+		return cheatPack{}, fmt.Errorf("adapter %q does not accept live uploads", pack.AdapterID)
+	}
+	if len(pack.Sections) == 0 {
+		return cheatPack{}, errors.New("pack must contain at least one section")
+	}
+	if err := validateCheatPackForAdapter(adapter, pack); err != nil {
+		return cheatPack{}, err
+	}
+	prepared, err := adapter.PreparePack(pack)
+	if err != nil {
+		return cheatPack{}, err
+	}
+	return prepared, nil
 }
 
 func (s *cheatService) deleteManagedPack(packID string, principal map[string]any) (cheatManagedPack, error) {
@@ -807,6 +815,8 @@ func normalizeCheatPackSource(value string) string {
 		return cheatPackSourceWorker
 	case cheatPackSourceBuiltin:
 		return cheatPackSourceBuiltin
+	case cheatPackSourceGithub:
+		return cheatPackSourceGithub
 	default:
 		return cheatPackSourceUploaded
 	}

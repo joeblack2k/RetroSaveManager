@@ -15,6 +15,7 @@ import (
 
 const (
 	cheatPackSourceBuiltin  = "builtin"
+	cheatPackSourceGithub   = "github"
 	cheatPackSourceUploaded = "uploaded"
 	cheatPackSourceWorker   = "worker"
 
@@ -27,6 +28,7 @@ type cheatRuntimeStore struct {
 	root          string
 	packsRoot     string
 	tombstoneRoot string
+	libraryStatus string
 }
 
 func newCheatRuntimeStore(saveRoot string) (*cheatRuntimeStore, error) {
@@ -45,6 +47,7 @@ func newCheatRuntimeStore(saveRoot string) (*cheatRuntimeStore, error) {
 		root:          root,
 		packsRoot:     packsRoot,
 		tombstoneRoot: tombstoneRoot,
+		libraryStatus: filepath.Join(root, "library-status.json"),
 	}, nil
 }
 
@@ -170,6 +173,48 @@ func (s *cheatRuntimeStore) writePack(pack cheatPack, manifest cheatPackManifest
 		Builtin:        false,
 		SupportsSaveUI: manifest.Status == cheatPackStatusActive,
 	}, nil
+}
+
+func (s *cheatRuntimeStore) writeLibraryStatus(status cheatLibraryStatus) error {
+	if s == nil {
+		return nil
+	}
+	data, err := json.MarshalIndent(status, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(s.libraryStatus, data, 0o644)
+}
+
+func (s *cheatRuntimeStore) readLibraryStatus(config cheatLibraryConfig) (cheatLibraryStatus, error) {
+	status := cheatLibraryStatus{
+		Config:   config,
+		Imported: []cheatLibraryImportedPack{},
+		Errors:   []cheatLibrarySyncError{},
+	}
+	if s == nil {
+		return status, nil
+	}
+	data, err := os.ReadFile(s.libraryStatus)
+	if os.IsNotExist(err) {
+		return status, nil
+	}
+	if err != nil {
+		return status, err
+	}
+	if err := json.Unmarshal(data, &status); err != nil {
+		return cheatLibraryStatus{}, err
+	}
+	status.Config = config
+	if status.Imported == nil {
+		status.Imported = []cheatLibraryImportedPack{}
+	}
+	if status.Errors == nil {
+		status.Errors = []cheatLibrarySyncError{}
+	}
+	status.ImportedCount = len(status.Imported)
+	status.ErrorCount = len(status.Errors)
+	return status, nil
 }
 
 func (s *cheatRuntimeStore) updateRuntimePackStatus(packID, status string) (cheatManagedPack, error) {

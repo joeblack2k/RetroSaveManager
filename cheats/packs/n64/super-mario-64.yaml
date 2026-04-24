@@ -1,0 +1,470 @@
+schemaVersion: 1
+adapterId: sm64-eeprom
+gameId: n64/super-mario-64
+systemSlug: n64
+editorId: sm64-eeprom
+title: Super Mario 64
+match:
+  titleAliases:
+    - Super Mario 64
+    - Super Mario 64 USA
+    - Super Mario 64 Europe
+    - Super Mario 64 Japan
+    - Mario 64
+payload:
+  exactSizes:
+    - 512
+  formats:
+    - eep
+    - bin
+    - sram
+selector:
+  id: file
+  label: Save File
+  type: save-file
+  options:
+    - id: A
+      label: File A
+    - id: B
+      label: File B
+    - id: C
+      label: File C
+    - id: D
+      label: File D
+sections:
+  - id: abilities
+    title: Abilities
+    fields:
+      - id: haveWingCap
+        label: Wing Cap Switch
+        type: boolean
+        op:
+          kind: flag
+          flag: haveWingCap
+      - id: haveMetalCap
+        label: Metal Cap Switch
+        type: boolean
+        op:
+          kind: flag
+          flag: haveMetalCap
+      - id: haveVanishCap
+        label: Vanish Cap Switch
+        type: boolean
+        op:
+          kind: flag
+          flag: haveVanishCap
+      - id: haveKey1
+        label: Bowser Key 1
+        type: boolean
+        op:
+          kind: flag
+          flag: haveKey1
+      - id: haveKey2
+        label: Bowser Key 2
+        type: boolean
+        op:
+          kind: flag
+          flag: haveKey2
+  - id: castle-progress
+    title: Castle Progress
+    fields:
+      - id: unlockedBasementDoor
+        label: Basement Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedBasementDoor
+      - id: unlockedUpstairsDoor
+        label: Upstairs Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedUpstairsDoor
+      - id: dddMovedBack
+        label: Dire Dire Docks Moved Back
+        type: boolean
+        op:
+          kind: flag
+          flag: dddMovedBack
+      - id: moatDrained
+        label: Moat Drained
+        type: boolean
+        op:
+          kind: flag
+          flag: moatDrained
+      - id: unlockedPssDoor
+        label: Princess's Secret Slide Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedPssDoor
+      - id: unlockedWfDoor
+        label: Whomp's Fortress Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedWfDoor
+      - id: unlockedCcmDoor
+        label: Cool, Cool Mountain Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedCcmDoor
+      - id: unlockedJrbDoor
+        label: Jolly Roger Bay Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedJrbDoor
+      - id: unlockedBitdwDoor
+        label: Bowser in the Dark World Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedBitdwDoor
+      - id: unlockedBitfsDoor
+        label: Bowser in the Fire Sea Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlockedBitfsDoor
+      - id: unlocked50StarDoor
+        label: 50 Star Door
+        type: boolean
+        op:
+          kind: flag
+          flag: unlocked50StarDoor
+      - id: castleSecretStars
+        label: Castle Secret Stars
+        type: bitmask
+        bitLabels:
+          - Secret Star 1
+          - Secret Star 2
+          - Secret Star 3
+          - Secret Star 4
+          - Secret Star 5
+          - Secret Star 6
+          - Secret Star 7
+        op:
+          kind: secretStars
+  - id: course-stars
+    title: Course Stars
+    fields:
+      - id: bobStars
+        label: Bob-omb Battlefield Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: bob }
+      - id: wfStars
+        label: Whomp's Fortress Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: wf }
+      - id: jrbStars
+        label: Jolly Roger Bay Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: jrb }
+      - id: ccmStars
+        label: Cool, Cool Mountain Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: ccm }
+      - id: bbhStars
+        label: Big Boo's Haunt Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: bbh }
+      - id: hmcStars
+        label: Hazy Maze Cave Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: hmc }
+      - id: lllStars
+        label: Lethal Lava Land Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: lll }
+      - id: sslStars
+        label: Shifting Sand Land Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: ssl }
+      - id: dddStars
+        label: Dire Dire Docks Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: ddd }
+      - id: slStars
+        label: Snowman's Land Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: sl }
+      - id: wdwStars
+        label: Wet-Dry World Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: wdw }
+      - id: ttmStars
+        label: Tall, Tall Mountain Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: ttm }
+      - id: thiStars
+        label: Tiny-Huge Island Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: thi }
+      - id: ttcStars
+        label: Tick Tock Clock Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: ttc }
+      - id: rrStars
+        label: Rainbow Ride Stars
+        type: bitmask
+        bitLabels: ["Star 1", "Star 2", "Star 3", "Star 4", "Star 5", "Star 6", "Star 7"]
+        op: { kind: courseStars, course: rr }
+  - id: cannons
+    title: Cannons
+    fields:
+      - id: bobCannon
+        label: Bob-omb Battlefield Cannon
+        type: boolean
+        op: { kind: courseCannon, course: bob }
+      - id: wfCannon
+        label: Whomp's Fortress Cannon
+        type: boolean
+        op: { kind: courseCannon, course: wf }
+      - id: jrbCannon
+        label: Jolly Roger Bay Cannon
+        type: boolean
+        op: { kind: courseCannon, course: jrb }
+      - id: ccmCannon
+        label: Cool, Cool Mountain Cannon
+        type: boolean
+        op: { kind: courseCannon, course: ccm }
+      - id: bbhCannon
+        label: Big Boo's Haunt Cannon
+        type: boolean
+        op: { kind: courseCannon, course: bbh }
+      - id: hmcCannon
+        label: Hazy Maze Cave Cannon
+        type: boolean
+        op: { kind: courseCannon, course: hmc }
+      - id: lllCannon
+        label: Lethal Lava Land Cannon
+        type: boolean
+        op: { kind: courseCannon, course: lll }
+      - id: sslCannon
+        label: Shifting Sand Land Cannon
+        type: boolean
+        op: { kind: courseCannon, course: ssl }
+      - id: dddCannon
+        label: Dire Dire Docks Cannon
+        type: boolean
+        op: { kind: courseCannon, course: ddd }
+      - id: slCannon
+        label: Snowman's Land Cannon
+        type: boolean
+        op: { kind: courseCannon, course: sl }
+      - id: wdwCannon
+        label: Wet-Dry World Cannon
+        type: boolean
+        op: { kind: courseCannon, course: wdw }
+      - id: ttmCannon
+        label: Tall, Tall Mountain Cannon
+        type: boolean
+        op: { kind: courseCannon, course: ttm }
+      - id: thiCannon
+        label: Tiny-Huge Island Cannon
+        type: boolean
+        op: { kind: courseCannon, course: thi }
+      - id: ttcCannon
+        label: Tick Tock Clock Cannon
+        type: boolean
+        op: { kind: courseCannon, course: ttc }
+      - id: rrCannon
+        label: Rainbow Ride Cannon
+        type: boolean
+        op: { kind: courseCannon, course: rr }
+  - id: coin-scores
+    title: 100-Coin Scores
+    fields:
+      - id: bob100Coin
+        label: Bob-omb Battlefield 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: bob }
+      - id: wf100Coin
+        label: Whomp's Fortress 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: wf }
+      - id: jrb100Coin
+        label: Jolly Roger Bay 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: jrb }
+      - id: ccm100Coin
+        label: Cool, Cool Mountain 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: ccm }
+      - id: bbh100Coin
+        label: Big Boo's Haunt 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: bbh }
+      - id: hmc100Coin
+        label: Hazy Maze Cave 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: hmc }
+      - id: lll100Coin
+        label: Lethal Lava Land 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: lll }
+      - id: ssl100Coin
+        label: Shifting Sand Land 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: ssl }
+      - id: ddd100Coin
+        label: Dire Dire Docks 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: ddd }
+      - id: sl100Coin
+        label: Snowman's Land 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: sl }
+      - id: wdw100Coin
+        label: Wet-Dry World 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: wdw }
+      - id: ttm100Coin
+        label: Tall, Tall Mountain 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: ttm }
+      - id: thi100Coin
+        label: Tiny-Huge Island 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: thi }
+      - id: ttc100Coin
+        label: Tick Tock Clock 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: ttc }
+      - id: rr100Coin
+        label: Rainbow Ride 100-Coin Score
+        type: integer
+        min: 0
+        max: 255
+        step: 1
+        op: { kind: courseCoinScore, course: rr }
+presets:
+  - id: unlockCaps
+    label: Unlock All Caps
+    description: Enable Wing, Metal, and Vanish cap switches.
+    updates:
+      haveWingCap: true
+      haveMetalCap: true
+      haveVanishCap: true
+  - id: giveBowserKeys
+    label: Give Bowser Keys
+    description: Add both Bowser keys to the selected save file.
+    updates:
+      haveKey1: true
+      haveKey2: true
+  - id: unlockCastle
+    label: Unlock Castle Progress
+    description: Unlock the main castle doors and progression gates.
+    updates:
+      unlockedBasementDoor: true
+      unlockedUpstairsDoor: true
+      dddMovedBack: true
+      moatDrained: true
+      unlockedPssDoor: true
+      unlockedWfDoor: true
+      unlockedCcmDoor: true
+      unlockedJrbDoor: true
+      unlockedBitdwDoor: true
+      unlockedBitfsDoor: true
+      unlocked50StarDoor: true
+  - id: unlockAllCannons
+    label: Unlock All Cannons
+    description: Open every main-course cannon.
+    updates:
+      bobCannon: true
+      wfCannon: true
+      jrbCannon: true
+      ccmCannon: true
+      bbhCannon: true
+      hmcCannon: true
+      lllCannon: true
+      sslCannon: true
+      dddCannon: true
+      slCannon: true
+      wdwCannon: true
+      ttmCannon: true
+      thiCannon: true
+      ttcCannon: true
+      rrCannon: true
+  - id: unlockCastleSecretStars
+    label: Unlock Castle Secret Stars
+    description: Enable the seven castle secret stars stored in the main save flags.
+    updates:
+      castleSecretStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+  - id: unlockMainCourseStars
+    label: Unlock Main Course Stars
+    description: Mark all seven stars in each of the 15 main courses.
+    updates:
+      bobStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      wfStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      jrbStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      ccmStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      bbhStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      hmcStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      lllStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      sslStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      dddStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      slStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      wdwStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      ttmStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      thiStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      ttcStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]
+      rrStars: ["bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"]

@@ -1,6 +1,7 @@
 import { apiFetchJSON } from "./apiClient";
 import type {
   CheatAdapterDescriptor,
+  CheatLibraryStatus,
   CheatManagedPack,
   AppPassword,
   AppPasswordAutoEnrollStatus,
@@ -165,6 +166,18 @@ export function enableCheatPack(packId: string): Promise<{ success: boolean; pac
 export async function listCheatAdapters(): Promise<CheatAdapterDescriptor[]> {
   const response = await apiFetchJSON<{ adapters: CheatAdapterDescriptor[] }>("/api/cheats/adapters");
   return response.adapters;
+}
+
+export async function getCheatLibrary(): Promise<CheatLibraryStatus> {
+  const response = await apiFetchJSON<{ library: CheatLibraryStatus }>("/api/cheats/library");
+  return response.library;
+}
+
+export async function syncCheatLibrary(): Promise<CheatLibraryStatus> {
+  const response = await apiFetchJSON<{ library: CheatLibraryStatus }>("/api/cheats/library/sync", {
+    method: "POST"
+  });
+  return response.library;
 }
 
 export function deleteSave(id: string, options?: { psLogicalKey?: string }): Promise<{ success: boolean; remainingVersions: number }> {

@@ -119,6 +119,36 @@ func (a *app) handleCheatAdaptersList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, cheatAdapterListResponse{Success: true, Adapters: service.listAdapterDescriptors()})
 }
 
+func (a *app) handleCheatLibraryGet(w http.ResponseWriter, r *http.Request) {
+	_ = requestPrincipal(r)
+	service := a.cheatService()
+	if service == nil {
+		writeJSON(w, http.StatusServiceUnavailable, apiError{Error: "Service Unavailable", Message: "Cheat service is not initialized", StatusCode: http.StatusServiceUnavailable})
+		return
+	}
+	status, err := service.libraryStatus()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+		return
+	}
+	writeJSON(w, http.StatusOK, cheatLibraryResponse{Success: true, Library: status})
+}
+
+func (a *app) handleCheatLibrarySync(w http.ResponseWriter, r *http.Request) {
+	_ = requestPrincipal(r)
+	service := a.cheatService()
+	if service == nil {
+		writeJSON(w, http.StatusServiceUnavailable, apiError{Error: "Service Unavailable", Message: "Cheat service is not initialized", StatusCode: http.StatusServiceUnavailable})
+		return
+	}
+	status, err := service.syncLibrary(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+		return
+	}
+	writeJSON(w, http.StatusOK, cheatLibraryResponse{Success: true, Library: status})
+}
+
 func (a *app) handleCheatAdapterGet(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 	service := a.cheatService()

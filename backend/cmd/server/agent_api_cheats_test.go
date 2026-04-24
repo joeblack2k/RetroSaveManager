@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -248,6 +249,129 @@ func TestAgentAPIBuiltinCheatPackDeleteCreatesTombstone(t *testing.T) {
 	}
 }
 
+func TestAgentAPICheatLibrarySyncImportsValidPacksAndReportsErrors(t *testing.T) {
+	h := newContractHarness(t)
+	mockGitHub := newCheatLibraryMockServer(t, map[string]string{
+		"cheats/packs/n64/super-mario-64.yaml": validSM64LibraryPackYAML("n64--super-mario-64"),
+		"cheats/packs/n64/broken.yaml": `
+packId: broken-sm64
+schemaVersion: 1
+adapterId: sm64-eeprom
+gameId: n64/super-mario-64
+systemSlug: n64
+title: Broken SM64
+sections:
+  - id: broken
+    title: Broken
+    fields:
+      - id: bad
+        ref: doesNotExist
+        label: Bad
+        type: boolean
+`,
+	})
+	defer mockGitHub.Close()
+	t.Setenv("CHEAT_LIBRARY_REPO", "example/repo")
+	t.Setenv("CHEAT_LIBRARY_REF", "main")
+	t.Setenv("CHEAT_LIBRARY_PATH", "cheats/packs")
+	t.Setenv("CHEAT_LIBRARY_API_BASE", mockGitHub.URL+"/repos")
+	t.Setenv("CHEAT_LIBRARY_RAW_BASE", mockGitHub.URL+"/raw")
+
+	sync := h.request(http.MethodPost, "/api/cheats/library/sync", nil)
+	assertStatus(t, sync, http.StatusOK)
+	assertJSONContentType(t, sync)
+	syncBody := decodeJSONMap(t, sync.Body)
+	library := mustObject(t, syncBody["library"], "library")
+	if got := mustNumber(t, library["importedCount"], "library.importedCount"); got != 1 {
+		t.Fatalf("expected one imported pack, got %v body=%s", got, sync.Body.String())
+	}
+	if got := mustNumber(t, library["errorCount"], "library.errorCount"); got != 1 {
+		t.Fatalf("expected one sync error, got %v body=%s", got, sync.Body.String())
+	}
+	errors := mustArray(t, library["errors"], "library.errors")
+	firstError := mustObject(t, errors[0], "library.errors[0]")
+	if !strings.Contains(mustString(t, firstError["message"], "library.errors[0].message"), "unknown field ref") {
+		t.Fatalf("expected invalid YAML error body=%s", sync.Body.String())
+	}
+
+	packs := h.request(http.MethodGet, "/api/cheats/packs", nil)
+	assertStatus(t, packs, http.StatusOK)
+	packBody := decodeJSONMap(t, packs.Body)
+	items := mustArray(t, packBody["packs"], "packs")
+	foundGithubOverride := false
+	for _, raw := range items {
+		item := mustObject(t, raw, "pack")
+		manifest := mustObject(t, item["manifest"], "pack.manifest")
+		if mustString(t, manifest["packId"], "pack.manifest.packId") != "n64--super-mario-64" {
+			continue
+		}
+		foundGithubOverride = true
+		if mustString(t, manifest["source"], "pack.manifest.source") != cheatPackSourceGithub {
+			t.Fatalf("expected GitHub source body=%s", packs.Body.String())
+		}
+		if mustBool(t, item["builtin"], "pack.builtin") {
+			t.Fatalf("GitHub pack should override builtin body=%s", packs.Body.String())
+		}
+		if mustString(t, manifest["sourcePath"], "pack.manifest.sourcePath") != "cheats/packs/n64/super-mario-64.yaml" {
+			t.Fatalf("expected sourcePath body=%s", packs.Body.String())
+		}
+	}
+	if !foundGithubOverride {
+		t.Fatalf("expected GitHub override pack body=%s", packs.Body.String())
+	}
+
+	status := h.request(http.MethodGet, "/api/v1/cheats/library", nil)
+	assertStatus(t, status, http.StatusOK)
+	statusBody := decodeJSONMap(t, status.Body)
+	statusLibrary := mustObject(t, statusBody["library"], "library")
+	if got := mustNumber(t, statusLibrary["importedCount"], "library.importedCount"); got != 1 {
+		t.Fatalf("expected persisted library status body=%s", status.Body.String())
+	}
+}
+
+func TestAgentAPICheatLibrarySyncPreservesDisabledStatus(t *testing.T) {
+	h := newContractHarness(t)
+	disabled := h.request(http.MethodPost, "/api/cheats/packs/n64--super-mario-64/disable", nil)
+	assertStatus(t, disabled, http.StatusOK)
+
+	mockGitHub := newCheatLibraryMockServer(t, map[string]string{
+		"cheats/packs/n64/super-mario-64.yaml": validSM64LibraryPackYAML("n64--super-mario-64"),
+	})
+	defer mockGitHub.Close()
+	t.Setenv("CHEAT_LIBRARY_REPO", "example/repo")
+	t.Setenv("CHEAT_LIBRARY_REF", "main")
+	t.Setenv("CHEAT_LIBRARY_PATH", "cheats/packs")
+	t.Setenv("CHEAT_LIBRARY_API_BASE", mockGitHub.URL+"/repos")
+	t.Setenv("CHEAT_LIBRARY_RAW_BASE", mockGitHub.URL+"/raw")
+
+	sync := h.request(http.MethodPost, "/api/cheats/library/sync", nil)
+	assertStatus(t, sync, http.StatusOK)
+	body := decodeJSONMap(t, sync.Body)
+	library := mustObject(t, body["library"], "library")
+	imported := mustArray(t, library["imported"], "library.imported")
+	importedPack := mustObject(t, imported[0], "library.imported[0]")
+	if mustString(t, importedPack["status"], "library.imported[0].status") != cheatPackStatusDisabled {
+		t.Fatalf("expected disabled import status body=%s", sync.Body.String())
+	}
+
+	packs := h.request(http.MethodGet, "/api/cheats/packs", nil)
+	assertStatus(t, packs, http.StatusOK)
+	packBody := decodeJSONMap(t, packs.Body)
+	items := mustArray(t, packBody["packs"], "packs")
+	for _, raw := range items {
+		item := mustObject(t, raw, "pack")
+		manifest := mustObject(t, item["manifest"], "pack.manifest")
+		if mustString(t, manifest["packId"], "pack.manifest.packId") != "n64--super-mario-64" {
+			continue
+		}
+		if mustString(t, manifest["status"], "pack.manifest.status") != cheatPackStatusDisabled {
+			t.Fatalf("expected disabled status body=%s", packs.Body.String())
+		}
+		return
+	}
+	t.Fatalf("expected synced pack body=%s", packs.Body.String())
+}
+
 func postCheatPack(t *testing.T, h *contractHarness, req cheatPackCreateRequest) *httptest.ResponseRecorder {
 	t.Helper()
 	data, err := json.Marshal(req)
@@ -255,4 +379,62 @@ func postCheatPack(t *testing.T, h *contractHarness, req cheatPackCreateRequest)
 		t.Fatalf("marshal cheat pack request: %v", err)
 	}
 	return h.json(http.MethodPost, "/api/cheats/packs", strings.NewReader(string(data)))
+}
+
+func newCheatLibraryMockServer(t *testing.T, files map[string]string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/repos/example/repo/git/trees/main":
+			type treeItem struct {
+				Path string `json:"path"`
+				Type string `json:"type"`
+			}
+			tree := make([]treeItem, 0, len(files))
+			for path := range files {
+				tree = append(tree, treeItem{Path: path, Type: "blob"})
+			}
+			tree = append(tree, treeItem{Path: "README.md", Type: "blob"})
+			sort.Slice(tree, func(i, j int) bool { return tree[i].Path < tree[j].Path })
+			writeJSON(w, http.StatusOK, map[string]any{"tree": tree})
+		case strings.HasPrefix(r.URL.Path, "/raw/example/repo/main/"):
+			sourcePath := strings.TrimPrefix(r.URL.Path, "/raw/example/repo/main/")
+			data, ok := files[sourcePath]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "text/yaml")
+			_, _ = w.Write([]byte(data))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
+func validSM64LibraryPackYAML(packID string) string {
+	return `
+packId: ` + packID + `
+schemaVersion: 1
+adapterId: sm64-eeprom
+gameId: n64/super-mario-64
+systemSlug: n64
+editorId: sm64-eeprom
+title: Super Mario 64
+match:
+  titleAliases:
+    - Super Mario 64
+payload:
+  exactSizes:
+    - 512
+  formats:
+    - eep
+sections:
+  - id: abilities
+    title: Abilities
+    fields:
+      - id: haveWingCap
+        label: Wing Cap
+        type: boolean
+`
 }

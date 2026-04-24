@@ -156,6 +156,10 @@ export type CheatPackManifest = {
   updatedAt: string;
   publishedBy?: string;
   notes?: string;
+  sourcePath?: string;
+  sourceRevision?: string;
+  sourceSha256?: string;
+  lastSyncedAt?: string;
 };
 
 export type CheatManagedPack = {
@@ -176,6 +180,35 @@ export type CheatAdapterDescriptor = {
   supportsLogicalSaves: boolean;
   supportsLiveUpload: boolean;
   matchKeys?: string[];
+};
+
+export type CheatLibraryConfig = {
+  repo: string;
+  ref: string;
+  path: string;
+};
+
+export type CheatLibraryImportedPack = {
+  path: string;
+  packId?: string;
+  title?: string;
+  systemSlug?: string;
+  sourceSha256?: string;
+  status?: string;
+};
+
+export type CheatLibrarySyncError = {
+  path: string;
+  message: string;
+};
+
+export type CheatLibraryStatus = {
+  config: CheatLibraryConfig;
+  lastSyncedAt?: string;
+  importedCount: number;
+  errorCount: number;
+  imported: CheatLibraryImportedPack[];
+  errors: CheatLibrarySyncError[];
 };
 
 export type SaveDownloadProfile = {

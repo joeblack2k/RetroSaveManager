@@ -1080,6 +1080,127 @@ code {
   gap: 0.85rem;
 }
 
+.cheat-library {
+  display: grid;
+  gap: 1rem;
+}
+
+.cheat-library__hero {
+  border: 1px solid #4c5f37;
+  background: linear-gradient(180deg, #1f2819, #171d14);
+  border-radius: 0.35rem;
+  padding: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cheat-library__hero h3,
+.cheat-library-group h3,
+.cheat-library-errors h3,
+.cheat-adapter-catalog h3 {
+  margin: 0;
+  color: #f7ffd7;
+  font-size: 0.96rem;
+  letter-spacing: 0.02em;
+}
+
+.cheat-library__hero p {
+  margin: 0.32rem 0 0;
+  color: var(--text-muted);
+}
+
+.cheat-library-errors {
+  border: 1px solid #874343;
+  background: #2a1717;
+  border-radius: 0.35rem;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.cheat-library-errors li {
+  display: grid;
+  gap: 0.18rem;
+  color: #ffd6d6;
+}
+
+.cheat-library-groups,
+.cheat-advanced-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.cheat-library-group {
+  border: 1px solid #465066;
+  background: #1c222c;
+  border-radius: 0.35rem;
+  overflow: hidden;
+}
+
+.cheat-library-group > header {
+  border-bottom: 1px solid #465066;
+  background: #252b37;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.cheat-library-group > header span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cheat-library-table-wrap {
+  overflow-x: auto;
+}
+
+.cheat-library-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.cheat-library-table th,
+.cheat-library-table td {
+  border-bottom: 1px solid #384255;
+  padding: 0.48rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.cheat-library-table th {
+  background: #171c25;
+  color: #f2f4ff;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cheat-library-table tr:hover td {
+  background: #222a37;
+}
+
+.cheat-library-table td:first-child {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.cheat-library-table td:first-child span {
+  color: var(--text-muted);
+}
+
+.cheat-adapter-catalog {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .cheat-upload-form__textarea {
   min-height: 15rem;
   resize: vertical;

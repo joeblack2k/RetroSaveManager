@@ -1,0 +1,166 @@
+schemaVersion: 1
+adapterId: mk64-eeprom
+gameId: n64/mario-kart-64
+systemSlug: n64
+editorId: mk64-eeprom
+title: Mario Kart 64
+match:
+  titleAliases:
+    - Mario Kart 64
+    - Mario Kart 64 USA
+    - Mario Kart 64 Europe
+    - Mario Kart 64 Japan
+payload:
+  exactSizes:
+    - 512
+  formats:
+    - eep
+    - bin
+    - sram
+sections:
+  - id: audio
+    title: Audio
+    fields:
+      - id: soundMode
+        label: Sound Mode
+        type: enum
+        options:
+          - id: stereo
+            label: Stereo
+          - id: headphones
+            label: Headphones
+          - id: unused
+            label: Unused
+          - id: mono
+            label: Mono
+        op:
+          kind: soundMode
+  - id: gp-50cc
+    title: 50cc Grand Prix
+    fields:
+      - id: gp50Mushroom
+        label: Mushroom Cup
+        type: enum
+        options: &cupOptions
+          - id: none
+            label: No Cup
+          - id: bronze
+            label: Bronze Cup
+          - id: silver
+            label: Silver Cup
+          - id: gold
+            label: Gold Cup
+        op: { kind: gpCupPoints, mode: 50cc, cup: mushroom }
+      - id: gp50Flower
+        label: Flower Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 50cc, cup: flower }
+      - id: gp50Star
+        label: Star Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 50cc, cup: star }
+      - id: gp50Special
+        label: Special Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 50cc, cup: special }
+  - id: gp-100cc
+    title: 100cc Grand Prix
+    fields:
+      - id: gp100Mushroom
+        label: Mushroom Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 100cc, cup: mushroom }
+      - id: gp100Flower
+        label: Flower Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 100cc, cup: flower }
+      - id: gp100Star
+        label: Star Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 100cc, cup: star }
+      - id: gp100Special
+        label: Special Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 100cc, cup: special }
+  - id: gp-150cc
+    title: 150cc Grand Prix
+    fields:
+      - id: gp150Mushroom
+        label: Mushroom Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 150cc, cup: mushroom }
+      - id: gp150Flower
+        label: Flower Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 150cc, cup: flower }
+      - id: gp150Star
+        label: Star Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 150cc, cup: star }
+      - id: gp150Special
+        label: Special Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: 150cc, cup: special }
+  - id: gp-extra
+    title: Extra Grand Prix
+    fields:
+      - id: gpExtraMushroom
+        label: Mushroom Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: extra, cup: mushroom }
+      - id: gpExtraFlower
+        label: Flower Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: extra, cup: flower }
+      - id: gpExtraStar
+        label: Star Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: extra, cup: star }
+      - id: gpExtraSpecial
+        label: Special Cup
+        type: enum
+        options: *cupOptions
+        op: { kind: gpCupPoints, mode: extra, cup: special }
+presets:
+  - id: unlockExtraMode
+    label: Unlock Extra Mode
+    description: Set every 150cc cup to Gold so Extra mode is available.
+    updates:
+      gp150Mushroom: gold
+      gp150Flower: gold
+      gp150Star: gold
+      gp150Special: gold
+  - id: allGoldCups
+    label: All Gold Cups
+    description: Set every Grand Prix cup in every CC mode to Gold.
+    updates:
+      gp50Mushroom: gold
+      gp50Flower: gold
+      gp50Star: gold
+      gp50Special: gold
+      gp100Mushroom: gold
+      gp100Flower: gold
+      gp100Star: gold
+      gp100Special: gold
+      gp150Mushroom: gold
+      gp150Flower: gold
+      gp150Star: gold
+      gp150Special: gold
+      gpExtraMushroom: gold
+      gpExtraFlower: gold
+      gpExtraStar: gold
+      gpExtraSpecial: gold

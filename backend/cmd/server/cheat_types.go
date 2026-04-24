@@ -125,14 +125,18 @@ type saveCheatApplyRequest struct {
 }
 
 type cheatPackManifest struct {
-	PackID      string    `json:"packId"`
-	AdapterID   string    `json:"adapterId"`
-	Source      string    `json:"source"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
-	PublishedBy string    `json:"publishedBy,omitempty"`
-	Notes       string    `json:"notes,omitempty"`
+	PackID         string     `json:"packId"`
+	AdapterID      string     `json:"adapterId"`
+	Source         string     `json:"source"`
+	Status         string     `json:"status"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	PublishedBy    string     `json:"publishedBy,omitempty"`
+	Notes          string     `json:"notes,omitempty"`
+	SourcePath     string     `json:"sourcePath,omitempty"`
+	SourceRevision string     `json:"sourceRevision,omitempty"`
+	SourceSHA256   string     `json:"sourceSha256,omitempty"`
+	LastSyncedAt   *time.Time `json:"lastSyncedAt,omitempty"`
 }
 
 type cheatPackTombstone struct {
@@ -166,6 +170,40 @@ type cheatPackCreateRequest struct {
 	Source      string `json:"source,omitempty"`
 	PublishedBy string `json:"publishedBy,omitempty"`
 	Notes       string `json:"notes,omitempty"`
+}
+
+type cheatLibraryConfig struct {
+	Repo string `json:"repo"`
+	Ref  string `json:"ref"`
+	Path string `json:"path"`
+}
+
+type cheatLibraryImportedPack struct {
+	Path         string `json:"path"`
+	PackID       string `json:"packId,omitempty"`
+	Title        string `json:"title,omitempty"`
+	SystemSlug   string `json:"systemSlug,omitempty"`
+	SourceSHA256 string `json:"sourceSha256,omitempty"`
+	Status       string `json:"status,omitempty"`
+}
+
+type cheatLibrarySyncError struct {
+	Path    string `json:"path"`
+	Message string `json:"message"`
+}
+
+type cheatLibraryStatus struct {
+	Config        cheatLibraryConfig         `json:"config"`
+	LastSyncedAt  *time.Time                 `json:"lastSyncedAt,omitempty"`
+	ImportedCount int                        `json:"importedCount"`
+	ErrorCount    int                        `json:"errorCount"`
+	Imported      []cheatLibraryImportedPack `json:"imported"`
+	Errors        []cheatLibrarySyncError    `json:"errors"`
+}
+
+type cheatLibraryResponse struct {
+	Success bool               `json:"success"`
+	Library cheatLibraryStatus `json:"library"`
 }
 
 type cheatAdapterDescriptor struct {

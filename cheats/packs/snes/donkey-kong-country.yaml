@@ -1,0 +1,314 @@
+schemaVersion: 1
+adapterId: dkc-sram
+gameId: snes/donkey-kong-country
+systemSlug: snes
+editorId: dkc-sram
+title: Donkey Kong Country
+match:
+  titleAliases:
+    - Donkey Kong Country
+    - Donkey Kong Country USA
+    - Donkey Kong Country Europe
+    - Donkey Kong Country Japan
+payload:
+  exactSizes:
+    - 2048
+  formats:
+    - sa1
+    - srm
+    - sav
+    - sram
+selector:
+  id: slot
+  label: Save Slot
+  type: save-file
+  options:
+    - id: "1"
+      label: Slot 1
+    - id: "2"
+      label: Slot 2
+    - id: "3"
+      label: Slot 3
+sections:
+  - id: kongo-jungle
+    title: Kongo Jungle
+    fields:
+      - id: jungleHijinxs
+        label: Jungle Hijinxs
+        type: enum
+        options: &progressionOptions
+          - id: none
+            label: Not Cleared
+          - id: donkey
+            label: Cleared as Donkey
+          - id: diddy
+            label: Cleared as Diddy
+        op: { kind: dkcProgression, field: jungleHijinxs }
+      - id: ropeyRampage
+        label: Ropey Rampage
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: ropeyRampage }
+      - id: reptileRumble
+        label: Reptile Rumble
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: reptileRumble }
+      - id: coralCapers
+        label: Coral Capers
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: coralCapers }
+      - id: barrelCannonCanyon
+        label: Barrel Cannon Canyon
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: barrelCannonCanyon }
+      - id: veryGnawtysLair
+        label: Very Gnawty's Lair
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: veryGnawtysLair }
+  - id: monkey-mines
+    title: Monkey Mines
+    fields:
+      - id: winkysWalkway
+        label: Winky's Walkway
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: winkysWalkway }
+      - id: mineCartCarnage
+        label: Mine Cart Carnage
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: mineCartCarnage }
+      - id: bouncyBonanza
+        label: Bouncy Bonanza
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: bouncyBonanza }
+      - id: stopAndGoStation
+        label: Stop & Go Station
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: stopAndGoStation }
+      - id: millstoneMayhem
+        label: Millstone Mayhem
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: millstoneMayhem }
+      - id: neckysNuts
+        label: Necky's Nuts
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: neckysNuts }
+  - id: vine-valley
+    title: Vine Valley
+    fields:
+      - id: vultureCulture
+        label: Vulture Culture
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: vultureCulture }
+      - id: treeTopTown
+        label: Tree Top Town
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: treeTopTown }
+      - id: forestFrenzy
+        label: Forest Frenzy
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: forestFrenzy }
+      - id: templeTempest
+        label: Temple Tempest
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: templeTempest }
+      - id: orangUtanGang
+        label: Orang-utan Gang
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: orangUtanGang }
+      - id: clamCity
+        label: Clam City
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: clamCity }
+      - id: bumbleBRumble
+        label: Bumble B Rumble
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: bumbleBRumble }
+  - id: gorilla-glacier
+    title: Gorilla Glacier
+    fields:
+      - id: snowBarrelBlast
+        label: Snow Barrel Blast
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: snowBarrelBlast }
+      - id: slipslideRide
+        label: Slipslide Ride
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: slipslideRide }
+      - id: iceAgeAlley
+        label: Ice Age Alley
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: iceAgeAlley }
+      - id: croctopusChase
+        label: Croctopus Chase
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: croctopusChase }
+      - id: torchlightTrouble
+        label: Torchlight Trouble
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: torchlightTrouble }
+      - id: ropeBridgeRumble
+        label: Rope Bridge Rumble
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: ropeBridgeRumble }
+      - id: reallyGnawtyRampage
+        label: Really Gnawty Rampage
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: reallyGnawtyRampage }
+  - id: kremkroc-industries
+    title: Kremkroc Industries Inc.
+    fields:
+      - id: oilDrumAlley
+        label: Oil Drum Alley
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: oilDrumAlley }
+      - id: trickTrackTrek
+        label: Trick Track Trek
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: trickTrackTrek }
+      - id: elevatorAntics
+        label: Elevator Antics
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: elevatorAntics }
+      - id: poisonPond
+        label: Poison Pond
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: poisonPond }
+      - id: mineCartMadness
+        label: Mine Cart Madness
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: mineCartMadness }
+      - id: blackoutBasement
+        label: Blackout Basement
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: blackoutBasement }
+      - id: bossDumbDrum
+        label: Boss Dumb Drum
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: bossDumbDrum }
+  - id: chimp-caverns
+    title: Chimp Caverns
+    fields:
+      - id: tankedUpTrouble
+        label: Tanked Up Trouble
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: tankedUpTrouble }
+      - id: manicMincers
+        label: Manic Mincers
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: manicMincers }
+      - id: mistyMine
+        label: Misty Mine
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: mistyMine }
+      - id: loopyLights
+        label: Loopy Lights
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: loopyLights }
+      - id: platformPerils
+        label: Platform Perils
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: platformPerils }
+      - id: neckysRevenge
+        label: Necky's Revenge
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: neckysRevenge }
+  - id: finale
+    title: Finale
+    fields:
+      - id: gangPlankGalleon
+        label: Gang-Plank Galleon
+        type: enum
+        options: *progressionOptions
+        op: { kind: dkcProgression, field: gangPlankGalleon }
+presets:
+  - id: unlockAllWorlds
+    label: Unlock All Worlds
+    description: Clear every world boss so the whole island and final map are open.
+    updates:
+      veryGnawtysLair: donkey
+      neckysNuts: donkey
+      reallyGnawtyRampage: donkey
+      bossDumbDrum: donkey
+      neckysRevenge: donkey
+      bumbleBRumble: donkey
+  - id: completeAllStages
+    label: Complete All Stages
+    description: Mark every level and boss clear in the selected save slot.
+    updates:
+      jungleHijinxs: donkey
+      ropeyRampage: donkey
+      reptileRumble: donkey
+      coralCapers: donkey
+      barrelCannonCanyon: donkey
+      veryGnawtysLair: donkey
+      winkysWalkway: donkey
+      mineCartCarnage: donkey
+      bouncyBonanza: donkey
+      stopAndGoStation: donkey
+      millstoneMayhem: donkey
+      neckysNuts: donkey
+      vultureCulture: donkey
+      treeTopTown: donkey
+      forestFrenzy: donkey
+      templeTempest: donkey
+      orangUtanGang: donkey
+      clamCity: donkey
+      bumbleBRumble: donkey
+      snowBarrelBlast: donkey
+      slipslideRide: donkey
+      iceAgeAlley: donkey
+      croctopusChase: donkey
+      torchlightTrouble: donkey
+      ropeBridgeRumble: donkey
+      reallyGnawtyRampage: donkey
+      oilDrumAlley: donkey
+      trickTrackTrek: donkey
+      elevatorAntics: donkey
+      poisonPond: donkey
+      mineCartMadness: donkey
+      blackoutBasement: donkey
+      bossDumbDrum: donkey
+      tankedUpTrouble: donkey
+      manicMincers: donkey
+      mistyMine: donkey
+      loopyLights: donkey
+      platformPerils: donkey
+      neckysRevenge: donkey
+      gangPlankGalleon: donkey
