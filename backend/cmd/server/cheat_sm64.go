@@ -18,23 +18,23 @@ const (
 )
 
 const (
-	sm64FlagFileExists            uint32 = 1 << 0
-	sm64FlagHaveWingCap           uint32 = 1 << 1
-	sm64FlagHaveMetalCap          uint32 = 1 << 2
-	sm64FlagHaveVanishCap         uint32 = 1 << 3
-	sm64FlagHaveKey1              uint32 = 1 << 4
-	sm64FlagHaveKey2              uint32 = 1 << 5
-	sm64FlagUnlockedBasementDoor  uint32 = 1 << 6
-	sm64FlagUnlockedUpstairsDoor  uint32 = 1 << 7
-	sm64FlagDDDMovedBack          uint32 = 1 << 8
-	sm64FlagMoatDrained           uint32 = 1 << 9
-	sm64FlagUnlockedPSSDoor       uint32 = 1 << 10
-	sm64FlagUnlockedWFDoor        uint32 = 1 << 11
-	sm64FlagUnlockedCCMDoor       uint32 = 1 << 12
-	sm64FlagUnlockedJRBDoor       uint32 = 1 << 13
-	sm64FlagUnlockedBITDWDoor     uint32 = 1 << 14
-	sm64FlagUnlockedBITFSDoor     uint32 = 1 << 15
-	sm64FlagUnlocked50StarDoor    uint32 = 1 << 20
+	sm64FlagFileExists           uint32 = 1 << 0
+	sm64FlagHaveWingCap          uint32 = 1 << 1
+	sm64FlagHaveMetalCap         uint32 = 1 << 2
+	sm64FlagHaveVanishCap        uint32 = 1 << 3
+	sm64FlagHaveKey1             uint32 = 1 << 4
+	sm64FlagHaveKey2             uint32 = 1 << 5
+	sm64FlagUnlockedBasementDoor uint32 = 1 << 6
+	sm64FlagUnlockedUpstairsDoor uint32 = 1 << 7
+	sm64FlagDDDMovedBack         uint32 = 1 << 8
+	sm64FlagMoatDrained          uint32 = 1 << 9
+	sm64FlagUnlockedPSSDoor      uint32 = 1 << 10
+	sm64FlagUnlockedWFDoor       uint32 = 1 << 11
+	sm64FlagUnlockedCCMDoor      uint32 = 1 << 12
+	sm64FlagUnlockedJRBDoor      uint32 = 1 << 13
+	sm64FlagUnlockedBITDWDoor    uint32 = 1 << 14
+	sm64FlagUnlockedBITFSDoor    uint32 = 1 << 15
+	sm64FlagUnlocked50StarDoor   uint32 = 1 << 20
 )
 
 type sm64EEPROMCheatEditor struct{}
@@ -55,7 +55,11 @@ func (sm64EEPROMCheatEditor) ID() string {
 }
 
 func (sm64EEPROMCheatEditor) Read(pack cheatPack, payload []byte) (saveCheatEditorState, error) {
-	parsed, err := parseSM64EEPROM(payload)
+	window, err := n64SmallEEPROMWindow(payload, "SM64")
+	if err != nil {
+		return saveCheatEditorState{}, err
+	}
+	parsed, err := parseSM64EEPROM(window)
 	if err != nil {
 		return saveCheatEditorState{}, err
 	}
@@ -71,7 +75,11 @@ func (sm64EEPROMCheatEditor) Read(pack cheatPack, payload []byte) (saveCheatEdit
 }
 
 func (sm64EEPROMCheatEditor) Apply(pack cheatPack, payload []byte, slotID string, updates map[string]any) ([]byte, map[string]any, error) {
-	parsed, err := parseSM64EEPROM(payload)
+	window, err := n64SmallEEPROMWindow(payload, "SM64")
+	if err != nil {
+		return nil, nil, err
+	}
+	parsed, err := parseSM64EEPROM(window)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -101,7 +109,11 @@ func (sm64EEPROMCheatEditor) Apply(pack cheatPack, payload []byte, slotID string
 	backupOffset := primaryOffset + sm64SaveFileSize
 	copy(updated[primaryOffset:primaryOffset+sm64SaveFileSize], block)
 	copy(updated[backupOffset:backupOffset+sm64SaveFileSize], block)
-	return updated, changed, nil
+	patched, err := n64PatchSmallEEPROMWindow(payload, updated, "SM64")
+	if err != nil {
+		return nil, nil, err
+	}
+	return patched, changed, nil
 }
 
 func parseSM64EEPROM(payload []byte) (*sm64ParsedEEPROM, error) {

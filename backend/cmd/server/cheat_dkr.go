@@ -101,7 +101,11 @@ func (dkrEEPROMCheatEditor) ID() string {
 }
 
 func (dkrEEPROMCheatEditor) Read(pack cheatPack, payload []byte) (saveCheatEditorState, error) {
-	parsed, err := parseDKREEPROM(payload)
+	window, err := n64SmallEEPROMWindow(payload, "Diddy Kong Racing")
+	if err != nil {
+		return saveCheatEditorState{}, err
+	}
+	parsed, err := parseDKREEPROM(window)
 	if err != nil {
 		return saveCheatEditorState{}, err
 	}
@@ -121,7 +125,11 @@ func (dkrEEPROMCheatEditor) Read(pack cheatPack, payload []byte) (saveCheatEdito
 }
 
 func (dkrEEPROMCheatEditor) Apply(pack cheatPack, payload []byte, slotID string, updates map[string]any) ([]byte, map[string]any, error) {
-	parsed, err := parseDKREEPROM(payload)
+	window, err := n64SmallEEPROMWindow(payload, "Diddy Kong Racing")
+	if err != nil {
+		return nil, nil, err
+	}
+	parsed, err := parseDKREEPROM(window)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -148,7 +156,11 @@ func (dkrEEPROMCheatEditor) Apply(pack cheatPack, payload []byte, slotID string,
 	parsed.Slots[slotIndex] = slot
 	updated := append([]byte(nil), parsed.Payload...)
 	copy(updated[dkrSlotOffset(slotIndex):dkrSlotOffset(slotIndex)+dkrSlotSize], dkrEncodeSlot(slot))
-	return updated, changed, nil
+	patched, err := n64PatchSmallEEPROMWindow(payload, updated, "Diddy Kong Racing")
+	if err != nil {
+		return nil, nil, err
+	}
+	return patched, changed, nil
 }
 
 func parseDKREEPROM(payload []byte) (*dkrParsedEEPROM, error) {

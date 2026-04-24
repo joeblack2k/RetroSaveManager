@@ -55,6 +55,32 @@ func TestSM64CheatEditorReadAndApply(t *testing.T) {
 	}
 }
 
+func TestSM64CheatEditorPreservesCanonical2048ByteEEPROM(t *testing.T) {
+	pack := mustLoadSM64CheatPack(t)
+	payload := normalizeN64EEPROM(buildSM64FixturePayload())
+	payload[1024] = 0x42
+	editor := sm64EEPROMCheatEditor{}
+
+	state, err := editor.Read(pack, payload)
+	if err != nil {
+		t.Fatalf("read canonical cheats: %v", err)
+	}
+	if len(state.SlotValues) != 4 {
+		t.Fatalf("expected four slot value groups, got %d", len(state.SlotValues))
+	}
+
+	updated, _, err := editor.Apply(pack, payload, "A", map[string]any{"haveWingCap": true})
+	if err != nil {
+		t.Fatalf("apply canonical cheats: %v", err)
+	}
+	if len(updated) != len(payload) {
+		t.Fatalf("expected canonical EEPROM size %d, got %d", len(payload), len(updated))
+	}
+	if updated[1024] != 0x42 {
+		t.Fatalf("expected bytes outside the 512-byte editor window to be preserved")
+	}
+}
+
 func TestSaveCheatEndpointsExposeSchemaAndLocalOverride(t *testing.T) {
 	h := newContractHarness(t)
 	saveID := seedSM64Save(t, h, "/saves")
@@ -199,7 +225,12 @@ func TestSaveCheatApplySM64Presets(t *testing.T) {
 
 func TestSaveListCheatCapabilityReflectsRuntimePackStatus(t *testing.T) {
 	h := newContractHarness(t)
-	saveID := seedSM64Save(t, h, "/saves")
+	body := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "sm64-rom-canonical",
+		"slotName": "default",
+		"system":   "n64",
+	}, "Super Mario 64 (USA).eep", normalizeN64EEPROM(buildSM64FixturePayload()))
+	saveID := mustString(t, mustObject(t, body["save"], "save")["id"], "save.id")
 
 	assertSaveListCheatSupport(t, h, saveID, true)
 

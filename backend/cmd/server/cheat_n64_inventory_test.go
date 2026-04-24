@@ -21,6 +21,13 @@ func TestN64CheatInventoryByObservedTitle(t *testing.T) {
 			wantEditorID:  "sm64-eeprom",
 		},
 		{
+			name:          "super-mario-64-valid-canonical-eeprom-payload",
+			fileName:      "Super Mario 64 (USA).eep",
+			payload:       normalizeN64EEPROM(buildSM64FixturePayload()),
+			wantSupported: true,
+			wantEditorID:  "sm64-eeprom",
+		},
+		{
 			name:          "super-mario-64-invalid-payload-does-not-fake-support",
 			fileName:      "Super Mario 64 (USA).eep",
 			payload:       buildTestN64Payload("eep", "sm64-generic"),
@@ -30,6 +37,13 @@ func TestN64CheatInventoryByObservedTitle(t *testing.T) {
 			name:          "mario-kart-64-valid-parser-backed-payload",
 			fileName:      "Mario Kart 64 (USA).eep",
 			payload:       buildMK64FixturePayload(),
+			wantSupported: true,
+			wantEditorID:  "mk64-eeprom",
+		},
+		{
+			name:          "mario-kart-64-valid-canonical-eeprom-payload",
+			fileName:      "Mario Kart 64 (USA).eep",
+			payload:       normalizeN64EEPROM(buildMK64FixturePayload()),
 			wantSupported: true,
 			wantEditorID:  "mk64-eeprom",
 		},
@@ -44,6 +58,13 @@ func TestN64CheatInventoryByObservedTitle(t *testing.T) {
 			fileName:      "Star Fox 64 (USA).eep",
 			payload:       buildTestN64Payload("eep", "star-fox-64"),
 			wantSupported: false,
+		},
+		{
+			name:          "diddy-kong-racing-valid-canonical-eeprom-payload",
+			fileName:      "Diddy Kong Racing (USA).eep",
+			payload:       normalizeN64EEPROM(buildDKRFixturePayload()),
+			wantSupported: true,
+			wantEditorID:  "dkr-eeprom",
 		},
 		{
 			name:          "wave-race-64-has-no-curated-pack",

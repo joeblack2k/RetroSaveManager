@@ -12,6 +12,7 @@ match:
 payload:
   exactSizes:
     - 512
+    - 2048
   formats:
     - eep
     - bin

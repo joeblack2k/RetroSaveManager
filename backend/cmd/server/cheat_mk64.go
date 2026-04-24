@@ -31,7 +31,11 @@ func (mk64EEPROMCheatEditor) ID() string {
 }
 
 func (mk64EEPROMCheatEditor) Read(pack cheatPack, payload []byte) (saveCheatEditorState, error) {
-	parsed, err := parseMK64EEPROM(payload)
+	window, err := n64SmallEEPROMWindow(payload, "Mario Kart 64")
+	if err != nil {
+		return saveCheatEditorState{}, err
+	}
+	parsed, err := parseMK64EEPROM(window)
 	if err != nil {
 		return saveCheatEditorState{}, err
 	}
@@ -42,7 +46,11 @@ func (mk64EEPROMCheatEditor) Apply(pack cheatPack, payload []byte, slotID string
 	if strings.TrimSpace(slotID) != "" {
 		return nil, nil, fmt.Errorf("save slot selection is not supported for %q", strings.TrimSpace(slotID))
 	}
-	parsed, err := parseMK64EEPROM(payload)
+	window, err := n64SmallEEPROMWindow(payload, "Mario Kart 64")
+	if err != nil {
+		return nil, nil, err
+	}
+	parsed, err := parseMK64EEPROM(window)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -63,7 +71,11 @@ func (mk64EEPROMCheatEditor) Apply(pack cheatPack, payload []byte, slotID string
 	stuff := mk64BuildStuff(state)
 	copy(updated[mk64MainOffset:mk64MainOffset+mk64StuffSize], stuff)
 	copy(updated[mk64BackupOffset:mk64BackupOffset+mk64StuffSize], stuff)
-	return updated, changed, nil
+	patched, err := n64PatchSmallEEPROMWindow(payload, updated, "Mario Kart 64")
+	if err != nil {
+		return nil, nil, err
+	}
+	return patched, changed, nil
 }
 
 func parseMK64EEPROM(payload []byte) (*mk64ParsedEEPROM, error) {
