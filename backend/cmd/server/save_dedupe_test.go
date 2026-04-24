@@ -82,6 +82,59 @@ func TestGenericUploadHistoricalDuplicateReturnsConflict(t *testing.T) {
 	}
 }
 
+func TestGenericUploadDuplicateAcrossROMVariantsIsIgnored(t *testing.T) {
+	h := newContractHarness(t)
+	payload := buildTestN64Payload("eep", "cross-rom-duplicate")
+	first := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "star-fox-retail-rom",
+		"slotName": "slot-a",
+		"system":   "n64",
+	}, "Star Fox 64 (USA).eep", payload)
+	firstID := mustString(t, mustObject(t, first["save"], "save")["id"], "save.id")
+
+	second := h.multipart("/saves", map[string]string{
+		"rom_sha1": "star-fox-rev1-rom",
+		"slotName": "slot-a",
+		"system":   "n64",
+	}, "file", "Star Fox 64 (USA) (Rev 1).eep", payload)
+	assertStatus(t, second, http.StatusOK)
+	body := decodeJSONMap(t, second.Body)
+	if !mustBool(t, body["duplicate"], "duplicate") {
+		t.Fatalf("expected cross-ROM duplicate response, got %s", prettyJSON(body))
+	}
+	if got := mustString(t, body["duplicateDisposition"], "duplicateDisposition"); got != string(uploadDuplicateIgnoredLatest) {
+		t.Fatalf("expected ignored-latest duplicate disposition, got %q", got)
+	}
+	if got := mustString(t, mustObject(t, body["save"], "save")["id"], "save.id"); got != firstID {
+		t.Fatalf("expected cross-ROM duplicate upload to return %q, got %q", firstID, got)
+	}
+
+	list := h.request(http.MethodGet, "/saves?limit=50&offset=0", nil)
+	assertStatus(t, list, http.StatusOK)
+	saves := mustArray(t, decodeJSONMap(t, list.Body)["saves"], "saves")
+	matches := 0
+	for _, item := range saves {
+		summary := mustObject(t, item, "saves[n]")
+		if mustString(t, summary["displayTitle"], "displayTitle") != "Star Fox 64" {
+			continue
+		}
+		matches++
+		if got := mustNumber(t, summary["saveCount"], "saveCount"); got != 1 {
+			t.Fatalf("expected one visible save after cross-ROM duplicate upload, got %s", prettyJSON(summary))
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("expected one Star Fox row, got %d", matches)
+	}
+
+	history := h.request(http.MethodGet, "/save?saveId="+url.QueryEscape(firstID), nil)
+	assertStatus(t, history, http.StatusOK)
+	versions := mustArray(t, decodeJSONMap(t, history.Body)["versions"], "versions")
+	if len(versions) != 1 {
+		t.Fatalf("expected one history version after cross-ROM duplicate upload, got %d", len(versions))
+	}
+}
+
 func TestPlayStationHistoricalDuplicateImportIsStale(t *testing.T) {
 	h := newContractHarness(t)
 	firstPayload := makeTestPS1Card(t, "SCUS_941.63", "Final Fantasy VII Save")
@@ -272,4 +325,75 @@ func TestRescanCleanupRemovesDuplicateVersionsButKeepsRollbackAudit(t *testing.T
 	if versions[0] != 3 || versions[1] != 2 || versions[2] != 1 {
 		t.Fatalf("expected contiguous renumbered versions [3 2 1], got %v", versions)
 	}
+}
+
+func TestRescanCleanupRemovesDuplicateAcrossROMVariants(t *testing.T) {
+	h := newContractHarness(t)
+	payload := buildTestN64Payload("eep", "cleanup-cross-rom")
+	createdAt := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+
+	first, err := h.app.createSave(saveCreateInput{
+		Filename:   "Star Fox 64 (USA).eep",
+		Payload:    payload,
+		Game:       fallbackGameFromFilename("Star Fox 64 (USA).eep"),
+		Format:     "eep",
+		ROMSHA1:    "cleanup-starfox-retail",
+		SlotName:   "slot-a",
+		SystemSlug: "n64",
+		CreatedAt:  createdAt,
+	})
+	if err != nil {
+		t.Fatalf("create first cross-ROM save: %v", err)
+	}
+	_, err = h.app.createSave(saveCreateInput{
+		Filename:   "Star Fox 64 (USA) (Rev 1).eep",
+		Payload:    payload,
+		Game:       fallbackGameFromFilename("Star Fox 64 (USA) (Rev 1).eep"),
+		Format:     "eep",
+		ROMSHA1:    "cleanup-starfox-rev1",
+		SlotName:   "slot-a",
+		SystemSlug: "n64",
+		CreatedAt:  createdAt.Add(time.Minute),
+	})
+	if err != nil {
+		t.Fatalf("create second cross-ROM save: %v", err)
+	}
+	if got := countRecordsByDuplicateTrackAndSHA(h.app.snapshotSaveRecords(), canonicalDuplicateTrackKeyForRecord(first), first.Summary.SHA256); got != 2 {
+		t.Fatalf("expected 2 cross-ROM duplicate records before cleanup, got %d", got)
+	}
+
+	result, err := h.app.rescanSaves(saveRescanOptions{DryRun: false, PruneUnsupported: true})
+	if err != nil {
+		t.Fatalf("rescan with cross-ROM duplicate cleanup: %v", err)
+	}
+	if result.DuplicateGroups < 1 || result.DuplicateVersionsRemoved < 1 {
+		t.Fatalf("expected duplicate cleanup to report cross-ROM duplicate, got %+v", result)
+	}
+	records := h.app.snapshotSaveRecords()
+	matching := make([]saveRecord, 0, 1)
+	for _, record := range records {
+		if canonicalDuplicateTrackKeyForRecord(record) == canonicalDuplicateTrackKeyForRecord(first) && record.Summary.SHA256 == first.Summary.SHA256 {
+			matching = append(matching, record)
+		}
+	}
+	if len(matching) != 1 {
+		t.Fatalf("expected one surviving cross-ROM duplicate record after cleanup, got %d", len(matching))
+	}
+	if matching[0].Summary.SHA256 != first.Summary.SHA256 {
+		t.Fatalf("expected surviving record to keep the duplicate payload")
+	}
+}
+
+func countRecordsByDuplicateTrackAndSHA(records []saveRecord, key, sha string) int {
+	count := 0
+	for _, record := range records {
+		if canonicalDuplicateTrackKeyForRecord(record) != key {
+			continue
+		}
+		if strings.TrimSpace(record.Summary.SHA256) != strings.TrimSpace(sha) {
+			continue
+		}
+		count++
+	}
+	return count
 }

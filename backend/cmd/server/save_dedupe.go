@@ -27,11 +27,18 @@ func payloadSHA256Hex(payload []byte) string {
 }
 
 func latestSaveRecordForCanonicalKey(records []saveRecord, key string) (saveRecord, bool) {
+	return latestSaveRecordForKey(records, key, canonicalVersionKeyForRecord)
+}
+
+func latestSaveRecordForKey(records []saveRecord, key string, keyForRecord func(saveRecord) string) (saveRecord, bool) {
 	cleanKey := strings.TrimSpace(key)
+	if cleanKey == "" || keyForRecord == nil {
+		return saveRecord{}, false
+	}
 	var latest saveRecord
 	found := false
 	for _, record := range records {
-		if strings.TrimSpace(canonicalVersionKeyForRecord(record)) != cleanKey {
+		if strings.TrimSpace(keyForRecord(record)) != cleanKey {
 			continue
 		}
 		if !saveRecordPayloadExists(record) {
@@ -43,6 +50,25 @@ func latestSaveRecordForCanonicalKey(records []saveRecord, key string) (saveReco
 		}
 	}
 	return latest, found
+}
+
+func canonicalDuplicateTrackKeyForRecord(record saveRecord) string {
+	track := canonicalTrackFromRecord(record)
+	if canonicalTrackTitleKey(track.DisplayTitle) == "unknown game" {
+		return ""
+	}
+	return canonicalTrackKey(track)
+}
+
+func canonicalDuplicateTrackKeyForInput(input saveCreateInput, filename string) string {
+	if strings.TrimSpace(input.Filename) == "" {
+		input.Filename = filename
+	}
+	track := canonicalTrackFromInput(input)
+	if canonicalTrackTitleKey(track.DisplayTitle) == "unknown game" {
+		return ""
+	}
+	return canonicalTrackKey(track)
 }
 
 func saveRecordSortsAfter(left, right saveRecord) bool {
@@ -57,37 +83,69 @@ func saveRecordSortsAfter(left, right saveRecord) bool {
 
 func checkUploadDuplicate(records []saveRecord, input saveCreateInput) uploadDuplicateCheck {
 	filename := safeFilename(firstNonEmpty(input.Filename, "save.bin"))
-	key := canonicalVersionKeyForInput(input, filename)
 	shaHex := payloadSHA256Hex(input.Payload)
-	latest, hasLatest := latestSaveRecordForCanonicalKey(records, key)
-	if !hasLatest {
-		return uploadDuplicateCheck{}
+
+	type duplicateScope struct {
+		name   string
+		key    string
+		keyFor func(saveRecord) string
+	}
+	scopes := []duplicateScope{{
+		name:   "version",
+		key:    canonicalVersionKeyForInput(input, filename),
+		keyFor: canonicalVersionKeyForRecord,
+	}}
+	if trackKey := canonicalDuplicateTrackKeyForInput(input, filename); trackKey != "" {
+		scopes = append(scopes, duplicateScope{
+			name:   "track",
+			key:    trackKey,
+			keyFor: canonicalDuplicateTrackKeyForRecord,
+		})
 	}
 
-	var matching saveRecord
-	foundMatch := false
-	for _, record := range records {
-		if strings.TrimSpace(canonicalVersionKeyForRecord(record)) != strings.TrimSpace(key) {
+	seenScopes := map[string]struct{}{}
+	for _, scope := range scopes {
+		scopeKey := strings.TrimSpace(scope.key)
+		if scopeKey == "" {
 			continue
 		}
-		if !saveRecordPayloadExists(record) {
+		seenKey := scope.name + ":" + scopeKey
+		if _, seen := seenScopes[seenKey]; seen {
 			continue
 		}
-		if strings.TrimSpace(record.Summary.SHA256) != shaHex {
+		seenScopes[seenKey] = struct{}{}
+
+		latest, hasLatest := latestSaveRecordForKey(records, scopeKey, scope.keyFor)
+		if !hasLatest {
 			continue
 		}
-		if !foundMatch || saveRecordSortsAfter(record, matching) {
-			matching = record
-			foundMatch = true
+
+		var matching saveRecord
+		foundMatch := false
+		for _, record := range records {
+			if strings.TrimSpace(scope.keyFor(record)) != scopeKey {
+				continue
+			}
+			if !saveRecordPayloadExists(record) {
+				continue
+			}
+			if strings.TrimSpace(record.Summary.SHA256) != shaHex {
+				continue
+			}
+			if !foundMatch || saveRecordSortsAfter(record, matching) {
+				matching = record
+				foundMatch = true
+			}
 		}
+		if !foundMatch {
+			continue
+		}
+		if strings.TrimSpace(latest.Summary.SHA256) == shaHex {
+			return uploadDuplicateCheck{Disposition: uploadDuplicateIgnoredLatest, Latest: latest, Matching: latest, Found: true}
+		}
+		return uploadDuplicateCheck{Disposition: uploadDuplicateStaleHistorical, Latest: latest, Matching: matching, Found: true}
 	}
-	if !foundMatch {
-		return uploadDuplicateCheck{}
-	}
-	if strings.TrimSpace(latest.Summary.SHA256) == shaHex {
-		return uploadDuplicateCheck{Disposition: uploadDuplicateIgnoredLatest, Latest: latest, Matching: latest, Found: true}
-	}
-	return uploadDuplicateCheck{Disposition: uploadDuplicateStaleHistorical, Latest: latest, Matching: matching, Found: true}
+	return uploadDuplicateCheck{}
 }
 
 func duplicateUploadResponse(record saveRecord, disposition uploadDuplicateDisposition) map[string]any {
@@ -129,6 +187,45 @@ func metadataHasRollbackAudit(metadata any) bool {
 
 func saveRecordIsRollback(record saveRecord) bool {
 	return metadataHasRollbackAudit(record.Summary.Metadata)
+}
+
+func saveRecordRevisionIdentity(record saveRecord) string {
+	id := strings.TrimSpace(record.Summary.ID)
+	if saveRecordIsRollback(record) {
+		return "rollback:" + id
+	}
+	if sha := strings.TrimSpace(record.Summary.SHA256); sha != "" {
+		return "sha:" + sha
+	}
+	return "id:" + id
+}
+
+func saveSummaryRevisionIdentity(summary saveSummary) string {
+	id := strings.TrimSpace(summary.ID)
+	if metadataHasRollbackAudit(summary.Metadata) {
+		return "rollback:" + id
+	}
+	if sha := strings.TrimSpace(summary.SHA256); sha != "" {
+		return "sha:" + sha
+	}
+	return "id:" + id
+}
+
+func dedupeSaveSummaryRevisions(summaries []saveSummary) []saveSummary {
+	if len(summaries) <= 1 {
+		return summaries
+	}
+	seen := map[string]struct{}{}
+	deduped := make([]saveSummary, 0, len(summaries))
+	for _, summary := range summaries {
+		key := saveSummaryRevisionIdentity(summary)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, summary)
+	}
+	return deduped
 }
 
 func psLogicalRevisionIsRollback(revision psLogicalSaveRevision) bool {

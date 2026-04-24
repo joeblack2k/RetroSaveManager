@@ -1,5 +1,23 @@
 # Release Notes
 
+## v0.1.8 - 2026-04-24
+
+### Included
+
+- Cross-ROM duplicate cleanup for visible save tracks:
+  - identical payloads under the same canonieke game/region track are now treated as the same save even when helper ROM hashes differ
+  - upload idempotency now catches those cross-ROM duplicates before writing a new version
+  - `/saves`, save detail history, and the agent summary API now count unique payload hashes per visible track
+- Live cleanup support:
+  - rescan duplicate cleanup now removes redundant generic save records by visible track + SHA, not only by ROM hash + slot
+  - explicit rollback audit versions remain preserved and still count as intentional history
+
+### Validation Summary
+
+- Targeted duplicate/canonical-track tests passed locally
+- Full backend test suite passed locally
+- Security gate passed locally
+
 ## v0.1.7 - 2026-04-24
 
 ### Included

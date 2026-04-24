@@ -484,6 +484,7 @@ func (a *app) aggregatedSaveSummaries(romSHA1, romMD5 string, systemID int) []sa
 		saveCount      int
 		totalSizeBytes int
 		projectionLine bool
+		revisionKeys   map[string]struct{}
 	}
 	aggregates := make(map[string]saveAggregate, len(filteredRecords))
 	for _, record := range filteredRecords {
@@ -500,6 +501,9 @@ func (a *app) aggregatedSaveSummaries(romSHA1, romMD5 string, systemID int) []sa
 		}
 		key := canonicalListKeyForRecord(record)
 		agg := aggregates[key]
+		if agg.revisionKeys == nil {
+			agg.revisionKeys = map[string]struct{}{}
+		}
 		if _, _, _, ok := playStationProjectionInfoFromRecord(record); ok {
 			agg.projectionLine = true
 		}
@@ -514,8 +518,12 @@ func (a *app) aggregatedSaveSummaries(romSHA1, romMD5 string, systemID int) []sa
 				agg.totalSizeBytes = record.Summary.FileSize
 			}
 		} else {
-			agg.saveCount++
-			agg.totalSizeBytes += record.Summary.FileSize
+			revisionKey := saveRecordRevisionIdentity(record)
+			if _, seen := agg.revisionKeys[revisionKey]; !seen {
+				agg.revisionKeys[revisionKey] = struct{}{}
+				agg.saveCount++
+				agg.totalSizeBytes += record.Summary.FileSize
+			}
 		}
 		aggregates[key] = agg
 	}

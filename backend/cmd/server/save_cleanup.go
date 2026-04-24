@@ -101,7 +101,7 @@ func planGenericSaveDuplicateCleanup(records []saveRecord, existingRemovals map[
 		if _, _, _, ok := n64ControllerPakProjectionInfoFromRecord(record); ok {
 			continue
 		}
-		key := strings.TrimSpace(canonicalVersionKeyForRecord(record))
+		key := strings.TrimSpace(genericDuplicateCleanupKeyForRecord(record))
 		if key == "" {
 			continue
 		}
@@ -109,7 +109,7 @@ func planGenericSaveDuplicateCleanup(records []saveRecord, existingRemovals map[
 		if !ok || saveRecordSortsAfter(record, latest) {
 			latestByKey[key] = record
 		}
-		groupKey := key + "::" + strings.TrimSpace(record.Summary.SHA256)
+		groupKey := key + "::sha:" + strings.TrimSpace(record.Summary.SHA256)
 		groups[groupKey] = append(groups[groupKey], record)
 	}
 
@@ -120,7 +120,7 @@ func planGenericSaveDuplicateCleanup(records []saveRecord, existingRemovals map[
 			continue
 		}
 		duplicateGroups++
-		latest := latestByKey[strings.TrimSpace(canonicalVersionKeyForRecord(group[0]))]
+		latest := latestByKey[strings.TrimSpace(genericDuplicateCleanupKeyForRecord(group[0]))]
 		survivorID := selectSaveRecordDuplicateSurvivor(group, latest)
 		for _, record := range group {
 			if strings.TrimSpace(record.Summary.ID) == survivorID {
@@ -131,6 +131,13 @@ func planGenericSaveDuplicateCleanup(records []saveRecord, existingRemovals map[
 		}
 	}
 	return duplicateGroups, duplicateRemoved
+}
+
+func genericDuplicateCleanupKeyForRecord(record saveRecord) string {
+	if key := strings.TrimSpace(canonicalDuplicateTrackKeyForRecord(record)); key != "" {
+		return "track:" + key
+	}
+	return strings.TrimSpace(canonicalVersionKeyForRecord(record))
 }
 
 func selectSaveRecordDuplicateSurvivor(group []saveRecord, latest saveRecord) string {
