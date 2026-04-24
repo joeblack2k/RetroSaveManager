@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"net/http"
 	"testing"
 )
@@ -64,6 +65,84 @@ func TestNormalizeSaveInputAcceptsTrustedGenesisRawSaveWithInspection(t *testing
 	}
 }
 
+func TestNormalizeSaveInputValidatesSonic3SRAMSemantics(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Sonic The Hedgehog 3 (USA).sav",
+		Payload:             buildSonic3FixturePayload(),
+		Game:                game{Name: "Sonic The Hedgehog 3"},
+		Format:              "sram",
+		ROMSHA1:             "genesis-sonic-3-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "genesis",
+		TrustedHelperSystem: true,
+	})
+	if result.Rejected {
+		t.Fatalf("expected Sonic 3 SRAM to be accepted, got reject=%q", result.RejectReason)
+	}
+	if result.Input.Inspection == nil {
+		t.Fatal("expected Sonic 3 inspection metadata")
+	}
+	if result.Input.Inspection.ParserLevel != saveParserLevelSemantic {
+		t.Fatalf("expected parser level %q, got %q", saveParserLevelSemantic, result.Input.Inspection.ParserLevel)
+	}
+	if result.Input.Inspection.ParserID != genesisSonicParserID {
+		t.Fatalf("unexpected parser id: %q", result.Input.Inspection.ParserID)
+	}
+	if result.Input.Inspection.ValidatedGameTitle != "Sonic The Hedgehog 3" {
+		t.Fatalf("expected validated Sonic 3 title, got %q", result.Input.Inspection.ValidatedGameTitle)
+	}
+	fields := result.Input.Inspection.SemanticFields
+	if got := fields["stage"]; got != "Hydrocity Zone Act 1" {
+		t.Fatalf("expected Hydrocity stage, got %+v", fields)
+	}
+	if got := fields["character"]; got != "Sonic & Tails" {
+		t.Fatalf("expected Sonic & Tails character, got %+v", fields)
+	}
+	if got := fields["livesNote"]; got != "Not stored in Sonic 3 standalone SRAM" {
+		t.Fatalf("expected explicit Sonic 3 lives note, got %+v", fields)
+	}
+	if !result.Input.Game.HasParser {
+		t.Fatal("expected Sonic semantic parser to mark game as parser-backed")
+	}
+}
+
+func TestNormalizeSaveInputValidatesSonic3KnucklesLives(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Sonic 3 & Knuckles.srm",
+		Payload:             buildSonicSKFixturePayload(),
+		Game:                game{Name: "Sonic 3 & Knuckles"},
+		Format:              "sram",
+		ROMSHA1:             "genesis-sonic-sk-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "genesis",
+		TrustedHelperSystem: true,
+	})
+	if result.Rejected {
+		t.Fatalf("expected Sonic 3 & Knuckles SRAM to be accepted, got reject=%q", result.RejectReason)
+	}
+	if result.Input.Inspection == nil {
+		t.Fatal("expected Sonic 3 & Knuckles inspection metadata")
+	}
+	if result.Input.Inspection.ValidatedGameTitle != "Sonic 3 & Knuckles" {
+		t.Fatalf("expected validated Sonic 3 & Knuckles title, got %q", result.Input.Inspection.ValidatedGameTitle)
+	}
+	fields := result.Input.Inspection.SemanticFields
+	if got := fields["stage"]; got != "Mushroom Hill Zone Act 1" {
+		t.Fatalf("expected Mushroom Hill stage, got %+v", fields)
+	}
+	if got := fields["character"]; got != "Knuckles" {
+		t.Fatalf("expected Knuckles character, got %+v", fields)
+	}
+	if got := fields["lives"]; got != 7 {
+		t.Fatalf("expected lives to be decoded, got %+v", fields)
+	}
+	if got := fields["continues"]; got != 2 {
+		t.Fatalf("expected continues to be decoded, got %+v", fields)
+	}
+}
+
 func TestNormalizeSaveInputRejectsBlankGenesisRawSave(t *testing.T) {
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{
@@ -81,6 +160,35 @@ func TestNormalizeSaveInputRejectsBlankGenesisRawSave(t *testing.T) {
 	}
 	if result.RejectReason != "genesis raw save payload is blank (all 0x00)" {
 		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	}
+}
+
+func TestNormalizeSaveInputDoesNotPromoteInvalidSonicLikeSRAM(t *testing.T) {
+	a := &app{}
+	payload := buildSonic3FixturePayload()
+	payload[sonicS3RegionOffset+sonicS3RegionSize-1] ^= 0x7f
+	payload[sonicS3BackupOffset+sonicS3RegionSize-1] ^= 0x7f
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Sonic The Hedgehog 3 (USA).sav",
+		Payload:             payload,
+		Game:                game{Name: "Sonic The Hedgehog 3"},
+		Format:              "sram",
+		ROMSHA1:             "genesis-sonic-3-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "genesis",
+		TrustedHelperSystem: true,
+	})
+	if result.Rejected {
+		t.Fatalf("expected raw Genesis save to remain accepted, got reject=%q", result.RejectReason)
+	}
+	if result.Input.Inspection == nil {
+		t.Fatal("expected raw inspection metadata")
+	}
+	if result.Input.Inspection.ParserID == genesisSonicParserID {
+		t.Fatalf("expected invalid Sonic checksum not to promote semantic parser: %+v", result.Input.Inspection)
+	}
+	if result.Input.Inspection.ParserLevel != saveParserLevelContainer {
+		t.Fatalf("expected fallback raw parser level, got %q", result.Input.Inspection.ParserLevel)
 	}
 }
 
@@ -175,4 +283,42 @@ func TestNormalizeSaveInputAcceptsWeakNeoGeoSlugTitleAndAppliesAlias(t *testing.
 	if result.Input.DisplayTitle != "Double Dragon" {
 		t.Fatalf("expected Neo Geo alias resolution, got %q", result.Input.DisplayTitle)
 	}
+}
+
+func buildSonic3FixturePayload() []byte {
+	payload := buildBlankGenesisSRAMFixture()
+	region := make([]byte, sonicS3RegionSize)
+	for idx := 0; idx < sonicS3SlotCount; idx++ {
+		region[idx*sonicS3SlotSize] = 0x80
+	}
+	copy(region[:sonicS3SlotSize], []byte{0x00, 0x00, 0x00, 0x01, 0x02, 0x01, 0x80, 0x00})
+	writeSonicRegion(payload, sonicS3RegionOffset, region, sonicS3IntegrityWord)
+	writeSonicRegion(payload, sonicS3BackupOffset, region, sonicS3IntegrityWord)
+	return payload
+}
+
+func buildSonicSKFixturePayload() []byte {
+	payload := buildBlankGenesisSRAMFixture()
+	region := make([]byte, sonicSKRegionSize)
+	for idx := 0; idx < sonicSKSlotCount; idx++ {
+		region[idx*sonicSKSlotSize] = 0x80
+	}
+	copy(region[:sonicSKSlotSize], []byte{0x00, 0x00, 0x30, 0x06, 0x00, 0x00, 0xff, 0xff, 0x07, 0x02})
+	writeSonicRegion(payload, sonicSKRegionOffset, region, sonicSKIntegrityWord)
+	writeSonicRegion(payload, sonicSKBackupOffset, region, sonicSKIntegrityWord)
+	return payload
+}
+
+func buildBlankGenesisSRAMFixture() []byte {
+	payload := make([]byte, 65536)
+	for idx := range payload {
+		payload[idx] = 0xff
+	}
+	return payload
+}
+
+func writeSonicRegion(payload []byte, offset int, region []byte, integrity uint16) {
+	binary.BigEndian.PutUint16(region[len(region)-4:len(region)-2], integrity)
+	binary.BigEndian.PutUint16(region[len(region)-2:], sonicSRAMChecksum(region[:len(region)-2]))
+	copy(payload[offset:], region)
 }

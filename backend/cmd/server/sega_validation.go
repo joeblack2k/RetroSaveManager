@@ -171,7 +171,7 @@ func validateDreamcastSave(input saveCreateInput, normalized normalizedSaveMetad
 }
 
 func validateStrictSegaRawSave(input saveCreateInput, detection saveSystemDetectionResult, systemSlug string) consoleValidationResult {
-	return validateStrictRawSaveClass(input, detection, strictRawSaveValidationProfile{
+	result := validateStrictRawSaveClass(input, detection, strictRawSaveValidationProfile{
 		SystemSlug:           systemSlug,
 		DisplayName:          systemSlug,
 		ParserID:             "sega-raw-sram",
@@ -184,6 +184,15 @@ func validateStrictSegaRawSave(input saveCreateInput, detection saveSystemDetect
 		SparseWarningCutoff:  16,
 		Warning:              "No structural decoder is available yet for this Sega raw save",
 	})
+	if result.Rejected || result.Inspection == nil {
+		return result
+	}
+	if systemSlug == "genesis" {
+		if enriched, ok := validateGenesisSonicSave(input, result.Inspection); ok {
+			result.Inspection = enriched
+		}
+	}
+	return result
 }
 
 func isPlausibleStrictSegaRawSaveSize(size int) bool {

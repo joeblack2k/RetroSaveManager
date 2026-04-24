@@ -23,13 +23,19 @@ type GameplayField = {
 };
 
 const gameplayFields: GameplayField[] = [
+  { label: "Save slot", keys: ["currentSlot", "slot", "selectedSlot"] },
+  { label: "Character", keys: ["character", "player", "playerCharacter", "selectedCharacter"] },
   { label: "Lives", keys: ["lives", "lifeCount", "currentLives", "playerLives"] },
+  { label: "Lives", keys: ["livesNote", "lifeNote", "livesUnavailableReason"] },
+  { label: "Continues", keys: ["continues", "continueCount"] },
   { label: "Current map", keys: ["map", "currentMap", "mapName", "location", "currentLocation"] },
   { label: "World", keys: ["world", "currentWorld"] },
   { label: "Level", keys: ["level", "currentLevel", "stage", "currentStage"] },
   { label: "Zone", keys: ["zone", "currentZone"] },
   { label: "Act", keys: ["act", "currentAct"] },
   { label: "Progress", keys: ["progress", "completion", "completionPercent", "percentComplete"] },
+  { label: "Chaos Emeralds", keys: ["chaosEmeralds", "chaosEmeraldCount"] },
+  { label: "Super Emeralds", keys: ["superEmeralds", "superEmeraldCount"] },
   { label: "Stars", keys: ["stars", "starCount", "collectedStars"] },
   { label: "Coins", keys: ["coins", "coinCount"] },
   { label: "Hearts", keys: ["hearts", "heartContainers"] },
