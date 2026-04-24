@@ -65,7 +65,11 @@ export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSiz
   addRow("Checksum", typeof inspection.checksumValid === "boolean" ? (inspection.checksumValid ? "Valid" : "Invalid") : undefined);
   addRow("Active save slots", inspection.activeSlotIndexes);
   addRow("Slot count", inspection.slotCount);
+  addRow("Raw save kind", fields.rawSaveKind);
   addRow("Media type", fields.mediaType);
+  addRow("ROM link", firstFieldValue(fields, ["romLinked", "romSha1Present"]) === true ? "Present" : undefined);
+  addRow("Blank check", fields.blankCheck);
+  addRow("File extension", fields.extension);
   addRow("Game profile", humanizeVariant(fields.variant));
   addRow("Valid copies", fields.validCopies);
   addRow("Mirrored copies", typeof fields.identicalCopies === "boolean" ? (fields.identicalCopies ? "Identical" : "Different") : undefined);
@@ -81,8 +85,8 @@ export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSiz
   addRow("Non-FF bytes", fields.nonFFBytes);
 
   return {
-    title: titleForParserLevel(inspection.parserLevel),
-    subtitle: subtitleForParserLevel(inspection.parserLevel),
+    title: titleForInspection(inspection),
+    subtitle: subtitleForInspection(inspection),
     parserLevel: humanizeParserLevel(inspection.parserLevel),
     parserId: inspection.parserId || "unknown",
     rows,
@@ -91,7 +95,11 @@ export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSiz
   };
 }
 
-function titleForParserLevel(parserLevel: string | undefined): string {
+function titleForInspection(inspection: SaveInspection): string {
+  if (isRawMediaInspection(inspection)) {
+    return "Raw cartridge save verified";
+  }
+  const parserLevel = inspection.parserLevel;
   switch ((parserLevel || "").toLowerCase()) {
     case "semantic":
       return "Gameplay decoder active";
@@ -104,7 +112,11 @@ function titleForParserLevel(parserLevel: string | undefined): string {
   }
 }
 
-function subtitleForParserLevel(parserLevel: string | undefined): string {
+function subtitleForInspection(inspection: SaveInspection): string {
+  if (isRawMediaInspection(inspection)) {
+    return "NES, Game Boy, GBA, SNES, and Sega raw saves are validated as real cartridge save media; gameplay stats need a per-game decoder.";
+  }
+  const parserLevel = inspection.parserLevel;
   switch ((parserLevel || "").toLowerCase()) {
     case "semantic":
       return "Parser-backed gameplay facts are available for this save.";
@@ -115,6 +127,15 @@ function subtitleForParserLevel(parserLevel: string | undefined): string {
     default:
       return "Only verified backend metadata is shown here.";
   }
+}
+
+function isRawMediaInspection(inspection: SaveInspection): boolean {
+  const parserId = (inspection.parserId || "").toLowerCase();
+  return (inspection.parserLevel || "").toLowerCase() === "container" && (
+    parserId.endsWith("-raw-sram") ||
+    parserId === "gba-raw-backup" ||
+    parserId === "n64-save-media"
+  );
 }
 
 function firstFieldValue(fields: Record<string, unknown>, keys: string[]): unknown {

@@ -82,6 +82,10 @@ describe("buildSaveInsight", () => {
         parserId: "snes-raw-sram",
         payloadSizeBytes: 8192,
         semanticFields: {
+          rawSaveKind: "SNES cartridge SRAM",
+          blankCheck: "passed",
+          extension: "srm",
+          romLinked: true,
           mediaType: "sram",
           nonZeroBytes: 528,
           nonFFBytes: 7680
@@ -89,7 +93,12 @@ describe("buildSaveInsight", () => {
       }
     }));
 
-    expect(insight?.title).toBe("Raw save media verified");
+    expect(insight?.title).toBe("Raw cartridge save verified");
+    expect(insight?.subtitle).toMatch(/NES, Game Boy, GBA, SNES, and Sega raw saves/i);
+    expect(insight?.rows).toContainEqual({ label: "Raw save kind", value: "SNES cartridge SRAM", kind: "technical" });
+    expect(insight?.rows).toContainEqual({ label: "ROM link", value: "Present", kind: "technical" });
+    expect(insight?.rows).toContainEqual({ label: "Blank check", value: "passed", kind: "technical" });
+    expect(insight?.rows).toContainEqual({ label: "File extension", value: "srm", kind: "technical" });
     expect(insight?.rows).toContainEqual({ label: "Payload size", value: "8.0 KB", kind: "technical" });
     expect(insight?.rows).toContainEqual({ label: "Non-zero bytes", value: "528", kind: "technical" });
   });

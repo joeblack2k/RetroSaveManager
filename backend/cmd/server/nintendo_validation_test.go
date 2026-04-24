@@ -26,6 +26,12 @@ func TestNormalizeSaveInputAcceptsTrustedSNESRawSaveWithInspection(t *testing.T)
 	if result.Input.Inspection.ValidatedSystem != "snes" {
 		t.Fatalf("unexpected validated system: %+v", result.Input.Inspection)
 	}
+	if got := result.Input.Inspection.SemanticFields["rawSaveKind"]; got != "SNES cartridge SRAM" {
+		t.Fatalf("expected SNES raw save kind, got %+v", result.Input.Inspection.SemanticFields)
+	}
+	if got := result.Input.Inspection.SemanticFields["blankCheck"]; got != "passed" {
+		t.Fatalf("expected blank check metadata, got %+v", result.Input.Inspection.SemanticFields)
+	}
 }
 
 func TestNormalizeSaveInputRejectsSNESRawSaveWithoutROMSHA1(t *testing.T) {
@@ -136,6 +142,9 @@ func TestNormalizeSaveInputAcceptsNESRawSaveWithInspection(t *testing.T) {
 	if result.Input.Inspection == nil || result.Input.Inspection.ParserID != "nes-raw-sram" {
 		t.Fatalf("expected NES inspection metadata, got %+v", result.Input.Inspection)
 	}
+	if got := result.Input.Inspection.SemanticFields["rawSaveKind"]; got != "NES cartridge SRAM" {
+		t.Fatalf("expected NES raw save kind, got %+v", result.Input.Inspection.SemanticFields)
+	}
 }
 
 func TestNormalizeSaveInputAcceptsGBABackupSignatureWithInspection(t *testing.T) {
@@ -160,6 +169,9 @@ func TestNormalizeSaveInputAcceptsGBABackupSignatureWithInspection(t *testing.T)
 	}
 	if result.Input.Inspection.ParserID != "gba-raw-backup" {
 		t.Fatalf("unexpected parser id: %+v", result.Input.Inspection)
+	}
+	if got := result.Input.Inspection.SemanticFields["rawSaveKind"]; got != "Game Boy Advance backup memory" {
+		t.Fatalf("expected GBA raw save kind, got %+v", result.Input.Inspection.SemanticFields)
 	}
 }
 

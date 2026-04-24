@@ -40,6 +40,7 @@
           "payloadSize=8192",
           "nonZeroBytes=35",
           "nonFFBytes=8192",
+          "blank check passed",
           "romSha1 present",
           "trusted stored system"
         ],
@@ -47,9 +48,12 @@
         "parserLevel": "container",
         "payloadSizeBytes": 8192,
         "semanticFields": {
+          "blankCheck": "passed",
           "extension": "srm",
           "nonFFBytes": 8192,
           "nonZeroBytes": 35,
+          "rawSaveKind": "Game Boy cartridge SRAM",
+          "romLinked": true,
           "romSha1Present": true
         },
         "trustLevel": "rom-media-verified",

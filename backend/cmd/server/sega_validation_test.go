@@ -53,6 +53,12 @@ func TestNormalizeSaveInputAcceptsTrustedGenesisRawSaveWithInspection(t *testing
 	if result.Input.Inspection.ValidatedSystem != "genesis" {
 		t.Fatalf("unexpected validated system: %q", result.Input.Inspection.ValidatedSystem)
 	}
+	if got := result.Input.Inspection.SemanticFields["rawSaveKind"]; got != "Genesis / Mega Drive cartridge SRAM" {
+		t.Fatalf("expected Genesis raw save kind, got %+v", result.Input.Inspection.SemanticFields)
+	}
+	if got := result.Input.Inspection.SemanticFields["blankCheck"]; got != "passed" {
+		t.Fatalf("expected blank check metadata, got %+v", result.Input.Inspection.SemanticFields)
+	}
 	if result.Input.Game.HasParser {
 		t.Fatal("expected raw Sega validator to remain below structural parser level")
 	}

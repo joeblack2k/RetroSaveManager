@@ -119,8 +119,10 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 		fmt.Sprintf("payloadSize=%d", stats.Size),
 		fmt.Sprintf("nonZeroBytes=%d", stats.NonZero),
 		fmt.Sprintf("nonFFBytes=%d", stats.NonFF),
+		"blank check passed",
 	}
-	if strings.TrimSpace(input.ROMSHA1) != "" {
+	romLinked := strings.TrimSpace(input.ROMSHA1) != ""
+	if romLinked {
 		evidence = append(evidence, "romSha1 present")
 	}
 	if detection.Evidence.HelperTrusted {
@@ -158,12 +160,43 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 		PayloadSizeBytes: stats.Size,
 		SemanticFields: map[string]any{
 			"extension":      ext,
+			"rawSaveKind":    rawSaveKind(profile.SystemSlug, ext),
+			"blankCheck":     "passed",
 			"nonZeroBytes":   stats.NonZero,
 			"nonFFBytes":     stats.NonFF,
-			"romSha1Present": strings.TrimSpace(input.ROMSHA1) != "",
+			"romLinked":      romLinked,
+			"romSha1Present": romLinked,
 		},
 	}
 	return consoleValidationResult{Inspection: inspection}
+}
+
+func rawSaveKind(systemSlug, ext string) string {
+	switch strings.TrimSpace(strings.ToLower(systemSlug)) {
+	case "gameboy":
+		switch strings.TrimSpace(strings.ToLower(ext)) {
+		case "rtc":
+			return "Game Boy real-time clock data"
+		case "gme":
+			return "Game Boy emulator save package"
+		default:
+			return "Game Boy cartridge SRAM"
+		}
+	case "gba":
+		return "Game Boy Advance backup memory"
+	case "nes":
+		return "NES cartridge SRAM"
+	case "snes":
+		return "SNES cartridge SRAM"
+	case "genesis":
+		return "Genesis / Mega Drive cartridge SRAM"
+	case "master-system":
+		return "Master System cartridge SRAM"
+	case "game-gear":
+		return "Game Gear cartridge SRAM"
+	default:
+		return "Raw cartridge save media"
+	}
 }
 
 func analyzeRawSavePayload(payload []byte, sparseCutoff int) rawSaveStats {
