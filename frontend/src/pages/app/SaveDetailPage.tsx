@@ -6,6 +6,7 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import { getSaveHistory, rollbackSave } from "../../services/retrosaveApi";
 import type { MemoryCardEntry, SaveDownloadProfile, SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
+import { buildSaveInsight, type SaveInsightModel } from "../../utils/saveInsights";
 import { buildSaveDetailsHref, buildSaveDownloadHref } from "../../utils/saveRows";
 
 type DownloadModalState = {
@@ -73,6 +74,7 @@ export function SaveDetailPage(): JSX.Element {
     : data?.summary?.totalSizeBytes || fallbackSummary.totalSizeBytes;
   const latestVersion = showPlayStationSelector ? 0 : data?.summary?.latestVersion || fallbackSummary.latestVersion;
   const latestCreatedAt = data?.summary?.latestCreatedAt || fallbackSummary.latestCreatedAt;
+  const saveInsight = useMemo(() => buildSaveInsight(latest), [latest]);
 
   async function handleRollback(target: SaveSummary): Promise<void> {
     const confirmed = window.confirm(`Rollback to version ${target.version} of ${displayTitle}?\n\nA new latest version will be created as the promoted sync copy.`);
@@ -128,6 +130,8 @@ export function SaveDetailPage(): JSX.Element {
             {!showPlayStationSelector ? <p><strong>Latest version:</strong> v{latestVersion}</p> : null}
             <p><strong>Latest date:</strong> {formatDate(latestCreatedAt)}</p>
           </div>
+
+          {!showPlayStationSelector && saveInsight ? <SaveInsightsPanel insight={saveInsight} /> : null}
 
           {showPlayStationSelector ? (
             <div className="stack compact">
@@ -333,6 +337,76 @@ export function SaveDetailPage(): JSX.Element {
         </div>
       ) : null}
     </SectionCard>
+  );
+}
+
+function SaveInsightsPanel({ insight }: { insight: SaveInsightModel }): JSX.Element {
+  const gameplayRows = insight.rows.filter((row) => row.kind === "gameplay");
+  const technicalRows = insight.rows.filter((row) => row.kind !== "gameplay");
+  return (
+    <section className="save-insights" aria-labelledby="save-insights-title">
+      <header className="save-insights__header">
+        <div>
+          <p className="save-insights__eyebrow">Parser-backed readout</p>
+          <h2 id="save-insights-title">{insight.title}</h2>
+          <p>{insight.subtitle}</p>
+        </div>
+        <div className="save-insights__badge">
+          <span>{insight.parserLevel}</span>
+          <strong>{insight.parserId}</strong>
+        </div>
+      </header>
+
+      {gameplayRows.length > 0 ? (
+        <div className="save-insights__section">
+          <h3>Gameplay facts</h3>
+          <div className="save-insights__grid">
+            {gameplayRows.map((row) => (
+              <div className="save-insights__tile save-insights__tile--gameplay" key={row.label}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {technicalRows.length > 0 ? (
+        <div className="save-insights__section">
+          <h3>Verified metadata</h3>
+          <div className="save-insights__grid">
+            {technicalRows.map((row) => (
+              <div className="save-insights__tile" key={row.label}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {insight.warnings.length > 0 ? (
+        <div className="save-insights__notes">
+          <strong>Notes</strong>
+          <ul>
+            {insight.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {insight.evidence.length > 0 ? (
+        <details className="save-insights__evidence">
+          <summary>Parser evidence</summary>
+          <ul>
+            {insight.evidence.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </section>
   );
 }
 

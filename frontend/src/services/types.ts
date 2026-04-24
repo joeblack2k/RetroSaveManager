@@ -185,6 +185,22 @@ export type SaveDownloadProfile = {
   note?: string;
 };
 
+export type SaveInspection = {
+  parserLevel?: string;
+  parserId?: string;
+  validatedSystem?: string;
+  validatedGameId?: string;
+  validatedGameTitle?: string;
+  trustLevel?: string;
+  evidence?: string[];
+  warnings?: string[];
+  payloadSizeBytes?: number;
+  slotCount?: number;
+  activeSlotIndexes?: number[];
+  checksumValid?: boolean;
+  semanticFields?: Record<string, unknown>;
+};
+
 export type SaveSummary = {
   id: string;
   game: SaveGame;
@@ -207,7 +223,7 @@ export type SaveSummary = {
   memoryCard?: MemoryCardDetails | null;
   dreamcast?: Record<string, unknown> | null;
   saturn?: Record<string, unknown> | null;
-  inspection?: Record<string, unknown> | null;
+  inspection?: SaveInspection | null;
   runtimeProfile?: string;
   cardSlot?: string;
   projectionId?: string;
