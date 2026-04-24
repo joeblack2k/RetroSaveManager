@@ -230,15 +230,37 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		}
 
 		filename := header.Filename
+		if expandedUploads, isArchive, expandErr := expandMultipartSaveUpload(filename, payload, formValue); isArchive {
+			if expandErr != nil {
+				a.appendSyncLog(syncLogInput{
+					DeviceName:   deviceName,
+					Action:       "upload",
+					Game:         syncLogGameLabelFromFilename(filename),
+					ErrorMessage: expandErr.Error(),
+				})
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: expandErr.Error(), StatusCode: http.StatusUnprocessableEntity})
+				return
+			}
+			a.handleExpandedMultipartSaveUploads(w, helperCtx, identity, deviceName, expandedUploads, formValue)
+			return
+		}
+
 		gameInfo := fallbackGameFromFilename(filename)
+		metadata, wiiTitleCode := wiiUploadMetadata(nil, filename, formValue)
+		if wiiTitleCode != "" && strings.EqualFold(safeFilename(filename), "data.bin") {
+			gameInfo = wiiGameFromTitleCode(wiiTitleCode)
+		}
 		declaredSystem := safeMultipartSystemSlug(formValue("system"), gameInfo.System)
+		if declaredSystem == "unknown-system" && wiiTitleCode != "" && strings.EqualFold(safeFilename(filename), "data.bin") {
+			declaredSystem = "wii"
+		}
 		runtimeProfile := requestedRuntimeProfileFromForm(formValue, declaredSystem)
 		input := saveCreateInput{
 			Filename:            filename,
 			Payload:             payload,
 			Game:                gameInfo,
 			Format:              inferSaveFormat(filename),
-			Metadata:            nil,
+			Metadata:            metadata,
 			ROMSHA1:             strings.TrimSpace(formValue("rom_sha1")),
 			ROMMD5:              strings.TrimSpace(formValue("rom_md5")),
 			SlotName:            strings.TrimSpace(formValue("slotName")),

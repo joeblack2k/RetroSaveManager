@@ -1629,6 +1629,8 @@ code {
 .treegrid-panel__header {
   display: flex;
   align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   min-height: 58px;
   padding: 12px 18px 10px;
   border-bottom: 1px solid rgba(77, 84, 101, 0.62);
@@ -1649,6 +1651,25 @@ code {
   color: #8f99af;
   font-size: 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-header-action {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 134, 183, 0.92);
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(30, 39, 60, 0.98), rgba(15, 19, 30, 0.98));
+  color: #f2f7ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.treegrid-header-action:hover {
+  border-color: rgba(161, 192, 255, 0.98);
+  background: rgba(35, 47, 73, 1);
 }
 
 .treegrid-panel__empty {
@@ -1979,6 +2000,65 @@ code {
 
 .treegrid-modal-table tbody tr:hover {
   background: rgba(34, 40, 53, 0.94);
+}
+
+.treegrid-upload-form {
+  padding: 14px 18px 18px;
+}
+
+.treegrid-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.treegrid-upload-field {
+  display: grid;
+  gap: 5px;
+  color: #95a3bc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.treegrid-upload-field--wide {
+  grid-column: 1 / -1;
+}
+
+.treegrid-upload-field input,
+.treegrid-upload-field select {
+  min-height: 30px;
+  border: 1px solid rgba(75, 86, 110, 0.95);
+  border-radius: 0;
+  background: rgba(11, 14, 21, 0.98);
+  color: #edf4ff;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0 9px;
+}
+
+.treegrid-upload-field input[type="file"] {
+  padding: 6px 9px;
+}
+
+.treegrid-upload-hint {
+  margin: 12px 0 0;
+  color: #a7b4ca;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.treegrid-upload-hint code {
+  color: #dbe8ff;
+}
+
+.treegrid-upload-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 .treegrid-current-pill {
@@ -2429,6 +2509,10 @@ code {
 
   .treegrid-modal-table {
     min-width: 560px;
+  }
+
+  .treegrid-upload-grid {
+    grid-template-columns: 1fr;
   }
 
   .treegrid-group-toggle__meta {

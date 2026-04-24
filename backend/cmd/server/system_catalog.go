@@ -21,7 +21,7 @@ func manufacturerForSystem(slug, name string) string {
 
 	lookup := strings.ToLower(strings.TrimSpace(slug + " " + name))
 	switch {
-	case strings.Contains(lookup, "nintendo"), strings.Contains(lookup, "gameboy"), strings.Contains(lookup, "game boy"), strings.Contains(lookup, "snes"), strings.Contains(lookup, "n64"), strings.Contains(lookup, "nintendo ds"), strings.Contains(lookup, "nds"):
+	case strings.Contains(lookup, "nintendo"), strings.Contains(lookup, "gameboy"), strings.Contains(lookup, "game boy"), strings.Contains(lookup, "snes"), strings.Contains(lookup, "n64"), strings.Contains(lookup, "nintendo ds"), strings.Contains(lookup, "nds"), strings.Contains(lookup, "wii"):
 		return "Nintendo"
 	case strings.Contains(lookup, "playstation"), strings.Contains(lookup, "psx"), strings.Contains(lookup, "ps1"), strings.Contains(lookup, "ps2"), strings.Contains(lookup, "ps3"), strings.Contains(lookup, "psp"):
 		return "Sony"

@@ -114,6 +114,8 @@ func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectio
 		return result
 	case "nds":
 		return validateNintendoDSSave(input)
+	case "wii":
+		return validateWiiSave(input, detection)
 	default:
 		return consoleValidationResult{}
 	}

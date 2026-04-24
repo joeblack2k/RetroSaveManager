@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -9,7 +9,8 @@ import {
   getSaveCheats,
   getSaveHistory,
   listSaves,
-  rollbackSave
+  rollbackSave,
+  uploadSaveFile
 } from "../../services/retrosaveApi";
 import type { SaveCheatEditorState, SaveCheatField, SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
@@ -70,6 +71,15 @@ export function MyGamesPage(): JSX.Element {
   const [selectorError, setSelectorError] = useState<string | null>(null);
   const [selectingVersionID, setSelectingVersionID] = useState<string | null>(null);
   const [downloadState, setDownloadState] = useState<DownloadModalState | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadSystem, setUploadSystem] = useState("");
+  const [uploadSlotName, setUploadSlotName] = useState("");
+  const [uploadRomSha1, setUploadRomSha1] = useState("");
+  const [uploadWiiTitleId, setUploadWiiTitleId] = useState("");
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<string | null>(null);
   const [cheatRow, setCheatRow] = useState<SaveRow | null>(null);
   const [cheatDisplayTitle, setCheatDisplayTitle] = useState("");
   const [cheatData, setCheatData] = useState<SaveCheatEditorState | null>(null);
@@ -149,7 +159,7 @@ export function MyGamesPage(): JSX.Element {
   }, [consoleGroups]);
 
   useEffect(() => {
-    if (!selectorState && !cheatRow && !downloadState) {
+    if (!selectorState && !cheatRow && !downloadState && !uploadOpen) {
       return;
     }
 
@@ -158,12 +168,13 @@ export function MyGamesPage(): JSX.Element {
         closeSaveSelector();
         closeCheatModal();
         closeDownloadModal();
+        closeUploadModal();
       }
     }
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [selectorState, cheatRow, downloadState]);
+  }, [selectorState, cheatRow, downloadState, uploadOpen]);
 
   const totalSaveCount = useMemo(() => rows.reduce((sum, row) => sum + row.saveCount, 0), [rows]);
   const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.totalBytes, 0), [rows]);
@@ -262,6 +273,53 @@ export function MyGamesPage(): JSX.Element {
 
   function closeDownloadModal(): void {
     setDownloadState(null);
+  }
+
+  function openUploadModal(): void {
+    setUploadOpen(true);
+    setUploadFile(null);
+    setUploadSystem("");
+    setUploadSlotName("");
+    setUploadRomSha1("");
+    setUploadWiiTitleId("");
+    setUploadError(null);
+    setUploadResult(null);
+  }
+
+  function closeUploadModal(): void {
+    setUploadOpen(false);
+    setUploadFile(null);
+    setUploadBusy(false);
+    setUploadError(null);
+    setUploadResult(null);
+  }
+
+  async function handleUploadSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!uploadFile) {
+      setUploadError("Choose a save file or zip archive first.");
+      return;
+    }
+
+    setUploadBusy(true);
+    setUploadError(null);
+    setUploadResult(null);
+    try {
+      const response = await uploadSaveFile({
+        file: uploadFile,
+        system: uploadSystem || undefined,
+        slotName: uploadSlotName || undefined,
+        romSha1: uploadRomSha1 || undefined,
+        wiiTitleId: uploadWiiTitleId || undefined
+      });
+      const count = response.successCount && response.successCount > 1 ? response.successCount : 1;
+      setUploadResult(`${count} ${pluralize(count, "save", "saves")} imported.`);
+      await reload();
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploadBusy(false);
+    }
   }
 
   async function handleSelectSyncSave(version: SaveSummary): Promise<void> {
@@ -392,6 +450,9 @@ export function MyGamesPage(): JSX.Element {
           <h1>My Saves</h1>
           <p>{summaryText}</p>
         </div>
+        <button className="treegrid-header-action" type="button" onClick={openUploadModal}>
+          Upload
+        </button>
       </header>
 
       {deleteError ? <p className="error-state">{deleteError}</p> : null}
@@ -544,6 +605,84 @@ export function MyGamesPage(): JSX.Element {
               );
             })}
           </table>
+        </div>
+      ) : null}
+
+      {uploadOpen ? (
+        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeUploadModal}>
+          <section
+            className="treegrid-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="treegrid-upload-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="treegrid-modal__header">
+              <div>
+                <h2 id="treegrid-upload-title">Upload Save</h2>
+                <p>Upload a single save file or a zip archive. The backend validates and imports it for sync.</p>
+              </div>
+              <button className="treegrid-modal__close" type="button" onClick={closeUploadModal} aria-label="Close upload">
+                Close
+              </button>
+            </header>
+
+            <form className="treegrid-upload-form" onSubmit={(event) => void handleUploadSubmit(event)}>
+              <div className="treegrid-upload-grid">
+                <label className="treegrid-upload-field treegrid-upload-field--wide">
+                  <span>Save file or zip</span>
+                  <input
+                    type="file"
+                    accept=".zip,.bin,.sav,.srm,.sa1,.eep,.sra,.fla,.mpk,.cpk,.mcr,.mcd,.mc,.ps2,.vms,.dci,.bkr,.bcr,.bup"
+                    onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <label className="treegrid-upload-field">
+                  <span>System</span>
+                  <select value={uploadSystem} onChange={(event) => setUploadSystem(event.target.value)}>
+                    <option value="">Auto-detect when possible</option>
+                    <option value="wii">Nintendo Wii</option>
+                    <option value="n64">Nintendo 64</option>
+                    <option value="snes">Super Nintendo</option>
+                    <option value="nes">Nintendo Entertainment System</option>
+                    <option value="gba">Game Boy Advance</option>
+                    <option value="gameboy">Game Boy</option>
+                    <option value="genesis">Genesis / Mega Drive</option>
+                    <option value="master-system">Master System</option>
+                    <option value="game-gear">Game Gear</option>
+                    <option value="dreamcast">Dreamcast</option>
+                    <option value="saturn">Saturn</option>
+                    <option value="psx">PlayStation</option>
+                    <option value="ps2">PlayStation 2</option>
+                  </select>
+                </label>
+                <label className="treegrid-upload-field">
+                  <span>Slot name</span>
+                  <input type="text" value={uploadSlotName} onChange={(event) => setUploadSlotName(event.target.value)} placeholder="default" />
+                </label>
+                <label className="treegrid-upload-field">
+                  <span>ROM SHA1</span>
+                  <input type="text" value={uploadRomSha1} onChange={(event) => setUploadRomSha1(event.target.value)} placeholder="optional but recommended" />
+                </label>
+                <label className="treegrid-upload-field">
+                  <span>Wii title code</span>
+                  <input type="text" value={uploadWiiTitleId} onChange={(event) => setUploadWiiTitleId(event.target.value.toUpperCase())} placeholder="SB4P" maxLength={4} />
+                </label>
+              </div>
+
+              <p className="treegrid-upload-hint">
+                Wii zip uploads can contain <code>private/wii/title/SB4P/data.bin</code> or <code>SB4P/data.bin</code>. Raw Wii <code>data.bin</code> uploads should include the title code.
+              </p>
+              {uploadError ? <p className="error-state">{uploadError}</p> : null}
+              {uploadResult ? <p className="treegrid-modal__status">{uploadResult}</p> : null}
+
+              <footer className="treegrid-upload-actions">
+                <button className="treegrid-select-button" type="submit" disabled={uploadBusy}>
+                  {uploadBusy ? "Uploading..." : "Import Save"}
+                </button>
+              </footer>
+            </form>
+          </section>
         </div>
       ) : null}
 
@@ -938,6 +1077,7 @@ function SystemGlyph({ systemSlug, fallbackLabel }: { systemSlug: string; fallba
     case "snes":
     case "gameboy":
     case "gba":
+    case "wii":
       return (
         <svg className="treegrid-system-glyph" viewBox="0 0 24 24" aria-hidden="true">
           <rect x="4.5" y="6.5" width="15" height="11" rx="3" />

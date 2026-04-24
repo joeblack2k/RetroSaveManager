@@ -128,6 +128,7 @@ export function systemBadgeForSlug(systemSlug: string): { label: string; title: 
     psp: { label: "PSP", title: "PlayStation Portable" },
     psvita: { label: "VITA", title: "PlayStation Vita" },
     snes: { label: "SNES", title: "Super Nintendo" },
+    wii: { label: "WII", title: "Nintendo Wii" },
     other: { label: "?", title: "Other" }
   };
 
@@ -168,6 +169,8 @@ export function normalizeConsoleLabel(slug: string, name: string): { slug: strin
     "nintendo-64": { slug: "n64", name: "Nintendo 64" },
     nds: { slug: "nds", name: "Nintendo DS" },
     "nintendo-ds": { slug: "nds", name: "Nintendo DS" },
+    wii: { slug: "wii", name: "Nintendo Wii" },
+    "nintendo-wii": { slug: "wii", name: "Nintendo Wii" },
     neogeo: { slug: "neogeo", name: "Neo Geo" },
     nes: { slug: "nes", name: "Nintendo Entertainment System" },
     "nintendo-entertainment-system": { slug: "nes", name: "Nintendo Entertainment System" },

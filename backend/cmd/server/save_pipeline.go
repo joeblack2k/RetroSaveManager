@@ -125,6 +125,12 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 			input.Game.Name = input.DisplayTitle
 			input.Game.DisplayTitle = input.DisplayTitle
 		}
+		if input.RegionCode == regionUnknown && consoleValidation.Inspection.SemanticFields != nil {
+			if region, ok := consoleValidation.Inspection.SemanticFields["region"].(string); ok && normalizeRegionCode(region) != regionUnknown {
+				input.RegionCode = normalizeRegionCode(region)
+				input.RegionFlag = regionFlagFromCode(input.RegionCode)
+			}
+		}
 	}
 	decorateN64ProjectionFields(&input)
 	if consoleValidation.Rejected {

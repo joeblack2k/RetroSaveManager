@@ -12,7 +12,8 @@ vi.mock("../../../services/retrosaveApi", () => ({
   getSaveHistory: vi.fn(),
   rollbackSave: vi.fn(),
   getSaveCheats: vi.fn(),
-  applySaveCheats: vi.fn()
+  applySaveCheats: vi.fn(),
+  uploadSaveFile: vi.fn()
 }));
 
 function makeSave(overrides: Partial<SaveSummary> & { id: string; title: string; systemSlug: string; systemName: string }): SaveSummary {
@@ -191,6 +192,12 @@ describe("MyGamesPage TreeGrid", () => {
         cheats: { supported: true, availableCount: 4, editorId: "sm64-eeprom" }
       })
     });
+    vi.mocked(retrosaveApi.uploadSaveFile).mockResolvedValue({
+      success: true,
+      save: { id: "wii-save-1", sha256: "wii-sha", version: 1 },
+      successCount: 1,
+      errorCount: 0
+    });
   });
 
   afterEach(() => {
@@ -296,5 +303,32 @@ describe("MyGamesPage TreeGrid", () => {
         updates: { haveWingCap: true }
       });
     });
+  });
+
+  it("uploads a save file from the My Saves header and refreshes the list", async () => {
+    renderPage();
+
+    await screen.findByRole("treegrid", { name: "My Saves" });
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+
+    expect(await screen.findByRole("heading", { name: "Upload Save" })).toBeInTheDocument();
+    const file = new File([new Uint8Array([1, 2, 3, 4])], "data.bin", { type: "application/octet-stream" });
+    fireEvent.change(screen.getByLabelText(/save file or zip/i), { target: { files: [file] } });
+    fireEvent.change(screen.getByLabelText(/^system$/i), { target: { value: "wii" } });
+    fireEvent.change(screen.getByLabelText(/wii title code/i), { target: { value: "SB4P" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /import save/i }));
+
+    await waitFor(() => {
+      expect(retrosaveApi.uploadSaveFile).toHaveBeenCalledWith({
+        file,
+        system: "wii",
+        slotName: undefined,
+        romSha1: undefined,
+        wiiTitleId: "SB4P"
+      });
+    });
+    expect(await screen.findByText("1 save imported.")).toBeInTheDocument();
+    expect(retrosaveApi.listSaves).toHaveBeenCalledTimes(2);
   });
 });

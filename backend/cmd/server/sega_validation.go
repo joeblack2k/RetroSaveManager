@@ -41,7 +41,7 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateN64Save(input, detection)
 	case "saturn":
 		return validateSaturnSave(input, normalized)
-	case "gameboy", "gba", "nes", "snes", "nds":
+	case "gameboy", "gba", "nes", "snes", "nds", "wii":
 		return validateNintendoRawSave(input, detection, systemSlug)
 	case "neogeo":
 		return validateNeoGeoSave(input, detection)

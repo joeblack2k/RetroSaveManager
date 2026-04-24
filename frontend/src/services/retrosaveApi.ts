@@ -70,6 +70,39 @@ export async function listSaves(): Promise<SaveSummary[]> {
   return response.saves;
 }
 
+export function uploadSaveFile(params: {
+  file: File;
+  system?: string;
+  slotName?: string;
+  romSha1?: string;
+  wiiTitleId?: string;
+}): Promise<{
+  success: boolean;
+  save?: { id: string; sha256: string; version?: number };
+  successCount?: number;
+  errorCount?: number;
+  results?: unknown[];
+}> {
+  const form = new FormData();
+  form.append("file", params.file);
+  if (params.system) {
+    form.append("system", params.system);
+  }
+  if (params.slotName) {
+    form.append("slotName", params.slotName);
+  }
+  if (params.romSha1) {
+    form.append("rom_sha1", params.romSha1);
+  }
+  if (params.wiiTitleId) {
+    form.append("wiiTitleId", params.wiiTitleId);
+  }
+  return apiFetchJSON("/saves", {
+    method: "POST",
+    body: form
+  });
+}
+
 export async function getSaveHistory(params: {
   saveId?: string;
   gameId?: number;

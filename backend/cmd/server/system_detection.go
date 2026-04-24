@@ -42,6 +42,7 @@ var supportedSystemsBySlug = map[string]system{
 	"psvita":        {ID: 900012, Name: "PlayStation Vita", Slug: "psvita", Manufacturer: "Sony"},
 	"psx":           {ID: 27, Name: "PlayStation", Slug: "psx", Manufacturer: "Sony"},
 	"snes":          {ID: 26, Name: "Nintendo Super Nintendo Entertainment System", Slug: "snes", Manufacturer: "Nintendo"},
+	"wii":           {ID: 900015, Name: "Nintendo Wii", Slug: "wii", Manufacturer: "Nintendo"},
 }
 
 var systemLabelAliases = map[string]string{
@@ -102,6 +103,9 @@ var systemLabelAliases = map[string]string{
 	"snes":                 "snes",
 	"super nintendo":       "snes",
 	"sfc":                  "snes",
+	"wii":                  "wii",
+	"nintendo wii":         "wii",
+	"rvl":                  "wii",
 }
 
 type saveSystemDetectionInput struct {
@@ -333,6 +337,11 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 	}
 	if hasNewSuperMarioBrosNDSSignature(payload) {
 		setScore("nds", 98, "new super mario bros nds save signature", func(candidate *detectionCandidate) {
+			candidate.payload = true
+		})
+	}
+	if isLikelyWiiDataBin(payload) {
+		setScore("wii", 98, "wii data.bin backup header", func(candidate *detectionCandidate) {
 			candidate.payload = true
 		})
 	}

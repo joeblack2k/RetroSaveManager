@@ -86,6 +86,10 @@ export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSiz
   addRow("Signature count", fields.signatureCount);
   addRow("Default volume", fields.defaultVolume);
   addRow("Container format", fields.format);
+  addRow("Verification", fields.verificationLevels);
+  addRow("Wii title code", fields.titleCode);
+  addRow("Embedded file", fields.embeddedFileName);
+  addRow("Semantic decoder", humanizeVariant(fields.semanticDecoderState));
   addRow("Payload size", formatBytes(inspection.payloadSizeBytes ?? save?.fileSize), "technical");
   addRow("Non-zero bytes", fields.nonZeroBytes);
   addRow("Non-FF bytes", fields.nonFFBytes);
@@ -102,6 +106,9 @@ export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSiz
 }
 
 function titleForInspection(inspection: SaveInspection): string {
+  if ((inspection.parserId || "").toLowerCase() === "wii-data-bin") {
+    return "Wii data.bin verified";
+  }
   if (isRawMediaInspection(inspection)) {
     return "Raw cartridge save verified";
   }
@@ -119,6 +126,9 @@ function titleForInspection(inspection: SaveInspection): string {
 }
 
 function subtitleForInspection(inspection: SaveInspection): string {
+  if ((inspection.parserId || "").toLowerCase() === "wii-data-bin") {
+    return "The Wii SD export container is structure-verified and safely stored; encrypted gameplay fields need a verified semantic decoder.";
+  }
   if (isRawMediaInspection(inspection)) {
     return "NES, Game Boy, GBA, SNES, and Sega raw saves are validated as real cartridge save media; gameplay stats need a per-game decoder.";
   }
