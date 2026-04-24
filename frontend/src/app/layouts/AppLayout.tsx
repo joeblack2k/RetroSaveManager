@@ -5,6 +5,7 @@ import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus } f
 
 const appNav: Array<{ label: string; to: string }> = [
   { label: "My Saves", to: "/app/my-games" },
+  { label: "Cheats", to: "/app/cheats" },
   { label: "Logs", to: "/app/logs" },
   { label: "Devices", to: "/app/devices" },
   { label: "Settings", to: "/app/settings" }

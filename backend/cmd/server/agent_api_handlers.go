@@ -61,6 +61,15 @@ func mountAgentRoutes(r chi.Router, app *app) {
 	r.Get("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoStatus)
 	r.Post("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoEnable)
 
+	r.Get("/cheats/packs", app.handleCheatPacksList)
+	r.Post("/cheats/packs", app.handleCheatPackCreate)
+	r.Get("/cheats/packs/{id}", app.handleCheatPackGet)
+	r.Delete("/cheats/packs/{id}", app.handleCheatPackDelete)
+	r.Post("/cheats/packs/{id}/disable", app.handleCheatPackDisable)
+	r.Post("/cheats/packs/{id}/enable", app.handleCheatPackEnable)
+	r.Get("/cheats/adapters", app.handleCheatAdaptersList)
+	r.Get("/cheats/adapters/{id}", app.handleCheatAdapterGet)
+
 	r.Get("/events", app.handleEvents)
 }
 
@@ -90,6 +99,8 @@ func (a *app) handleAgentAPIIndex(w http.ResponseWriter, r *http.Request) {
 			"romLookup":       basePath + "/roms/lookup",
 			"conflicts":       basePath + "/conflicts",
 			"autoEnroll":      basePath + "/helpers/auto-enroll",
+			"cheatPacks":      basePath + "/cheats/packs",
+			"cheatAdapters":   basePath + "/cheats/adapters",
 			"events":          basePath + "/events",
 			"bulkDownload":    basePath + "/saves/download-many",
 			"saveRescan":      basePath + "/saves/rescan",

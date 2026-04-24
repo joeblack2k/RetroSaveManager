@@ -36,6 +36,51 @@ func unsupportedSaveRejectReason(err error) string {
 	return full
 }
 
+func requestedLogicalKey(values map[string][]string) string {
+	query := func(key string) string {
+		if values == nil {
+			return ""
+		}
+		if items, ok := values[key]; ok && len(items) > 0 {
+			return items[0]
+		}
+		return ""
+	}
+	return strings.TrimSpace(firstNonEmpty(query("logicalKey"), query("psLogicalKey")))
+}
+
+func saveRecordPayloadExists(record saveRecord) bool {
+	path := strings.TrimSpace(record.payloadPath)
+	if path == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
+}
+
+func latestReadableSaveRecord(records []saveRecord, romSHA1, slotName string) (saveRecord, bool) {
+	targetROM := strings.TrimSpace(romSHA1)
+	targetSlot := normalizedSlot(slotName)
+	var latest saveRecord
+	found := false
+	for _, record := range records {
+		if targetROM == "" || record.ROMSHA1 != targetROM || normalizedSlot(record.SlotName) != targetSlot {
+			continue
+		}
+		if !saveRecordPayloadExists(record) {
+			continue
+		}
+		if !found || record.Summary.Version > latest.Summary.Version || (record.Summary.Version == latest.Summary.Version && record.Summary.CreatedAt.After(latest.Summary.CreatedAt)) {
+			latest = record
+			found = true
+		}
+	}
+	return latest, found
+}
+
 func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
@@ -58,7 +103,23 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			if store := a.playStationSyncStore(); store != nil {
 				if saveID, _, exists := store.latestProjectionSaveRecord(runtimeProfile, cardSlot); exists {
 					latest, found := a.findSaveRecordByID(saveID)
-					if found {
+					if found && saveRecordPayloadExists(latest) {
+						writeJSON(w, http.StatusOK, map[string]any{
+							"success": true,
+							"exists":  true,
+							"sha256":  latest.Summary.SHA256,
+							"version": latest.Summary.Version,
+							"id":      latest.Summary.ID,
+						})
+						return
+					}
+				}
+			}
+		} else if runtimeProfile != "" && strings.HasPrefix(runtimeProfile, "n64/") {
+			if store := a.n64ControllerPakStore(); store != nil {
+				if saveID, exists := store.latestProjectionSaveRecord(n64ControllerPakSyncLineKey(romSHA1, slotName), runtimeProfile); exists {
+					latest, found := a.findSaveRecordByID(saveID)
+					if found && saveRecordPayloadExists(latest) {
 						writeJSON(w, http.StatusOK, map[string]any{
 							"success": true,
 							"exists":  true,
@@ -78,7 +139,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	latest, ok := a.latestSaveRecord(romSHA1, slotName)
+	latest, ok := latestReadableSaveRecord(a.snapshotSaveRecords(), romSHA1, slotName)
 	if ok {
 		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(latest)) {
 			writeJSON(w, http.StatusOK, map[string]any{
@@ -256,6 +317,42 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			}
 			if conflict != nil {
 				a.reportConflict(conflict.ConflictKey, record.Summary.CardSlot, conflict.LocalSHA256, conflict.CloudSHA256, helperCtx.Device.DisplayName, record.Summary.Filename, record.Summary.FileSize)
+			}
+			if !helperCtx.IsHelper && identity.isComplete() {
+				a.upsertDevice(identity.DeviceType, identity.Fingerprint)
+			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: deviceName,
+				Action:     "upload",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success": true,
+				"save": map[string]any{
+					"id":     record.Summary.ID,
+					"sha256": record.Summary.SHA256,
+				},
+			})
+			return
+		}
+		if preview.Input.SystemSlug == "n64" && strings.TrimSpace(preview.Input.MediaType) == "controller-pak" {
+			record, err := a.createN64ControllerPakProjectionSave(input, preview)
+			if err != nil {
+				a.appendSyncLog(syncLogInput{
+					DeviceName:   deviceName,
+					Action:       "upload",
+					Game:         syncLogGameLabelFromFilename(filename),
+					ErrorMessage: err.Error(),
+					SystemSlug:   preview.Input.SystemSlug,
+				})
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{
+					Error:      "Unprocessable Entity",
+					Message:    err.Error(),
+					StatusCode: http.StatusUnprocessableEntity,
+				})
+				return
 			}
 			if !helperCtx.IsHelper && identity.isComplete() {
 				a.upsertDevice(identity.DeviceType, identity.Fingerprint)
@@ -457,6 +554,9 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 		if recordSystemSlug == "psx" || recordSystemSlug == "ps2" {
 			continue
 		}
+		if _, _, _, ok := n64ControllerPakProjectionInfoFromRecord(record); ok {
+			continue
+		}
 		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
 			continue
 		}
@@ -495,8 +595,9 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 		summary.LatestVersion = summary.Version
 		filtered = append(filtered, summary)
 	}
-	if romSHA1 == "" && romMD5 == "" {
+	if romMD5 == "" {
 		filtered = append(filtered, a.playStationLogicalListSummaries(systemID)...)
+		filtered = append(filtered, a.n64ControllerPakListSummaries(systemID, romSHA1)...)
 	}
 	sort.Slice(filtered, func(i, j int) bool {
 		if filtered[i].CreatedAt.Equal(filtered[j].CreatedAt) {
@@ -533,30 +634,55 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 
 	gameID := parseIntOrDefault(r.URL.Query().Get("gameId"), 0)
 	saveID := strings.TrimSpace(r.URL.Query().Get("saveId"))
-	psLogicalKey := strings.TrimSpace(r.URL.Query().Get("psLogicalKey"))
+	logicalKey := requestedLogicalKey(r.URL.Query())
 	systemSlug := canonicalOptionalSegment(r.URL.Query().Get("systemSlug"))
 	displayTitle := strings.TrimSpace(r.URL.Query().Get("displayTitle"))
 	sourceRecord := saveRecord{}
 	hasSourceRecord := false
 
-	if psLogicalKey != "" {
+	if logicalKey != "" {
 		if saveID == "" {
-			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "saveId is required for PlayStation logical save history", StatusCode: http.StatusBadRequest})
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "saveId is required for logical save history", StatusCode: http.StatusBadRequest})
 			return
 		}
-		history, err := a.playStationLogicalHistoryForSaveRecord(saveID, psLogicalKey)
-		if err != nil {
-			writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
+		record, ok := a.findSaveRecordByID(saveID)
+		if !ok {
+			writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"success":      true,
-			"game":         history.Game,
-			"displayTitle": history.DisplayTitle,
-			"systemSlug":   history.SystemSlug,
-			"summary":      history.Summary,
-			"versions":     history.Versions,
-		})
+		if _, _, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
+			history, err := a.playStationLogicalHistoryForSaveRecord(saveID, logicalKey)
+			if err != nil {
+				writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success":      true,
+				"game":         history.Game,
+				"displayTitle": history.DisplayTitle,
+				"systemSlug":   history.SystemSlug,
+				"summary":      history.Summary,
+				"versions":     history.Versions,
+			})
+			return
+		}
+		if _, _, _, isN64Projection := n64ControllerPakProjectionInfoFromRecord(record); isN64Projection {
+			history, err := a.n64ControllerPakHistoryForSaveRecord(saveID, logicalKey)
+			if err != nil {
+				writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success":      true,
+				"game":         history.Game,
+				"displayTitle": history.DisplayTitle,
+				"systemSlug":   history.SystemSlug,
+				"summary":      history.Summary,
+				"versions":     history.Versions,
+			})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "logicalKey is only valid for projection-backed logical saves", StatusCode: http.StatusBadRequest})
 		return
 	}
 
@@ -736,6 +862,7 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SaveID       string `json:"saveId"`
 		PSLogicalKey string `json:"psLogicalKey"`
+		LogicalKey   string `json:"logicalKey"`
 		RevisionID   string `json:"revisionId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -743,7 +870,7 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targetID := strings.TrimSpace(req.SaveID)
-	psLogicalKey := strings.TrimSpace(req.PSLogicalKey)
+	logicalKey := strings.TrimSpace(firstNonEmpty(req.LogicalKey, req.PSLogicalKey))
 	revisionID := strings.TrimSpace(req.RevisionID)
 	if targetID == "" {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "saveId is required", StatusCode: http.StatusBadRequest})
@@ -755,32 +882,52 @@ func (a *app) handleSaveRollback(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
 		return
 	}
-	if psLogicalKey != "" {
+	if logicalKey != "" {
 		if revisionID == "" {
-			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "revisionId is required for PlayStation logical rollback", StatusCode: http.StatusBadRequest})
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "revisionId is required for logical rollback", StatusCode: http.StatusBadRequest})
 			return
 		}
-		if _, _, _, isPSProjection := playStationProjectionInfoFromRecord(sourceRecord); !isPSProjection {
-			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "psLogicalKey is only valid for PlayStation saves", StatusCode: http.StatusBadRequest})
+		if _, _, _, isPSProjection := playStationProjectionInfoFromRecord(sourceRecord); isPSProjection {
+			record, err := a.rollbackPlayStationLogicalSave(sourceRecord, logicalKey, revisionID)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+				return
+			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: "Web UI",
+				Action:     "rollback",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success":      true,
+				"sourceSaveId": sourceRecord.Summary.ID,
+				"save":         record.Summary,
+			})
 			return
 		}
-		record, err := a.rollbackPlayStationLogicalSave(sourceRecord, psLogicalKey, revisionID)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+		if _, _, _, isN64Projection := n64ControllerPakProjectionInfoFromRecord(sourceRecord); isN64Projection {
+			record, err := a.rollbackN64ControllerPakLogicalSave(sourceRecord, logicalKey, revisionID)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+				return
+			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: "Web UI",
+				Action:     "rollback",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success":      true,
+				"sourceSaveId": sourceRecord.Summary.ID,
+				"save":         record.Summary,
+			})
 			return
 		}
-		a.appendSyncLog(syncLogInput{
-			DeviceName: "Web UI",
-			Action:     "rollback",
-			Game:       syncLogGameLabelFromRecord(record),
-			SystemSlug: saveRecordSystemSlug(record),
-			SaveID:     record.Summary.ID,
-		})
-		writeJSON(w, http.StatusOK, map[string]any{
-			"success":      true,
-			"sourceSaveId": sourceRecord.Summary.ID,
-			"save":         record.Summary,
-		})
+		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "logicalKey is only valid for projection-backed logical saves", StatusCode: http.StatusBadRequest})
 		return
 	}
 	if runtimeProfile, cardSlot, _, isPSProjection := playStationProjectionInfoFromRecord(sourceRecord); isPSProjection {
@@ -910,27 +1057,47 @@ func (a *app) handleDeleteSave(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 
 	saveID := strings.TrimSpace(r.URL.Query().Get("id"))
-	psLogicalKey := strings.TrimSpace(r.URL.Query().Get("psLogicalKey"))
+	logicalKey := requestedLogicalKey(r.URL.Query())
 	if saveID == "" {
 		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "id is required", StatusCode: http.StatusBadRequest})
 		return
 	}
 	record, ok := a.findSaveRecordByID(saveID)
 	if ok {
-		if psLogicalKey != "" {
-			remainingVersions, err := a.deletePlayStationLogicalSave(record, psLogicalKey)
-			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+		if logicalKey != "" {
+			if _, _, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
+				remainingVersions, err := a.deletePlayStationLogicalSave(record, logicalKey)
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+					return
+				}
+				a.appendSyncLog(syncLogInput{
+					DeviceName: "Web UI",
+					Action:     "delete",
+					Game:       syncLogGameLabelFromRecord(record),
+					SystemSlug: saveRecordSystemSlug(record),
+					SaveID:     record.Summary.ID,
+				})
+				writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
 				return
 			}
-			a.appendSyncLog(syncLogInput{
-				DeviceName: "Web UI",
-				Action:     "delete",
-				Game:       syncLogGameLabelFromRecord(record),
-				SystemSlug: saveRecordSystemSlug(record),
-				SaveID:     record.Summary.ID,
-			})
-			writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
+			if _, _, _, isN64Projection := n64ControllerPakProjectionInfoFromRecord(record); isN64Projection {
+				remainingVersions, err := a.deleteN64ControllerPakLogicalSave(record, logicalKey)
+				if err != nil {
+					writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
+					return
+				}
+				a.appendSyncLog(syncLogInput{
+					DeviceName: "Web UI",
+					Action:     "delete",
+					Game:       syncLogGameLabelFromRecord(record),
+					SystemSlug: saveRecordSystemSlug(record),
+					SaveID:     record.Summary.ID,
+				})
+				writeJSON(w, http.StatusOK, map[string]any{"success": true, "remainingVersions": remainingVersions})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "logicalKey is only valid for projection-backed logical saves", StatusCode: http.StatusBadRequest})
 			return
 		}
 		if runtimeProfile, cardSlot, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
@@ -1024,7 +1191,7 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	saveID := strings.TrimSpace(r.URL.Query().Get("id"))
-	psLogicalKey := strings.TrimSpace(r.URL.Query().Get("psLogicalKey"))
+	logicalKey := requestedLogicalKey(r.URL.Query())
 	revisionID := strings.TrimSpace(r.URL.Query().Get("revisionId"))
 	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
 	if saveID == "" {
@@ -1041,28 +1208,53 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, apiError{Error: "Forbidden", Message: "this device is not allowed to download saves for this console", StatusCode: http.StatusForbidden})
 		return
 	}
-	if psLogicalKey != "" {
-		filename, contentType, payload, err := a.downloadPlayStationLogicalSave(record.Summary.ID, psLogicalKey, revisionID)
-		if err != nil {
-			writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
+	runtimeProfile := requestedRuntimeProfile(r.URL.Query(), saveRecordSystemSlug(record))
+	if logicalKey != "" {
+		if _, _, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
+			filename, contentType, payload, err := a.downloadPlayStationLogicalSave(record.Summary.ID, logicalKey, revisionID)
+			if err != nil {
+				writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
+				return
+			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: firstNonEmpty(helperCtx.Device.DisplayName, "Web UI"),
+				Action:     "download",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+			w.Header().Set("Content-Type", contentType)
+			w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+			_, _ = w.Write(payload)
 			return
 		}
-		a.appendSyncLog(syncLogInput{
-			DeviceName: firstNonEmpty(helperCtx.Device.DisplayName, "Web UI"),
-			Action:     "download",
-			Game:       syncLogGameLabelFromRecord(record),
-			SystemSlug: saveRecordSystemSlug(record),
-			SaveID:     record.Summary.ID,
-		})
-		if contentType == "" {
-			contentType = "application/octet-stream"
+		if _, _, _, isN64Projection := n64ControllerPakProjectionInfoFromRecord(record); isN64Projection {
+			filename, contentType, payload, err := a.downloadN64ControllerPakLogicalSave(record.Summary.ID, logicalKey, revisionID, runtimeProfile)
+			if err != nil {
+				writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
+				return
+			}
+			a.appendSyncLog(syncLogInput{
+				DeviceName: firstNonEmpty(helperCtx.Device.DisplayName, "Web UI"),
+				Action:     "download",
+				Game:       syncLogGameLabelFromRecord(record),
+				SystemSlug: saveRecordSystemSlug(record),
+				SaveID:     record.Summary.ID,
+			})
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+			w.Header().Set("Content-Type", contentType)
+			w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+			_, _ = w.Write(payload)
+			return
 		}
-		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
-		_, _ = w.Write(payload)
+		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "logicalKey is only valid for projection-backed logical saves", StatusCode: http.StatusBadRequest})
 		return
 	}
-	runtimeProfile := requestedRuntimeProfile(r.URL.Query(), saveRecordSystemSlug(record))
 	if helperCtx.IsHelper {
 		if requiresRuntimeProfileForHelper(saveRecordSystemSlug(record), true) && runtimeProfile == "" {
 			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper downloads", StatusCode: http.StatusBadRequest})
@@ -1077,6 +1269,10 @@ func (a *app) handleDownloadSave(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := os.ReadFile(record.payloadPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "save payload file is missing on server", StatusCode: http.StatusNotFound})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: err.Error(), StatusCode: http.StatusInternalServerError})
 		return
 	}

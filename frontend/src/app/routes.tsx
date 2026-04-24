@@ -12,6 +12,7 @@ import { ResetPasswordPage } from "../pages/public/ResetPasswordPage";
 import { SignupPage } from "../pages/public/SignupPage";
 import { VerifyEmailPage } from "../pages/public/VerifyEmailPage";
 import { ConflictsPage } from "../pages/app/ConflictsPage";
+import { CheatsPage } from "../pages/app/CheatsPage";
 import { DeviceManagePage } from "../pages/app/DeviceManagePage";
 import { DevicesPage } from "../pages/app/DevicesPage";
 import { GamesPage } from "../pages/app/GamesPage";
@@ -115,6 +116,7 @@ export const appRouter = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/app/my-games" replace /> },
       { path: "my-games", element: <MyGamesPage /> },
+      { path: "cheats", element: <CheatsPage /> },
       { path: "logs", element: <LogsPage /> },
       { path: "games", element: <GamesPage /> },
       { path: "saves/:saveId", element: <SaveDetailPage /> },

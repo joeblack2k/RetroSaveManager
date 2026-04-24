@@ -350,7 +350,7 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 		setScore("saturn", 84, ext+" extension", func(candidate *detectionCandidate) {
 			candidate.formatHint = true
 		})
-	case "eep", "fla", "sra", "mpk":
+	case "eep", "fla", "sra", "mpk", "cpk":
 		setScore("n64", 90, ext+" extension", func(candidate *detectionCandidate) {
 			candidate.formatHint = true
 		})

@@ -55,6 +55,7 @@ type app struct {
 	saveStore                   *saveStore
 	cheats                      *cheatService
 	playStationStore            *playStationStore
+	n64ControllerPakStoreRef    *n64ControllerPakStore
 	saveRecords                 []saveRecord
 	enricher                    *gameEnricher
 	conflicts                   map[string]conflictRecord
@@ -193,6 +194,14 @@ func (a *app) initSaveStore() error {
 	}
 	a.mu.Lock()
 	a.playStationStore = psStore
+	a.mu.Unlock()
+
+	n64ControllerPakStore, err := newN64ControllerPakStore(store.root)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.n64ControllerPakStoreRef = n64ControllerPakStore
 	a.mu.Unlock()
 
 	isEmpty, err := store.isEmpty()

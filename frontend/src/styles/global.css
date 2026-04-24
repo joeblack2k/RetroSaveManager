@@ -367,6 +367,7 @@ code {
 }
 
 .field input,
+.field select,
 .field textarea,
 .inline-actions input {
   width: 100%;
@@ -933,6 +934,135 @@ code {
   color: var(--danger);
 }
 
+.cheats-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cheats-summary span {
+  border: 1px solid #485064;
+  background: #242a35;
+  border-radius: 999px;
+  padding: 0.22rem 0.6rem;
+  color: #dce4f5;
+  font-size: 0.82rem;
+}
+
+.cheat-upload-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.cheat-upload-form__textarea {
+  min-height: 15rem;
+  resize: vertical;
+  font-family: "SFMono-Regular", ui-monospace, monospace;
+}
+
+.cheat-upload-form__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.7rem;
+}
+
+.cheat-pack-list,
+.cheat-adapter-list {
+  gap: 0.8rem;
+}
+
+.cheat-pack-card,
+.cheat-adapter-card {
+  border: 1px solid #465066;
+  background: linear-gradient(180deg, #262c38, #1e232d);
+  border-radius: 0.9rem;
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.8rem;
+}
+
+.cheat-pack-card__header,
+.cheat-adapter-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.cheat-pack-card__title strong,
+.cheat-adapter-card__header strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.cheat-pack-card__title p {
+  margin: 0.24rem 0 0;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.cheat-pack-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.cheat-status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid #4d5770;
+  background: #242b39;
+  color: #edf2ff;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cheat-status-badge--active {
+  border-color: #2d7b56;
+  color: #d9ffe8;
+  background: #193126;
+}
+
+.cheat-status-badge--disabled {
+  border-color: #876d2d;
+  color: #ffeec0;
+  background: #352b17;
+}
+
+.cheat-status-badge--deleted {
+  border-color: #874343;
+  color: #ffd6d6;
+  background: #331c1c;
+}
+
+.cheat-status-badge--source {
+  color: #dbe7ff;
+}
+
+.cheat-status-badge--builtin {
+  color: #d4c6ff;
+  border-color: #665693;
+  background: #2d2640;
+}
+
+.cheat-pack-card__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.cheat-pack-card__notes,
+.cheat-adapter-card__keys {
+  margin: 0;
+  color: #dce4f5;
+}
+
 .generated-key-box {
   border: 1px solid #4a5164;
   border-radius: 0.66rem;
@@ -1082,6 +1212,15 @@ code {
   .device-card__header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .cheat-pack-card__header,
+  .cheat-adapter-card__header {
+    flex-direction: column;
+  }
+
+  .cheat-pack-card__badges {
+    justify-content: flex-start;
   }
 
   .table,

@@ -50,8 +50,9 @@ func (a *app) handleSaveCheatsApply(w http.ResponseWriter, r *http.Request) {
 	}
 	req.SaveID = strings.TrimSpace(req.SaveID)
 	req.EditorID = strings.TrimSpace(req.EditorID)
-	if req.SaveID == "" || req.EditorID == "" {
-		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "saveId and editorId are required", StatusCode: http.StatusBadRequest})
+	req.AdapterID = strings.TrimSpace(req.AdapterID)
+	if req.SaveID == "" || firstNonEmpty(req.AdapterID, req.EditorID) == "" {
+		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "saveId and adapterId/editorId are required", StatusCode: http.StatusBadRequest})
 		return
 	}
 	record, ok := a.findSaveRecordByID(req.SaveID)
@@ -64,12 +65,12 @@ func (a *app) handleSaveCheatsApply(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, apiError{Error: "Service Unavailable", Message: "Cheat service is not initialized", StatusCode: http.StatusServiceUnavailable})
 		return
 	}
-	payload, changed, err := service.apply(record, req)
+	payload, changed, integritySteps, resolved, err := service.apply(record, req)
 	if err != nil {
 		writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
 		return
 	}
-	metadata := mergeCheatMetadata(record, req, changed)
+	metadata := mergeCheatMetadata(record, req, changed, integritySteps, resolved)
 	newRecord, err := a.createSave(saveCreateInput{
 		Filename:              record.Summary.Filename,
 		Payload:               payload,
@@ -127,17 +128,31 @@ func (a *app) handleSaveCheatsApply(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func mergeCheatMetadata(source saveRecord, req saveCheatApplyRequest, changed map[string]any) any {
+func mergeCheatMetadata(source saveRecord, req saveCheatApplyRequest, changed map[string]any, integritySteps []string, resolved *resolvedCheatPack) any {
+	editorID := strings.TrimSpace(firstNonEmpty(req.EditorID, req.AdapterID))
+	adapterID := strings.TrimSpace(req.AdapterID)
+	packID := ""
+	packSource := ""
+	if resolved != nil {
+		editorID = firstNonEmpty(editorID, resolved.Logic.EditorID)
+		adapterID = firstNonEmpty(adapterID, resolved.Adapter.ID())
+		packID = resolved.Managed.Manifest.PackID
+		packSource = resolved.Managed.Manifest.Source
+	}
 	cheatAudit := map[string]any{
-		"action":        "cheat-apply",
-		"sourceSaveId":  source.Summary.ID,
-		"sourceVersion": source.Summary.Version,
-		"sourceSHA256":  source.Summary.SHA256,
-		"editorId":      req.EditorID,
-		"slotId":        strings.TrimSpace(req.SlotID),
-		"presetIds":     req.PresetIDs,
-		"changed":       changed,
-		"appliedAt":     time.Now().UTC().Format(time.RFC3339Nano),
+		"action":         "cheat-apply",
+		"sourceSaveId":   source.Summary.ID,
+		"sourceVersion":  source.Summary.Version,
+		"sourceSHA256":   source.Summary.SHA256,
+		"editorId":       editorID,
+		"adapterId":      adapterID,
+		"packId":         packID,
+		"packSource":     packSource,
+		"slotId":         strings.TrimSpace(req.SlotID),
+		"presetIds":      req.PresetIDs,
+		"changed":        changed,
+		"integritySteps": integritySteps,
+		"appliedAt":      time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	if source.Summary.Metadata == nil {
 		return map[string]any{"cheats": cheatAudit}

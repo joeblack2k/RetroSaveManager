@@ -233,7 +233,7 @@ func normalizeProjectionUpload(input saveCreateInput, requestedProfile string) (
 }
 
 func downloadProfilesForSummary(summary saveSummary) []downloadProfile {
-	if strings.TrimSpace(summary.LogicalKey) != "" {
+	if strings.TrimSpace(summary.LogicalKey) != "" && canonicalSegment(summary.SystemSlug, "") != "n64" {
 		return []downloadProfile{originalDownloadProfile(summary)}
 	}
 	systemSlug := canonicalSegment(firstNonEmpty(summary.SystemSlug, func() string {
@@ -304,6 +304,16 @@ func runtimeProfileTargetExtension(summary saveSummary, definition runtimeProfil
 	if definition.TargetExtension != "" {
 		return definition.TargetExtension
 	}
+	if definition.SystemSlug == "n64" && strings.TrimSpace(summary.MediaType) == "controller-pak" {
+		switch definition.ID {
+		case n64ProfileMister:
+			return ".cpk"
+		case n64ProfileRetroArch:
+			return ".srm"
+		default:
+			return ".mpk"
+		}
+	}
 	if definition.SystemSlug == "dreamcast" {
 		switch strings.ToLower(strings.TrimSpace(definition.ID)) {
 		case "dreamcast/mister":
@@ -368,6 +378,9 @@ func projectPayloadForRuntime(a *app, record saveRecord, payload []byte, request
 	}
 	switch systemSlug {
 	case "n64":
+		if _, _, _, ok := n64ControllerPakProjectionInfoFromRecord(record); ok {
+			return a.projectN64ControllerPakProjectionPayload(record, profile)
+		}
 		return projectN64Payload(record.Summary, payload, profile)
 	case "saturn":
 		return saturnDownloadPayload(record, payload, strings.TrimPrefix(profile, "saturn/"), saturnEntry)

@@ -1,5 +1,7 @@
 import { apiFetchJSON } from "./apiClient";
 import type {
+  CheatAdapterDescriptor,
+  CheatManagedPack,
   AppPassword,
   AppPasswordAutoEnrollStatus,
   AuthUser,
@@ -122,6 +124,47 @@ export function applySaveCheats(params: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params)
   });
+}
+
+export async function listCheatPacks(): Promise<CheatManagedPack[]> {
+  const response = await apiFetchJSON<{ packs: CheatManagedPack[] }>("/api/cheats/packs");
+  return response.packs;
+}
+
+export function createCheatPack(params: {
+  yaml: string;
+  source?: string;
+  publishedBy?: string;
+  notes?: string;
+}): Promise<{ success: boolean; pack: CheatManagedPack }> {
+  return apiFetchJSON("/api/cheats/packs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params)
+  });
+}
+
+export function deleteCheatPack(packId: string): Promise<{ success: boolean; pack: CheatManagedPack }> {
+  return apiFetchJSON(`/api/cheats/packs/${encodeURIComponent(packId)}`, {
+    method: "DELETE"
+  });
+}
+
+export function disableCheatPack(packId: string): Promise<{ success: boolean; pack: CheatManagedPack }> {
+  return apiFetchJSON(`/api/cheats/packs/${encodeURIComponent(packId)}/disable`, {
+    method: "POST"
+  });
+}
+
+export function enableCheatPack(packId: string): Promise<{ success: boolean; pack: CheatManagedPack }> {
+  return apiFetchJSON(`/api/cheats/packs/${encodeURIComponent(packId)}/enable`, {
+    method: "POST"
+  });
+}
+
+export async function listCheatAdapters(): Promise<CheatAdapterDescriptor[]> {
+  const response = await apiFetchJSON<{ adapters: CheatAdapterDescriptor[] }>("/api/cheats/adapters");
+  return response.adapters;
 }
 
 export function deleteSave(id: string, options?: { psLogicalKey?: string }): Promise<{ success: boolean; remainingVersions: number }> {

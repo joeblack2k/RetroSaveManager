@@ -1,11 +1,16 @@
 package main
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 type cheatCapability struct {
 	Supported      bool   `json:"supported" yaml:"supported"`
 	AvailableCount int    `json:"availableCount,omitempty" yaml:"availableCount,omitempty"`
 	EditorID       string `json:"editorId,omitempty" yaml:"editorId,omitempty"`
+	AdapterID      string `json:"adapterId,omitempty" yaml:"adapterId,omitempty"`
+	PackID         string `json:"packId,omitempty" yaml:"packId,omitempty"`
 }
 
 type cheatOption struct {
@@ -30,6 +35,7 @@ type cheatOperation struct {
 
 type cheatField struct {
 	ID          string           `json:"id" yaml:"id"`
+	Ref         string           `json:"ref,omitempty" yaml:"ref,omitempty"`
 	Label       string           `json:"label" yaml:"label"`
 	Description string           `json:"description,omitempty" yaml:"description,omitempty"`
 	Type        string           `json:"type" yaml:"type"`
@@ -72,15 +78,18 @@ type cheatPackPayload struct {
 }
 
 type cheatPack struct {
-	GameID     string           `json:"gameId" yaml:"gameId"`
-	SystemSlug string           `json:"systemSlug" yaml:"systemSlug"`
-	EditorID   string           `json:"editorId" yaml:"editorId"`
-	Title      string           `json:"title" yaml:"title"`
-	Match      cheatPackMatch   `json:"match" yaml:"match"`
-	Payload    cheatPackPayload `json:"payload" yaml:"payload"`
-	Selector   *cheatSelector   `json:"selector,omitempty" yaml:"selector,omitempty"`
-	Sections   []cheatSection   `json:"sections,omitempty" yaml:"sections,omitempty"`
-	Presets    []cheatPreset    `json:"presets,omitempty" yaml:"presets,omitempty"`
+	PackID        string           `json:"packId,omitempty" yaml:"packId,omitempty"`
+	SchemaVersion int              `json:"schemaVersion,omitempty" yaml:"schemaVersion,omitempty"`
+	AdapterID     string           `json:"adapterId,omitempty" yaml:"adapterId,omitempty"`
+	GameID        string           `json:"gameId" yaml:"gameId"`
+	SystemSlug    string           `json:"systemSlug" yaml:"systemSlug"`
+	EditorID      string           `json:"editorId" yaml:"editorId"`
+	Title         string           `json:"title" yaml:"title"`
+	Match         cheatPackMatch   `json:"match" yaml:"match"`
+	Payload       cheatPackPayload `json:"payload" yaml:"payload"`
+	Selector      *cheatSelector   `json:"selector,omitempty" yaml:"selector,omitempty"`
+	Sections      []cheatSection   `json:"sections,omitempty" yaml:"sections,omitempty"`
+	Presets       []cheatPreset    `json:"presets,omitempty" yaml:"presets,omitempty"`
 }
 
 type saveCheatsGetResponse struct {
@@ -95,6 +104,8 @@ type saveCheatEditorState struct {
 	GameID         string                    `json:"gameId,omitempty"`
 	SystemSlug     string                    `json:"systemSlug,omitempty"`
 	EditorID       string                    `json:"editorId,omitempty"`
+	AdapterID      string                    `json:"adapterId,omitempty"`
+	PackID         string                    `json:"packId,omitempty"`
 	Title          string                    `json:"title,omitempty"`
 	AvailableCount int                       `json:"availableCount,omitempty"`
 	Selector       *cheatSelector            `json:"selector,omitempty"`
@@ -107,7 +118,75 @@ type saveCheatEditorState struct {
 type saveCheatApplyRequest struct {
 	SaveID    string                     `json:"saveId"`
 	EditorID  string                     `json:"editorId"`
+	AdapterID string                     `json:"adapterId,omitempty"`
 	SlotID    string                     `json:"slotId,omitempty"`
 	Updates   map[string]json.RawMessage `json:"updates,omitempty"`
 	PresetIDs []string                   `json:"presetIds,omitempty"`
+}
+
+type cheatPackManifest struct {
+	PackID      string    `json:"packId"`
+	AdapterID   string    `json:"adapterId"`
+	Source      string    `json:"source"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	PublishedBy string    `json:"publishedBy,omitempty"`
+	Notes       string    `json:"notes,omitempty"`
+}
+
+type cheatPackTombstone struct {
+	PackID      string    `json:"packId"`
+	Status      string    `json:"status"`
+	DeletedAt   time.Time `json:"deletedAt"`
+	DeletedBy   string    `json:"deletedBy,omitempty"`
+	Source      string    `json:"source,omitempty"`
+	Description string    `json:"description,omitempty"`
+}
+
+type cheatManagedPack struct {
+	Pack           cheatPack         `json:"pack"`
+	Manifest       cheatPackManifest `json:"manifest"`
+	Builtin        bool              `json:"builtin"`
+	SupportsSaveUI bool              `json:"supportsSaveUi"`
+}
+
+type cheatManagedPackListResponse struct {
+	Success bool               `json:"success"`
+	Packs   []cheatManagedPack `json:"packs"`
+}
+
+type cheatManagedPackResponse struct {
+	Success bool             `json:"success"`
+	Pack    cheatManagedPack `json:"pack"`
+}
+
+type cheatPackCreateRequest struct {
+	YAML        string `json:"yaml"`
+	Source      string `json:"source,omitempty"`
+	PublishedBy string `json:"publishedBy,omitempty"`
+	Notes       string `json:"notes,omitempty"`
+}
+
+type cheatAdapterDescriptor struct {
+	ID                     string   `json:"id"`
+	Kind                   string   `json:"kind"`
+	Family                 string   `json:"family"`
+	SystemSlug             string   `json:"systemSlug"`
+	RequiredParserID       string   `json:"requiredParserId,omitempty"`
+	MinimumParserLevel     string   `json:"minimumParserLevel,omitempty"`
+	SupportsRuntimeProfile bool     `json:"supportsRuntimeProfiles"`
+	SupportsLogicalSaves   bool     `json:"supportsLogicalSaves"`
+	SupportsLiveUpload     bool     `json:"supportsLiveUpload"`
+	MatchKeys              []string `json:"matchKeys,omitempty"`
+}
+
+type cheatAdapterListResponse struct {
+	Success  bool                     `json:"success"`
+	Adapters []cheatAdapterDescriptor `json:"adapters"`
+}
+
+type cheatAdapterResponse struct {
+	Success bool                   `json:"success"`
+	Adapter cheatAdapterDescriptor `json:"adapter"`
 }

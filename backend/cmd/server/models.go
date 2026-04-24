@@ -70,6 +70,19 @@ type memoryCardDetails struct {
 	Entries []memoryCardEntry `json:"entries,omitempty"`
 }
 
+type controllerPakEntry struct {
+	LogicalKey     string `json:"logicalKey,omitempty"`
+	GameCode       string `json:"gameCode,omitempty"`
+	PublisherCode  string `json:"publisherCode,omitempty"`
+	NoteName       string `json:"noteName,omitempty"`
+	EntryIndex     int    `json:"entryIndex,omitempty"`
+	PageCount      int    `json:"pageCount,omitempty"`
+	BlockUsage     int    `json:"blockUsage,omitempty"`
+	StructureValid bool   `json:"structureValid,omitempty"`
+	ChecksumValid  *bool  `json:"checksumValid,omitempty"`
+	SizeBytes      int    `json:"sizeBytes,omitempty"`
+}
+
 type saveInspection struct {
 	ParserLevel        string         `json:"parserLevel,omitempty"`
 	ParserID           string         `json:"parserId,omitempty"`
@@ -87,38 +100,39 @@ type saveInspection struct {
 }
 
 type saveSummary struct {
-	ID                    string             `json:"id"`
-	Game                  game               `json:"game"`
-	Cheats                *cheatCapability   `json:"cheats,omitempty"`
-	DownloadProfiles      []downloadProfile  `json:"downloadProfiles,omitempty"`
-	DisplayTitle          string             `json:"displayTitle,omitempty"`
-	LogicalKey            string             `json:"logicalKey,omitempty"`
-	SystemSlug            string             `json:"systemSlug,omitempty"`
-	RegionCode            string             `json:"regionCode,omitempty"`
-	RegionFlag            string             `json:"regionFlag,omitempty"`
-	LanguageCodes         []string           `json:"languageCodes,omitempty"`
-	CoverArtURL           string             `json:"coverArtUrl,omitempty"`
-	MediaType             string             `json:"mediaType,omitempty"`
-	ProjectionCapable     *bool              `json:"projectionCapable,omitempty"`
-	SourceArtifactProfile string             `json:"sourceArtifactProfile,omitempty"`
-	SaveCount             int                `json:"saveCount,omitempty"`
-	LatestSizeBytes       int                `json:"latestSizeBytes,omitempty"`
-	TotalSizeBytes        int                `json:"totalSizeBytes,omitempty"`
-	LatestVersion         int                `json:"latestVersion,omitempty"`
-	MemoryCard            *memoryCardDetails `json:"memoryCard,omitempty"`
-	Dreamcast             *dreamcastDetails  `json:"dreamcast,omitempty"`
-	Saturn                *saturnDetails     `json:"saturn,omitempty"`
-	Inspection            *saveInspection    `json:"inspection,omitempty"`
-	RuntimeProfile        string             `json:"runtimeProfile,omitempty"`
-	CardSlot              string             `json:"cardSlot,omitempty"`
-	ProjectionID          string             `json:"projectionId,omitempty"`
-	SourceImportID        string             `json:"sourceImportId,omitempty"`
-	Portable              *bool              `json:"portable,omitempty"`
-	Filename              string             `json:"filename"`
-	FileSize              int                `json:"fileSize"`
-	Format                string             `json:"format"`
-	Version               int                `json:"version"`
-	SHA256                string             `json:"sha256"`
-	CreatedAt             time.Time          `json:"createdAt"`
-	Metadata              interface{}        `json:"metadata"`
+	ID                    string              `json:"id"`
+	Game                  game                `json:"game"`
+	Cheats                *cheatCapability    `json:"cheats,omitempty"`
+	DownloadProfiles      []downloadProfile   `json:"downloadProfiles,omitempty"`
+	DisplayTitle          string              `json:"displayTitle,omitempty"`
+	LogicalKey            string              `json:"logicalKey,omitempty"`
+	SystemSlug            string              `json:"systemSlug,omitempty"`
+	RegionCode            string              `json:"regionCode,omitempty"`
+	RegionFlag            string              `json:"regionFlag,omitempty"`
+	LanguageCodes         []string            `json:"languageCodes,omitempty"`
+	CoverArtURL           string              `json:"coverArtUrl,omitempty"`
+	MediaType             string              `json:"mediaType,omitempty"`
+	ProjectionCapable     *bool               `json:"projectionCapable,omitempty"`
+	SourceArtifactProfile string              `json:"sourceArtifactProfile,omitempty"`
+	SaveCount             int                 `json:"saveCount,omitempty"`
+	LatestSizeBytes       int                 `json:"latestSizeBytes,omitempty"`
+	TotalSizeBytes        int                 `json:"totalSizeBytes,omitempty"`
+	LatestVersion         int                 `json:"latestVersion,omitempty"`
+	MemoryCard            *memoryCardDetails  `json:"memoryCard,omitempty"`
+	ControllerPakEntry    *controllerPakEntry `json:"controllerPakEntry,omitempty"`
+	Dreamcast             *dreamcastDetails   `json:"dreamcast,omitempty"`
+	Saturn                *saturnDetails      `json:"saturn,omitempty"`
+	Inspection            *saveInspection     `json:"inspection,omitempty"`
+	RuntimeProfile        string              `json:"runtimeProfile,omitempty"`
+	CardSlot              string              `json:"cardSlot,omitempty"`
+	ProjectionID          string              `json:"projectionId,omitempty"`
+	SourceImportID        string              `json:"sourceImportId,omitempty"`
+	Portable              *bool               `json:"portable,omitempty"`
+	Filename              string              `json:"filename"`
+	FileSize              int                 `json:"fileSize"`
+	Format                string              `json:"format"`
+	Version               int                 `json:"version"`
+	SHA256                string              `json:"sha256"`
+	CreatedAt             time.Time           `json:"createdAt"`
+	Metadata              interface{}         `json:"metadata"`
 }

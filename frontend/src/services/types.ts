@@ -62,6 +62,8 @@ export type SaveCheatCapability = {
   supported: boolean;
   availableCount?: number;
   editorId?: string;
+  adapterId?: string;
+  packId?: string;
 };
 
 export type SaveCheatOption = {
@@ -77,6 +79,7 @@ export type SaveCheatBitOption = {
 
 export type SaveCheatField = {
   id: string;
+  ref?: string;
   label: string;
   description?: string;
   type: "boolean" | "integer" | "enum" | "bitmask" | string;
@@ -112,6 +115,8 @@ export type SaveCheatEditorState = {
   gameId?: string;
   systemSlug?: string;
   editorId?: string;
+  adapterId?: string;
+  packId?: string;
   title?: string;
   availableCount?: number;
   selector?: SaveCheatSelector | null;
@@ -126,6 +131,51 @@ export type SaveCheatResponse = {
   saveId: string;
   displayTitle: string;
   cheats: SaveCheatEditorState;
+};
+
+export type CheatPack = {
+  packId?: string;
+  schemaVersion?: number;
+  adapterId?: string;
+  gameId?: string;
+  systemSlug?: string;
+  editorId?: string;
+  title?: string;
+  match?: { titleAliases?: string[] };
+  selector?: SaveCheatSelector | null;
+  sections?: SaveCheatSection[];
+  presets?: SaveCheatPreset[];
+};
+
+export type CheatPackManifest = {
+  packId: string;
+  adapterId: string;
+  source: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  publishedBy?: string;
+  notes?: string;
+};
+
+export type CheatManagedPack = {
+  pack: CheatPack;
+  manifest: CheatPackManifest;
+  builtin: boolean;
+  supportsSaveUi: boolean;
+};
+
+export type CheatAdapterDescriptor = {
+  id: string;
+  kind: string;
+  family: string;
+  systemSlug: string;
+  requiredParserId?: string;
+  minimumParserLevel?: string;
+  supportsRuntimeProfiles: boolean;
+  supportsLogicalSaves: boolean;
+  supportsLiveUpload: boolean;
+  matchKeys?: string[];
 };
 
 export type SaveDownloadProfile = {

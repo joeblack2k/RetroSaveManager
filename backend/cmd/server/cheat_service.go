@@ -20,10 +20,22 @@ type cheatEditor interface {
 }
 
 type cheatService struct {
-	saveRoot      string
-	curatedRoot   string
-	packsBySystem map[string][]cheatPack
-	editors       map[string]cheatEditor
+	saveRoot     string
+	curatedRoot  string
+	runtimeStore *cheatRuntimeStore
+	builtinPacks []cheatPack
+	adapters     map[string]cheatAdapter
+	adapterList  []cheatAdapter
+}
+
+type resolvedCheatPack struct {
+	Managed cheatManagedPack
+	Logic   cheatPack
+	Payload []byte
+	Adapter cheatAdapter
+	Record  saveRecord
+	Summary saveSummary
+	Context cheatAdapterContext
 }
 
 func newCheatService(saveRoot string) (*cheatService, error) {
@@ -35,21 +47,42 @@ func newCheatService(saveRoot string) (*cheatService, error) {
 	if err != nil {
 		return nil, err
 	}
-	packsBySystem := map[string][]cheatPack{}
-	for _, pack := range packs {
-		slug := canonicalSegment(pack.SystemSlug, "")
-		packsBySystem[slug] = append(packsBySystem[slug], pack)
+	runtimeStore, err := newCheatRuntimeStore(saveRoot)
+	if err != nil {
+		return nil, err
 	}
+	editors := map[string]cheatEditor{
+		"dkr-eeprom":  dkrEEPROMCheatEditor{},
+		"dkc-sram":    dkcSRAMCheatEditor{},
+		"sm64-eeprom": sm64EEPROMCheatEditor{},
+		"mk64-eeprom": mk64EEPROMCheatEditor{},
+	}
+	adapters := map[string]cheatAdapter{}
+	for i := range packs {
+		packs[i].PackID = firstNonEmpty(packs[i].PackID, canonicalCheatPackID(firstNonEmpty(packs[i].GameID, packs[i].Title)))
+		packs[i].SchemaVersion = maxInt(packs[i].SchemaVersion, 1)
+		packs[i].AdapterID = firstNonEmpty(strings.TrimSpace(packs[i].AdapterID), strings.TrimSpace(packs[i].EditorID))
+		editor := editors[packs[i].EditorID]
+		if editor == nil {
+			continue
+		}
+		if _, exists := adapters[packs[i].AdapterID]; exists {
+			continue
+		}
+		adapters[packs[i].AdapterID] = legacyAdapterFromPack(packs[i], editor)
+	}
+	adapterList := make([]cheatAdapter, 0, len(adapters))
+	for _, adapter := range adapters {
+		adapterList = append(adapterList, adapter)
+	}
+	sortCheatAdapters(adapterList)
 	return &cheatService{
-		saveRoot:      saveRoot,
-		curatedRoot:   curatedRoot,
-		packsBySystem: packsBySystem,
-		editors: map[string]cheatEditor{
-			"dkr-eeprom":  dkrEEPROMCheatEditor{},
-			"dkc-sram":    dkcSRAMCheatEditor{},
-			"sm64-eeprom": sm64EEPROMCheatEditor{},
-			"mk64-eeprom": mk64EEPROMCheatEditor{},
-		},
+		saveRoot:     saveRoot,
+		curatedRoot:  curatedRoot,
+		runtimeStore: runtimeStore,
+		builtinPacks: packs,
+		adapters:     adapters,
+		adapterList:  adapterList,
 	}, nil
 }
 
@@ -133,24 +166,33 @@ func decodeCheatPackFile(path string, requireIdentity bool) (cheatPack, error) {
 	if err != nil {
 		return cheatPack{}, err
 	}
+	return decodeCheatPackData(data, requireIdentity)
+}
+
+func decodeCheatPackData(data []byte, requireIdentity bool) (cheatPack, error) {
 	var pack cheatPack
 	if err := yaml.Unmarshal(data, &pack); err != nil {
 		return cheatPack{}, err
 	}
-	normalized, err := normalizeCheatPack(pack, requireIdentity)
-	if err != nil {
-		return cheatPack{}, err
-	}
-	return normalized, nil
+	return normalizeCheatPack(pack, requireIdentity)
 }
 
 func normalizeCheatPack(pack cheatPack, requireIdentity bool) (cheatPack, error) {
+	pack.PackID = canonicalCheatPackID(pack.PackID)
+	pack.SchemaVersion = maxInt(pack.SchemaVersion, 0)
+	pack.AdapterID = strings.TrimSpace(pack.AdapterID)
 	pack.GameID = strings.TrimSpace(pack.GameID)
 	pack.SystemSlug = canonicalSegment(pack.SystemSlug, "")
 	pack.EditorID = strings.TrimSpace(pack.EditorID)
 	pack.Title = strings.TrimSpace(pack.Title)
-	if requireIdentity && (pack.GameID == "" || pack.SystemSlug == "" || pack.EditorID == "") {
-		return cheatPack{}, fmt.Errorf("pack is missing gameId, systemSlug, or editorId")
+	if pack.AdapterID == "" {
+		pack.AdapterID = strings.TrimSpace(pack.EditorID)
+	}
+	if pack.PackID == "" {
+		pack.PackID = canonicalCheatPackID(firstNonEmpty(pack.GameID, pack.Title))
+	}
+	if requireIdentity && (pack.GameID == "" || pack.SystemSlug == "" || firstNonEmpty(pack.AdapterID, pack.EditorID) == "") {
+		return cheatPack{}, fmt.Errorf("pack is missing gameId, systemSlug, or adapter/editor identity")
 	}
 	pack.Match.TitleAliases = normalizeStringList(pack.Match.TitleAliases)
 	if len(pack.Match.TitleAliases) == 0 && pack.Title != "" {
@@ -173,6 +215,7 @@ func normalizeCheatPack(pack cheatPack, requireIdentity bool) (cheatPack, error)
 		fields := make([]cheatField, 0, len(section.Fields))
 		for _, field := range section.Fields {
 			field.ID = strings.TrimSpace(field.ID)
+			field.Ref = strings.TrimSpace(firstNonEmpty(field.Ref, field.ID))
 			field.Label = strings.TrimSpace(field.Label)
 			field.Description = strings.TrimSpace(field.Description)
 			field.Type = strings.TrimSpace(field.Type)
@@ -197,8 +240,8 @@ func normalizeCheatPack(pack cheatPack, requireIdentity bool) (cheatPack, error)
 				field.Bits[i].ID = strings.TrimSpace(field.Bits[i].ID)
 				field.Bits[i].Label = strings.TrimSpace(field.Bits[i].Label)
 			}
-			if field.ID == "" || field.Label == "" || field.Type == "" || field.Op.Kind == "" {
-				return cheatPack{}, fmt.Errorf("field is missing id, label, type, or op.kind")
+			if field.ID == "" || field.Label == "" || field.Type == "" {
+				return cheatPack{}, fmt.Errorf("field is missing id, label, or type")
 			}
 			fields = append(fields, field)
 		}
@@ -248,8 +291,10 @@ func (s *cheatService) capabilityForRecord(record saveRecord) *cheatCapability {
 	}
 	return &cheatCapability{
 		Supported:      true,
-		AvailableCount: cheatAvailableCount(resolved.Pack),
-		EditorID:       resolved.Pack.EditorID,
+		AvailableCount: cheatAvailableCount(resolved.Managed.Pack),
+		EditorID:       resolved.Logic.EditorID,
+		AdapterID:      resolved.Adapter.ID(),
+		PackID:         resolved.Managed.Manifest.PackID,
 	}
 }
 
@@ -261,70 +306,85 @@ func cheatAvailableCount(pack cheatPack) int {
 	return count
 }
 
-type resolvedCheatPack struct {
-	Pack    cheatPack
-	Payload []byte
-	Editor  cheatEditor
-	Record  saveRecord
-	Summary saveSummary
-}
-
 func (s *cheatService) resolve(record saveRecord) (*resolvedCheatPack, error) {
 	summary := canonicalSummaryForRecord(record)
-	systemSlug := canonicalSegment(summary.SystemSlug, "")
-	candidates := s.packsBySystem[systemSlug]
-	if len(candidates) == 0 {
-		return nil, nil
-	}
-	matchingPacks := make([]cheatPack, 0, len(candidates))
-	for _, candidate := range candidates {
-		if !packMatchesSummary(candidate, summary) {
-			continue
-		}
-		merged := candidate
-		if override, ok := s.loadLocalOverride(record); ok {
-			combined, err := mergeCheatPacks(candidate, override)
-			if err == nil {
-				merged = combined
-			}
-		}
-		if !packMatchesSummary(merged, summary) {
-			continue
-		}
-		matchingPacks = append(matchingPacks, merged)
-	}
-	if len(matchingPacks) == 0 {
+	inspection := summary.Inspection
+	adapter := s.resolveAdapter(summary)
+	if adapter == nil {
 		return nil, nil
 	}
 	payload, err := os.ReadFile(record.payloadPath)
 	if err != nil {
 		return nil, err
 	}
-	for _, candidate := range matchingPacks {
-		if !packMatchesPayload(candidate, record.Summary.Format, payload) {
+	managedPacks, err := s.listManagedPacks()
+	if err != nil {
+		return nil, err
+	}
+	ctx := cheatAdapterContext{
+		Record:     record,
+		Summary:    summary,
+		Inspection: inspection,
+	}
+	for _, managed := range managedPacks {
+		if managed.Manifest.Status != cheatPackStatusActive {
 			continue
 		}
-		editor := s.editors[candidate.EditorID]
-		if editor == nil {
+		if strings.TrimSpace(managed.Pack.AdapterID) != adapter.ID() {
 			continue
 		}
-		if _, err := editor.Read(candidate, payload); err != nil {
+		if !packMatchesSummary(managed.Pack, summary) {
 			continue
 		}
+		logicPack := managed.Pack
+		if override, ok := s.loadLocalOverride(record); ok {
+			combined, mergeErr := mergeCheatPacks(logicPack, override)
+			if mergeErr == nil {
+				logicPack = combined
+			}
+		}
+		if !packMatchesPayload(logicPack, record.Summary.Format, payload) {
+			continue
+		}
+		prepared, prepErr := adapter.PreparePack(logicPack)
+		if prepErr != nil {
+			continue
+		}
+		if _, err := adapter.Read(ctx, prepared, payload); err != nil {
+			continue
+		}
+		effectiveManaged := managed
+		effectiveManaged.Pack = prepared
 		return &resolvedCheatPack{
-			Pack:    candidate,
+			Managed: effectiveManaged,
+			Logic:   prepared,
 			Payload: payload,
-			Editor:  editor,
+			Adapter: adapter,
 			Record:  record,
 			Summary: summary,
+			Context: ctx,
 		}, nil
 	}
 	return nil, nil
 }
 
+func (s *cheatService) resolveAdapter(summary saveSummary) cheatAdapter {
+	for _, adapter := range s.adapterList {
+		if adapter.Supports(summary, summary.Inspection) {
+			return adapter
+		}
+	}
+	return nil
+}
+
 func packMatchesSummary(pack cheatPack, summary saveSummary) bool {
 	if canonicalSegment(pack.SystemSlug, "") != canonicalSegment(summary.SystemSlug, "") {
 		return false
+	}
+	if summary.Inspection != nil && strings.TrimSpace(pack.GameID) != "" && strings.TrimSpace(summary.Inspection.ValidatedGameID) != "" {
+		if strings.EqualFold(strings.TrimSpace(pack.GameID), strings.TrimSpace(summary.Inspection.ValidatedGameID)) {
+			return true
+		}
 	}
 	titles := []string{
 		summary.DisplayTitle,
@@ -395,6 +455,12 @@ func (s *cheatService) loadLocalOverride(record saveRecord) (cheatPack, bool) {
 
 func mergeCheatPacks(base cheatPack, override cheatPack) (cheatPack, error) {
 	merged := base
+	if strings.TrimSpace(override.PackID) != "" {
+		merged.PackID = canonicalCheatPackID(override.PackID)
+	}
+	if override.SchemaVersion > 0 {
+		merged.SchemaVersion = override.SchemaVersion
+	}
 	if strings.TrimSpace(override.GameID) != "" {
 		merged.GameID = strings.TrimSpace(override.GameID)
 	}
@@ -403,6 +469,9 @@ func mergeCheatPacks(base cheatPack, override cheatPack) (cheatPack, error) {
 	}
 	if strings.TrimSpace(override.EditorID) != "" {
 		merged.EditorID = strings.TrimSpace(override.EditorID)
+	}
+	if strings.TrimSpace(override.AdapterID) != "" {
+		merged.AdapterID = strings.TrimSpace(override.AdapterID)
 	}
 	if strings.TrimSpace(override.Title) != "" {
 		merged.Title = strings.TrimSpace(override.Title)
@@ -474,41 +543,283 @@ func (s *cheatService) get(record saveRecord) (saveCheatEditorState, error) {
 	if resolved == nil {
 		return saveCheatEditorState{Supported: false}, nil
 	}
-	state, err := resolved.Editor.Read(resolved.Pack, resolved.Payload)
+	state, err := resolved.Adapter.Read(resolved.Context, resolved.Logic, resolved.Payload)
 	if err != nil {
 		return saveCheatEditorState{}, err
 	}
 	state.Supported = true
-	state.GameID = resolved.Pack.GameID
-	state.SystemSlug = resolved.Pack.SystemSlug
-	state.EditorID = resolved.Pack.EditorID
-	state.Title = firstNonEmpty(resolved.Pack.Title, resolved.Summary.DisplayTitle)
-	state.AvailableCount = cheatAvailableCount(resolved.Pack)
-	state.Selector = resolved.Pack.Selector
-	state.Sections = resolved.Pack.Sections
-	state.Presets = resolved.Pack.Presets
+	state.GameID = resolved.Managed.Pack.GameID
+	state.SystemSlug = resolved.Managed.Pack.SystemSlug
+	state.EditorID = resolved.Logic.EditorID
+	state.AdapterID = resolved.Adapter.ID()
+	state.PackID = resolved.Managed.Manifest.PackID
+	state.Title = firstNonEmpty(resolved.Managed.Pack.Title, resolved.Summary.DisplayTitle)
+	state.AvailableCount = cheatAvailableCount(resolved.Managed.Pack)
+	state.Selector = resolved.Managed.Pack.Selector
+	state.Sections = resolved.Managed.Pack.Sections
+	state.Presets = resolved.Managed.Pack.Presets
 	return state, nil
 }
 
-func (s *cheatService) apply(record saveRecord, req saveCheatApplyRequest) ([]byte, map[string]any, error) {
+func (s *cheatService) apply(record saveRecord, req saveCheatApplyRequest) ([]byte, map[string]any, []string, *resolvedCheatPack, error) {
 	resolved, err := s.resolve(record)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if resolved == nil {
-		return nil, nil, errors.New("cheats are not available for this save")
+		return nil, nil, nil, nil, errors.New("cheats are not available for this save")
 	}
-	if strings.TrimSpace(req.EditorID) != resolved.Pack.EditorID {
-		return nil, nil, fmt.Errorf("unsupported editorId %q", req.EditorID)
+	requestedAdapterID := strings.TrimSpace(firstNonEmpty(req.AdapterID, req.EditorID))
+	if requestedAdapterID == "" {
+		return nil, nil, nil, nil, errors.New("adapterId or editorId is required")
 	}
-	updates, err := resolveCheatUpdates(resolved.Pack, req)
+	if requestedAdapterID != resolved.Adapter.ID() && requestedAdapterID != resolved.Logic.EditorID {
+		return nil, nil, nil, nil, fmt.Errorf("unsupported adapter/editor %q", requestedAdapterID)
+	}
+	updates, err := resolveCheatUpdates(resolved.Logic, req)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	if len(updates) == 0 {
-		return nil, nil, errors.New("no cheat updates were provided")
+		return nil, nil, nil, nil, errors.New("no cheat updates were provided")
 	}
-	return resolved.Editor.Apply(resolved.Pack, resolved.Payload, strings.TrimSpace(req.SlotID), updates)
+	payload, changed, err := resolved.Adapter.Apply(resolved.Context, resolved.Logic, resolved.Payload, strings.TrimSpace(req.SlotID), updates)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	integritySteps := make([]string, 0, 4)
+	for _, transform := range resolved.Adapter.IntegrityHooks() {
+		payload, err = transform.Apply(payload, resolved.Context)
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		integritySteps = append(integritySteps, transform.Name())
+	}
+	return payload, changed, integritySteps, resolved, nil
+}
+
+func (s *cheatService) listManagedPacks() ([]cheatManagedPack, error) {
+	runtimePacks, err := s.runtimeStore.listRuntimePacks()
+	if err != nil {
+		return nil, err
+	}
+	tombstones, err := s.runtimeStore.loadTombstones()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]cheatManagedPack, 0, len(runtimePacks)+len(s.builtinPacks))
+	seenBuiltin := map[string]struct{}{}
+	for _, item := range runtimePacks {
+		item.Pack.PackID = firstNonEmpty(item.Pack.PackID, item.Manifest.PackID)
+		item.Pack.AdapterID = firstNonEmpty(item.Pack.AdapterID, item.Manifest.AdapterID, item.Pack.EditorID)
+		item.Manifest.PackID = firstNonEmpty(item.Manifest.PackID, item.Pack.PackID)
+		item.Manifest.AdapterID = firstNonEmpty(item.Manifest.AdapterID, item.Pack.AdapterID, item.Pack.EditorID)
+		item.SupportsSaveUI = item.Manifest.Status == cheatPackStatusActive
+		out = append(out, item)
+		seenBuiltin[item.Manifest.PackID] = struct{}{}
+	}
+	for _, pack := range s.builtinPacks {
+		packID := firstNonEmpty(pack.PackID, canonicalCheatPackID(firstNonEmpty(pack.GameID, pack.Title)))
+		if _, ok := seenBuiltin[packID]; ok {
+			continue
+		}
+		status := cheatPackStatusActive
+		if tombstone, ok := tombstones[packID]; ok {
+			status = firstNonEmpty(tombstone.Status, cheatPackStatusDeleted)
+		}
+		out = append(out, cheatManagedPack{
+			Pack: pack,
+			Manifest: cheatPackManifest{
+				PackID:    packID,
+				AdapterID: firstNonEmpty(pack.AdapterID, pack.EditorID),
+				Source:    cheatPackSourceBuiltin,
+				Status:    status,
+			},
+			Builtin:        true,
+			SupportsSaveUI: status == cheatPackStatusActive,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Builtin != out[j].Builtin {
+			return !out[i].Builtin
+		}
+		if out[i].Manifest.UpdatedAt.Equal(out[j].Manifest.UpdatedAt) {
+			return out[i].Manifest.PackID < out[j].Manifest.PackID
+		}
+		return out[i].Manifest.UpdatedAt.After(out[j].Manifest.UpdatedAt)
+	})
+	return out, nil
+}
+
+func (s *cheatService) getManagedPack(packID string) (cheatManagedPack, error) {
+	packs, err := s.listManagedPacks()
+	if err != nil {
+		return cheatManagedPack{}, err
+	}
+	target := canonicalCheatPackID(packID)
+	for _, item := range packs {
+		if canonicalCheatPackID(item.Manifest.PackID) == target {
+			return item, nil
+		}
+	}
+	return cheatManagedPack{}, fmt.Errorf("cheat pack %q not found", packID)
+}
+
+func (s *cheatService) createManagedPack(req cheatPackCreateRequest, principal map[string]any) (cheatManagedPack, error) {
+	pack, err := decodeCheatPackData([]byte(req.YAML), true)
+	if err != nil {
+		return cheatManagedPack{}, err
+	}
+	if pack.SchemaVersion <= 0 {
+		return cheatManagedPack{}, errors.New("schemaVersion is required")
+	}
+	if strings.TrimSpace(pack.AdapterID) == "" {
+		return cheatManagedPack{}, errors.New("adapterId is required")
+	}
+	adapter := s.adapters[strings.TrimSpace(pack.AdapterID)]
+	if adapter == nil {
+		return cheatManagedPack{}, fmt.Errorf("unknown adapterId %q", pack.AdapterID)
+	}
+	if !adapter.SupportsLiveUpload() {
+		return cheatManagedPack{}, fmt.Errorf("adapter %q does not accept live uploads", pack.AdapterID)
+	}
+	if len(pack.Sections) == 0 {
+		return cheatManagedPack{}, errors.New("pack must contain at least one section")
+	}
+	if err := validateCheatPackForAdapter(adapter, pack); err != nil {
+		return cheatManagedPack{}, err
+	}
+	if _, err := adapter.PreparePack(pack); err != nil {
+		return cheatManagedPack{}, err
+	}
+	publishedBy := strings.TrimSpace(firstNonEmpty(req.PublishedBy, principalString(principal, "email"), principalString(principal, "displayName")))
+	source := normalizeCheatPackSource(req.Source)
+	managed, err := s.runtimeStore.writePack(pack, cheatPackManifest{
+		PackID:      pack.PackID,
+		AdapterID:   pack.AdapterID,
+		Source:      source,
+		Status:      cheatPackStatusActive,
+		PublishedBy: publishedBy,
+		Notes:       strings.TrimSpace(req.Notes),
+	})
+	if err != nil {
+		return cheatManagedPack{}, err
+	}
+	return managed, nil
+}
+
+func (s *cheatService) deleteManagedPack(packID string, principal map[string]any) (cheatManagedPack, error) {
+	item, err := s.getManagedPack(packID)
+	if err != nil {
+		return cheatManagedPack{}, err
+	}
+	if item.Builtin {
+		if err := s.runtimeStore.writeTombstone(item.Manifest.PackID, cheatPackStatusDeleted, principalString(principal, "email"), item.Manifest.Source); err != nil {
+			return cheatManagedPack{}, err
+		}
+		return s.getManagedPack(packID)
+	}
+	return s.runtimeStore.updateRuntimePackStatus(item.Manifest.PackID, cheatPackStatusDeleted)
+}
+
+func (s *cheatService) disableManagedPack(packID string, principal map[string]any) (cheatManagedPack, error) {
+	item, err := s.getManagedPack(packID)
+	if err != nil {
+		return cheatManagedPack{}, err
+	}
+	if item.Builtin {
+		if err := s.runtimeStore.writeTombstone(item.Manifest.PackID, cheatPackStatusDisabled, principalString(principal, "email"), item.Manifest.Source); err != nil {
+			return cheatManagedPack{}, err
+		}
+		return s.getManagedPack(packID)
+	}
+	return s.runtimeStore.updateRuntimePackStatus(item.Manifest.PackID, cheatPackStatusDisabled)
+}
+
+func (s *cheatService) enableManagedPack(packID string) (cheatManagedPack, error) {
+	item, err := s.getManagedPack(packID)
+	if err != nil {
+		return cheatManagedPack{}, err
+	}
+	if item.Builtin {
+		if err := s.runtimeStore.clearTombstone(item.Manifest.PackID); err != nil {
+			return cheatManagedPack{}, err
+		}
+		return s.getManagedPack(packID)
+	}
+	return s.runtimeStore.updateRuntimePackStatus(item.Manifest.PackID, cheatPackStatusActive)
+}
+
+func (s *cheatService) listAdapterDescriptors() []cheatAdapterDescriptor {
+	items := make([]cheatAdapterDescriptor, 0, len(s.adapterList))
+	for _, adapter := range s.adapterList {
+		items = append(items, cheatAdapterDescriptor{
+			ID:                     adapter.ID(),
+			Kind:                   adapter.Kind(),
+			Family:                 adapter.Family(),
+			SystemSlug:             adapter.SystemSlug(),
+			RequiredParserID:       adapter.RequiredParserID(),
+			MinimumParserLevel:     adapter.MinimumParserLevel(),
+			SupportsRuntimeProfile: adapter.SupportsRuntimeProfiles(),
+			SupportsLogicalSaves:   adapter.SupportsLogicalSaves(),
+			SupportsLiveUpload:     adapter.SupportsLiveUpload(),
+			MatchKeys:              adapter.MatchKeys(),
+		})
+	}
+	return items
+}
+
+func (s *cheatService) adapterDescriptor(id string) (cheatAdapterDescriptor, error) {
+	target := strings.TrimSpace(id)
+	for _, item := range s.listAdapterDescriptors() {
+		if item.ID == target {
+			return item, nil
+		}
+	}
+	return cheatAdapterDescriptor{}, fmt.Errorf("adapter %q not found", id)
+}
+
+func validateCheatPackForAdapter(adapter cheatAdapter, pack cheatPack) error {
+	fieldCatalog := adapter.FieldCatalog()
+	if len(fieldCatalog) == 0 {
+		return fmt.Errorf("adapter %q has no field catalog", adapter.ID())
+	}
+	for _, section := range pack.Sections {
+		if strings.TrimSpace(section.ID) == "" {
+			return errors.New("section id is required")
+		}
+		if len(section.Fields) == 0 {
+			return fmt.Errorf("section %q has no fields", section.ID)
+		}
+		for _, field := range section.Fields {
+			ref := strings.TrimSpace(firstNonEmpty(field.Ref, field.ID))
+			if _, ok := fieldCatalog[ref]; !ok {
+				return fmt.Errorf("unknown field ref %q for adapter %q", ref, adapter.ID())
+			}
+		}
+	}
+	return nil
+}
+
+func normalizeCheatPackSource(value string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case cheatPackSourceWorker:
+		return cheatPackSourceWorker
+	case cheatPackSourceBuiltin:
+		return cheatPackSourceBuiltin
+	default:
+		return cheatPackSourceUploaded
+	}
+}
+
+func principalString(principal map[string]any, key string) string {
+	if principal == nil {
+		return ""
+	}
+	if value, ok := principal[key].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
 }
 
 func resolveCheatUpdates(pack cheatPack, req saveCheatApplyRequest) (map[string]any, error) {

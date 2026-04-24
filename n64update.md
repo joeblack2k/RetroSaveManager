@@ -9,7 +9,7 @@ It is the single helper-facing source of truth for:
 - how helpers request the correct runtime-specific file back
 - which runtime profiles are supported right now
 
-Last updated: 2026-04-23 21:36 CEST
+Last updated: 2026-04-24 00:05 CEST
 
 ## 1. Short version
 
@@ -26,6 +26,7 @@ Important:
 - helpers do **not** guess another emulator format client-side
 - helpers must always send `n64Profile` for N64 helper sync requests
 - `device_type` is helper identity, not N64 runtime truth
+- helpers upload whole controller pak files; the backend extracts entries itself
 
 ## 2. Current supported N64 runtime profiles
 
@@ -47,14 +48,22 @@ Notes:
 
 The backend does **not** keep runtime-specific container bytes as the sync truth.
 
-Instead, it converts uploads into canonical internal N64 media bytes per media class:
+Instead, it converts uploads into canonical internal N64 media truth per media class:
 
 - `eeprom`
 - `sram`
 - `flashram`
 - `controller-pak`
 
-That canonical media becomes the cloud truth.
+For `eeprom`, `sram`, and `flashram`, the canonical truth is normalized raw media bytes.
+
+For `controller-pak`, the backend now uses:
+
+- raw pak upload as import artifact
+- extracted per-entry logical saves as cloud truth
+- rebuilt runtime-specific pak projections as download artifacts
+
+That means controller pak sync is **not** "whole pak blob as truth" anymore.
 
 Downloads are then built from that canonical truth into the requested runtime profile.
 
@@ -75,6 +84,7 @@ Current accepted native media forms are:
 - `.sra`
 - `.fla`
 - `.mpk`
+- `.cpk`
 
 Current native size gates are:
 
@@ -92,6 +102,8 @@ Current hard rules:
 - generic `.sav` fallback is not allowed
 - filename-only game trust is not allowed
 - if the backend cannot safely normalize the N64 upload, it rejects the upload
+- empty controller paks are rejected
+- corrupted controller pak filesystems are rejected
 
 ## 5. Upload contract
 
@@ -142,6 +154,12 @@ For N64 helper uploads, the multipart form must include:
 - Required for N64 helper sync.
 - This tells the backend what format the uploaded file is currently in.
 
+For controller pak uploads:
+
+- helpers send the full local pak file
+- helpers do **not** extract entries
+- the backend parses game code, publisher code, note name, and entry payloads from the pak
+
 ## 6. Download and latest contract
 
 Helpers must also send `n64Profile` when asking for N64 data back.
@@ -190,6 +208,13 @@ Example:
 - RetroArch helper asks for latest/download with `n64Profile=n64/retroarch`
 - backend returns RetroArch-style `.srm`
 
+For controller pak example:
+
+- MiSTer uploads `.cpk`
+- backend extracts each valid pak entry into its own logical N64 save track
+- Project64 helper asks for `n64Profile=n64/project64`
+- backend rebuilds a Project64-compatible `.mpk` from the current logical entry set
+
 ## 7. Profile behavior in tranche 1
 
 ### `n64/mister`
@@ -200,11 +225,12 @@ Expected upload forms:
 - `.sra`
 - `.fla`
 - `.mpk`
+- `.cpk`
 
 Download behavior:
 
 - returns native canonical media bytes
-- filename extensions remain native: `.eep`, `.sra`, `.fla`, `.mpk`
+- filename extensions remain native: `.eep`, `.sra`, `.fla`, `.cpk`
 
 ### `n64/retroarch`
 
@@ -287,11 +313,11 @@ curl -X POST "$RSM_BASE_URL/saves" \
   -F "app_password=$RSM_APP_PASSWORD" \
   -F "system=n64" \
   -F "rom_sha1=0123456789abcdef0123456789abcdef01234567" \
-  -F "slotName=default" \
+  -F "slotName=controller-1" \
   -F "device_type=mister" \
   -F "fingerprint=mister-living-room" \
   -F "n64Profile=n64/mister" \
-  -F "file=@/media/fat/saves/N64/Star Fox 64.sra"
+  -F "file=@/media/fat/saves/N64/Mario Kart 64.cpk"
 ```
 
 ### Example B: RetroArch uploads its real local `.srm`
@@ -345,6 +371,38 @@ Helpers must **not**:
 
 The backend is responsible for normalization and projection.
 
+## 11. Controller pak logical-save behavior
+
+For N64 controller pak uploads, the backend now does all of the following:
+
+- normalize `.cpk` and `.mpk` into canonical controller pak bytes
+- parse the pak filesystem
+- extract each structurally valid entry
+- create one logical backend save track per extracted entry
+- enrich title and region from backend catalog when game code + publisher code are known
+- rebuild runtime-specific controller pak projections from the logical entry set
+
+Current canonical controller pak identity is based on:
+
+- `system=n64`
+- `mediaType=controller-pak`
+- `gameCode`
+- `publisherCode`
+- normalized pak note name
+
+Important consequences:
+
+- `GET /saves` shows logical controller pak entries, not one raw pak row
+- `GET /save` shows logical-entry history when called with `saveId + psLogicalKey`
+- `GET /saves/download` for a logical entry returns a rebuilt runtime-specific pak for the requested `n64Profile`
+- MiSTer-target controller pak downloads use `.cpk`
+
+If backend catalog enrichment is missing:
+
+- the entry is still valid and syncable
+- the backend falls back to pak identity fields
+- helpers still do not need to extract anything client-side
+
 ## 10. Runtime-specific response expectations
 
 For N64 helper downloads:
@@ -358,7 +416,7 @@ For N64 latest checks:
 - the returned `sha256` is the checksum of the projected target-runtime payload when `n64Profile` is present
 - helpers should compare against the bytes that exist locally for that same runtime profile
 
-## 11. Metadata now exposed by the backend
+## 12. Metadata now exposed by the backend
 
 N64 save records can now carry projection-related metadata such as:
 
@@ -373,7 +431,17 @@ These fields help explain:
 - whether projection is available
 - what profile originally uploaded the source artifact
 
-## 12. Future direction
+Controller pak logical rows also expose entry-level metadata such as:
+
+- `controllerPakEntry.gameCode`
+- `controllerPakEntry.publisherCode`
+- `controllerPakEntry.noteName`
+- `controllerPakEntry.entryIndex`
+- `controllerPakEntry.pageCount`
+- `controllerPakEntry.blockUsage`
+- `controllerPakEntry.sizeBytes`
+
+## 13. Future direction
 
 This tranche solves runtime projection first.
 
@@ -390,7 +458,7 @@ The long-term trust model remains:
 
 Until a title has parser-backed game identity, the backend can still store normalized N64 media safely, but “fully trusted game identity” remains separate from raw media acceptance.
 
-## 13. Validation status and roadmap
+## 14. Validation status and roadmap
 
 Projection support does not replace validation.
 

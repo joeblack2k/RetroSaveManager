@@ -9,7 +9,7 @@ func buildTestN64Payload(ext, label string) []byte {
 		size = 512
 	case "fla":
 		size = 131072
-	case "sra", "mpk":
+	case "sra", "mpk", "cpk":
 		size = 32768
 	}
 

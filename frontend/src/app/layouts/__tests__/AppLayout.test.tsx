@@ -44,6 +44,7 @@ describe("AppLayout", () => {
     );
 
     expect(screen.getByRole("link", { name: "My Saves" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cheats" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "My Games" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Getting Started" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Download" })).not.toBeInTheDocument();

@@ -36,7 +36,7 @@ var n64CanonicalMediaByType = map[string]n64MediaInfo{
 	"eeprom":         {MediaType: "eeprom", Extension: "eep", CanonicalSize: 2048},
 	"sram":           {MediaType: "sram", Extension: "sra", CanonicalSize: 32768},
 	"flashram":       {MediaType: "flashram", Extension: "fla", CanonicalSize: 131072},
-	"controller-pak": {MediaType: "controller-pak", Extension: "mpk", CanonicalSize: 32768},
+	"controller-pak": {MediaType: "controller-pak", Extension: "cpk", CanonicalSize: 32768},
 }
 
 func canonicalN64Profile(value string) string {
@@ -115,7 +115,7 @@ func n64MediaInfoFromExtensionAndSize(ext string, size int) (n64MediaInfo, bool)
 		if size == 131072 {
 			return n64CanonicalMediaByType["flashram"], true
 		}
-	case "mpk":
+	case "mpk", "cpk":
 		if size == 32768 {
 			return n64CanonicalMediaByType["controller-pak"], true
 		}
@@ -157,7 +157,7 @@ func normalizeN64UploadPayload(profile, ext string, payload []byte) ([]byte, n64
 	if profile == n64ProfileRetroArch && ext == "srm" {
 		return splitRetroArchN64SRM(payload)
 	}
-	if profile == n64ProfileMupenFamily && ext == "mpk" && len(payload) == n64RetroArchControllerSize {
+	if profile == n64ProfileMupenFamily && (ext == "mpk" || ext == "cpk") && len(payload) == n64RetroArchControllerSize {
 		canonical, err := splitMergedMupenControllerPak(payload)
 		if err != nil {
 			return nil, n64MediaInfo{}, err
@@ -209,14 +209,21 @@ func projectN64Payload(summary saveSummary, payload []byte, requestedProfile str
 
 	switch profile {
 	case n64ProfileMister:
-		// Native canonical order.
+		if info.MediaType == "controller-pak" {
+			filenameExt = "cpk"
+		}
 	case n64ProfileEverDrive:
 		if info.MediaType == "sram" {
 			filenameExt = "srm"
+		} else if info.MediaType == "controller-pak" {
+			filenameExt = "mpk"
 		}
 	case n64ProfileProject64:
 		if info.MediaType == "sram" || info.MediaType == "flashram" {
 			projected = n64Swap32Words(projected)
+		}
+		if info.MediaType == "controller-pak" {
+			filenameExt = "mpk"
 		}
 	case n64ProfileMupenFamily:
 		if info.MediaType == "sram" || info.MediaType == "flashram" {
@@ -224,6 +231,7 @@ func projectN64Payload(summary saveSummary, payload []byte, requestedProfile str
 		}
 		if info.MediaType == "controller-pak" {
 			projected = buildMergedMupenControllerPak(projected)
+			filenameExt = "mpk"
 		}
 	case n64ProfileRetroArch:
 		projected = buildRetroArchN64SRM(info, projected)

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 )
@@ -109,6 +110,75 @@ func TestContractSaveLatestMissingAndSuccessShape(t *testing.T) {
 	}
 	if mustString(t, successBody["id"], "id") == "" {
 		t.Fatalf("expected non-empty save id")
+	}
+}
+
+func TestContractSaveLatestSkipsBrokenPayloadRecords(t *testing.T) {
+	h := newContractHarness(t)
+
+	first := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "latest-broken-rom",
+		"slotName": "default",
+		"system":   "n64",
+	}, "slot1.eep", buildTestN64Payload("eep", "latest-broken-v1"))
+	firstID := mustString(t, mustObject(t, first["save"], "save")["id"], "save.id")
+
+	second := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "latest-broken-rom",
+		"slotName": "default",
+		"system":   "n64",
+	}, "slot1.eep", buildTestN64Payload("eep", "latest-broken-v2"))
+	secondID := mustString(t, mustObject(t, second["save"], "save")["id"], "save.id")
+
+	secondRecord, found := h.app.findSaveRecordByID(secondID)
+	if !found {
+		t.Fatalf("expected second save record %q", secondID)
+	}
+	if err := os.Remove(secondRecord.payloadPath); err != nil {
+		t.Fatalf("remove latest payload: %v", err)
+	}
+
+	latest := h.request(http.MethodGet, "/save/latest?romSha1=latest-broken-rom&slotName=default", nil)
+	assertStatus(t, latest, http.StatusOK)
+	assertJSONContentType(t, latest)
+
+	body := decodeJSONMap(t, latest.Body)
+	if !mustBool(t, body["success"], "success") || !mustBool(t, body["exists"], "exists") {
+		t.Fatalf("expected fallback latest record, got %s", prettyJSON(body))
+	}
+	if got := mustString(t, body["id"], "id"); got != firstID {
+		t.Fatalf("expected fallback save id %q, got %q", firstID, got)
+	}
+	if got := mustNumber(t, body["version"], "version"); got != 1 {
+		t.Fatalf("expected fallback version 1, got %.0f", got)
+	}
+}
+
+func TestContractDownloadMissingPayloadReturnsNotFound(t *testing.T) {
+	h := newContractHarness(t)
+
+	upload := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "download-broken-rom",
+		"slotName": "default",
+		"system":   "n64",
+	}, "slot1.eep", buildTestN64Payload("eep", "download-broken"))
+	saveID := mustString(t, mustObject(t, upload["save"], "save")["id"], "save.id")
+
+	record, found := h.app.findSaveRecordByID(saveID)
+	if !found {
+		t.Fatalf("expected uploaded save record %q", saveID)
+	}
+	if err := os.Remove(record.payloadPath); err != nil {
+		t.Fatalf("remove payload: %v", err)
+	}
+
+	download := h.request(http.MethodGet, "/saves/download?id="+saveID, nil)
+	assertStatus(t, download, http.StatusNotFound)
+	assertJSONContentType(t, download)
+
+	body := decodeJSONMap(t, download.Body)
+	if !strings.Contains(strings.ToLower(mustString(t, body["message"], "message")), "missing") {
+		t.Fatalf("expected missing payload message, got %s", prettyJSON(body))
 	}
 }
 

@@ -199,6 +199,9 @@ func projectionPlaceholderRejectReason(input saveCreateInput) string {
 	if systemSlug == "" || systemSlug == "psx" || systemSlug == "ps2" {
 		return ""
 	}
+	if systemSlug == "n64" && strings.TrimSpace(input.MediaType) == "controller-pak" {
+		return ""
+	}
 
 	profile := canonicalRuntimeProfile(systemSlug, firstNonEmpty(input.RuntimeProfile, input.SourceArtifactProfile))
 	if profile == "" {
