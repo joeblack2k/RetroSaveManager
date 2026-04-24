@@ -210,6 +210,7 @@ describe("MyGamesPage TreeGrid", () => {
     expect(screen.queryByText("Chrono Trigger")).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: /rollback/i })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: /cheats/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /edit cheats for super mario 64/i })).toHaveTextContent("4 cheats");
 
     fireEvent.click(screen.getByRole("button", { name: /expand super nintendo/i }));
 

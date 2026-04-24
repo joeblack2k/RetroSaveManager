@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CheatsPage } from "../CheatsPage";
@@ -10,10 +10,7 @@ vi.mock("../../../services/retrosaveApi", () => ({
   listCheatAdapters: vi.fn(),
   getCheatLibrary: vi.fn(),
   syncCheatLibrary: vi.fn(),
-  createCheatPack: vi.fn(),
-  deleteCheatPack: vi.fn(),
-  disableCheatPack: vi.fn(),
-  enableCheatPack: vi.fn()
+  createCheatPack: vi.fn()
 }));
 
 describe("CheatsPage", () => {
@@ -86,24 +83,6 @@ describe("CheatsPage", () => {
     vi.mocked(retrosaveApi.getCheatLibrary).mockResolvedValue(libraryStatus);
     vi.mocked(retrosaveApi.syncCheatLibrary).mockResolvedValue(libraryStatus);
     vi.mocked(retrosaveApi.createCheatPack).mockResolvedValue({ success: true, pack: activePack });
-    vi.mocked(retrosaveApi.disableCheatPack).mockResolvedValue({
-      success: true,
-      pack: {
-        ...activePack,
-        manifest: { ...activePack.manifest, status: "disabled" },
-        supportsSaveUi: false
-      }
-    });
-    vi.mocked(retrosaveApi.enableCheatPack).mockResolvedValue({ success: true, pack: activePack });
-    vi.mocked(retrosaveApi.deleteCheatPack).mockResolvedValue({
-      success: true,
-      pack: {
-        ...activePack,
-        manifest: { ...activePack.manifest, status: "deleted" },
-        supportsSaveUi: false
-      }
-    });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -123,6 +102,8 @@ describe("CheatsPage", () => {
     expect(screen.getAllByText("1 packs").length).toBeGreaterThan(0);
     expect(screen.getByText("1 active")).toBeInTheDocument();
     expect(screen.getByText("joeblack2k/RetroSaveManager@main")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /disable sm64-runtime-ui/i })).not.toBeInTheDocument();
     expect(screen.queryByText("Match keys: systemSlug, titleAliases")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Show advanced tools" }));
@@ -210,48 +191,4 @@ sections:
     expect(await screen.findByText("SM64 Runtime UI")).toBeInTheDocument();
   });
 
-  it("runs disable, enable, and delete actions and reloads the page data", async () => {
-    const disabledPack: CheatManagedPack = {
-      ...activePack,
-      manifest: { ...activePack.manifest, status: "disabled" },
-      supportsSaveUi: false
-    };
-    const deletedPack: CheatManagedPack = {
-      ...activePack,
-      manifest: { ...activePack.manifest, status: "deleted" },
-      supportsSaveUi: false
-    };
-    vi.mocked(retrosaveApi.listCheatPacks)
-      .mockResolvedValueOnce([activePack])
-      .mockResolvedValueOnce([disabledPack])
-      .mockResolvedValueOnce([activePack])
-      .mockResolvedValueOnce([deletedPack]);
-
-    render(
-      <MemoryRouter>
-        <CheatsPage />
-      </MemoryRouter>
-    );
-
-    await screen.findByText("SM64 Runtime UI");
-
-    fireEvent.click(screen.getByRole("button", { name: "Disable sm64-runtime-ui" }));
-    await waitFor(() => {
-      expect(retrosaveApi.disableCheatPack).toHaveBeenCalledWith("sm64-runtime-ui");
-    });
-    expect(await screen.findByText("disabled")).toBeInTheDocument();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Enable sm64-runtime-ui" }));
-    await waitFor(() => {
-      expect(retrosaveApi.enableCheatPack).toHaveBeenCalledWith("sm64-runtime-ui");
-    });
-    expect(await screen.findByText("active")).toBeInTheDocument();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Delete sm64-runtime-ui" }));
-    await waitFor(() => {
-      expect(retrosaveApi.deleteCheatPack).toHaveBeenCalledWith("sm64-runtime-ui");
-    });
-    const row = screen.getByRole("row", { name: /SM64 Runtime UI/i });
-    expect(within(row).getByText("deleted")).toBeInTheDocument();
-  });
 });

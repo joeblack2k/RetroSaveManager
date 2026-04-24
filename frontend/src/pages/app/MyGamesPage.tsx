@@ -490,13 +490,14 @@ export function MyGamesPage(): JSX.Element {
                             <td>
                               {row.cheatsSupported && row.cheatAvailableCount > 0 ? (
                                 <button
-                                  className="treegrid-icon-button treegrid-icon-button--cheat"
+                                  className="treegrid-cheat-trigger"
                                   type="button"
                                   onClick={() => void handleOpenCheats(row)}
                                   aria-label={`Edit cheats for ${row.gameName}`}
                                   title={`Edit cheats for ${row.gameName}`}
                                 >
                                   <CheatIcon />
+                                  <span>{formatCountLabel(row.cheatAvailableCount, "cheat", "cheats")}</span>
                                 </button>
                               ) : (
                                 <span className="treegrid-empty-cell" aria-hidden="true">-</span>

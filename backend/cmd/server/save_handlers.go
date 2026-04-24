@@ -672,7 +672,7 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
 			continue
 		}
-		summary := canonicalSummaryForRecord(record)
+		summary := a.summaryForRecord(record)
 		if !isSupportedSystemSlug(summary.SystemSlug) {
 			continue
 		}
@@ -831,7 +831,7 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 			}
 			sourceRecord = record
 			hasSourceRecord = true
-			gameID = canonicalSummaryForRecord(record).Game.ID
+			gameID = a.summaryForRecord(record).Game.ID
 			break
 		}
 	}
@@ -845,7 +845,7 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 		if hasSourceRecord && !sameSaveHistoryTrack(record, sourceRecord) {
 			continue
 		}
-		s := canonicalSummaryForRecord(record)
+		s := a.summaryForRecord(record)
 		if gameID != 0 && s.Game.ID != gameID {
 			continue
 		}

@@ -197,6 +197,54 @@ func TestSaveCheatApplySM64Presets(t *testing.T) {
 	}
 }
 
+func TestSaveListCheatCapabilityReflectsRuntimePackStatus(t *testing.T) {
+	h := newContractHarness(t)
+	saveID := seedSM64Save(t, h, "/saves")
+
+	assertSaveListCheatSupport(t, h, saveID, true)
+
+	disabled := h.request(http.MethodPost, "/api/cheats/packs/n64--super-mario-64/disable", nil)
+	assertStatus(t, disabled, http.StatusOK)
+	assertSaveListCheatSupport(t, h, saveID, false)
+
+	enabled := h.request(http.MethodPost, "/api/cheats/packs/n64--super-mario-64/enable", nil)
+	assertStatus(t, enabled, http.StatusOK)
+	assertSaveListCheatSupport(t, h, saveID, true)
+}
+
+func assertSaveListCheatSupport(t *testing.T, h *contractHarness, saveID string, want bool) {
+	t.Helper()
+	list := h.request(http.MethodGet, "/saves?limit=20&offset=0", nil)
+	assertStatus(t, list, http.StatusOK)
+	body := decodeJSONMap(t, list.Body)
+	saves := mustArray(t, body["saves"], "saves")
+	for _, entry := range saves {
+		item := mustObject(t, entry, "save")
+		if mustString(t, item["id"], "save.id") != saveID {
+			continue
+		}
+		cheatsRaw, hasCheats := item["cheats"]
+		if !want {
+			if hasCheats {
+				cheatCap := mustObject(t, cheatsRaw, "save.cheats")
+				if mustBool(t, cheatCap["supported"], "save.cheats.supported") {
+					t.Fatalf("expected no active cheat capability for %s: %s", saveID, list.Body.String())
+				}
+			}
+			return
+		}
+		if !hasCheats {
+			t.Fatalf("expected active cheat capability for %s: %s", saveID, list.Body.String())
+		}
+		cheatCap := mustObject(t, cheatsRaw, "save.cheats")
+		if !mustBool(t, cheatCap["supported"], "save.cheats.supported") {
+			t.Fatalf("expected supported cheat capability for %s: %s", saveID, list.Body.String())
+		}
+		return
+	}
+	t.Fatalf("expected save %s in list: %s", saveID, list.Body.String())
+}
+
 func mustLoadSM64CheatPack(t *testing.T) cheatPack {
 	t.Helper()
 	root, err := findCuratedCheatPackRoot()

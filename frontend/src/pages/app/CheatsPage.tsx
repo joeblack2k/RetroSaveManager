@@ -4,9 +4,6 @@ import { SectionCard } from "../../components/SectionCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import {
   createCheatPack,
-  deleteCheatPack,
-  disableCheatPack,
-  enableCheatPack,
   getCheatLibrary,
   listCheatAdapters,
   listCheatPacks,
@@ -40,8 +37,6 @@ export function CheatsPage(): JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [busyPackId, setBusyPackID] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncSuccess, setSyncSuccess] = useState<string | null>(null);
@@ -97,30 +92,6 @@ export function CheatsPage(): JSX.Element {
     }
   }
 
-  async function handlePackAction(pack: CheatManagedPack, action: "enable" | "disable" | "delete"): Promise<void> {
-    const packId = pack.manifest.packId;
-    const needsConfirmation = action === "delete";
-    if (needsConfirmation && !window.confirm(`Delete cheat pack ${packId}?`)) {
-      return;
-    }
-    setActionError(null);
-    setBusyPackID(packId);
-    try {
-      if (action === "enable") {
-        await enableCheatPack(packId);
-      } else if (action === "disable") {
-        await disableCheatPack(packId);
-      } else {
-        await deleteCheatPack(packId);
-      }
-      reload();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : `Failed to ${action} cheat pack.`);
-    } finally {
-      setBusyPackID(null);
-    }
-  }
-
   return (
     <>
       <SectionCard
@@ -135,7 +106,6 @@ export function CheatsPage(): JSX.Element {
         {loading ? <LoadingState label="Loading cheat library..." /> : null}
         {error ? <ErrorState message={error} /> : null}
         {syncError ? <ErrorState message={syncError} /> : null}
-        {actionError ? <ErrorState message={actionError} /> : null}
         {syncSuccess ? <p className="success-state">{syncSuccess}</p> : null}
         {data ? (
           <div className="cheat-library">
@@ -193,11 +163,10 @@ export function CheatsPage(): JSX.Element {
                             <th>Source</th>
                             <th>Adapter</th>
                             <th>Updated</th>
-                            <th>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {group.packs.map((item) => renderPackRow(item, busyPackId, handlePackAction))}
+                          {group.packs.map((item) => renderPackRow(item))}
                         </tbody>
                       </table>
                     </div>
@@ -307,14 +276,8 @@ export function CheatsPage(): JSX.Element {
   );
 }
 
-function renderPackRow(
-  item: CheatManagedPack,
-  busyPackId: string | null,
-  onAction: (pack: CheatManagedPack, action: "enable" | "disable" | "delete") => Promise<void>
-): JSX.Element {
+function renderPackRow(item: CheatManagedPack): JSX.Element {
   const packId = item.manifest.packId;
-  const active = item.manifest.status === "active";
-  const busy = busyPackId === packId;
   return (
     <tr key={packId}>
       <td>
@@ -333,40 +296,6 @@ function renderPackRow(
       </td>
       <td><code>{item.manifest.adapterId}</code></td>
       <td>{formatCheatDate(item.manifest.lastSyncedAt || item.manifest.updatedAt)}</td>
-      <td>
-        <div className="inline-actions">
-          {active ? (
-            <button
-              className="btn btn-ghost"
-              type="button"
-              aria-label={`Disable ${packId}`}
-              onClick={() => void onAction(item, "disable")}
-              disabled={busy}
-            >
-              Disable
-            </button>
-          ) : (
-            <button
-              className="btn btn-ghost"
-              type="button"
-              aria-label={`Enable ${packId}`}
-              onClick={() => void onAction(item, "enable")}
-              disabled={busy}
-            >
-              Enable
-            </button>
-          )}
-          <button
-            className="btn btn-ghost btn-danger"
-            type="button"
-            aria-label={`Delete ${packId}`}
-            onClick={() => void onAction(item, "delete")}
-            disabled={busy}
-          >
-            Delete
-          </button>
-        </div>
-      </td>
     </tr>
   );
 }

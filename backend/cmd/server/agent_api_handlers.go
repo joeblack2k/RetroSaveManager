@@ -499,7 +499,7 @@ func (a *app) aggregatedSaveSummaries(romSHA1, romMD5 string, systemID int) []sa
 		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
 			continue
 		}
-		summary := canonicalSummaryForRecord(record)
+		summary := a.summaryForRecord(record)
 		if !isSupportedSystemSlug(summary.SystemSlug) {
 			continue
 		}

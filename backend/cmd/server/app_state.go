@@ -224,6 +224,15 @@ func (a *app) cheatService() *cheatService {
 	return a.cheats
 }
 
+func (a *app) summaryForRecord(record saveRecord) saveSummary {
+	summary := canonicalSummaryForRecord(record)
+	summary.Cheats = nil
+	if cheats := a.cheatService(); cheats != nil {
+		summary.Cheats = cheats.capabilityForRecord(record)
+	}
+	return summary
+}
+
 func seedBootstrapEnabled() bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv("BOOTSTRAP_DEMO_DATA")))
 	switch value {
