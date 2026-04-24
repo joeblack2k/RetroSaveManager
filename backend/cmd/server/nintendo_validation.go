@@ -38,6 +38,17 @@ var strictRawSNESSizes = map[int]struct{}{
 	131072: {},
 }
 
+var strictRawNESSizes = map[int]struct{}{
+	512:   {},
+	1024:  {},
+	2048:  {},
+	4096:  {},
+	8192:  {},
+	16384: {},
+	32768: {},
+	65536: {},
+}
+
 func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectionResult, systemSlug string) consoleValidationResult {
 	switch systemSlug {
 	case "gameboy":
@@ -49,6 +60,8 @@ func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectio
 			AllowedSizes:        strictRawGBSizes,
 			RequireROMSHA1:      true,
 			RequireTrustedMatch: true,
+			RejectBlank:         true,
+			SparseWarningCutoff: 16,
 			Warning:             "No structural Game Boy save decoder is available yet for this raw SRAM payload",
 		})
 	case "gba":
@@ -62,10 +75,25 @@ func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectio
 			RequireTrustedMatch: true,
 			RequireSignature:    hasGBASignature,
 			SignatureReason:     "gba validated payload signature",
+			RejectBlank:         true,
+			SparseWarningCutoff: 16,
 			Warning:             "No structural GBA save decoder is available yet beyond backup-library signature validation",
 		})
-	case "snes":
+	case "nes":
 		return validateStrictRawSaveClass(input, detection, strictRawSaveValidationProfile{
+			SystemSlug:          "nes",
+			DisplayName:         "nes",
+			ParserID:            "nes-raw-sram",
+			AllowedExts:         map[string]struct{}{"sav": {}, "srm": {}, "ram": {}},
+			AllowedSizes:        strictRawNESSizes,
+			RequireROMSHA1:      true,
+			RequireTrustedMatch: true,
+			RejectBlank:         true,
+			SparseWarningCutoff: 16,
+			Warning:             "No structural NES save decoder is available yet for this raw SRAM payload",
+		})
+	case "snes":
+		result := validateStrictRawSaveClass(input, detection, strictRawSaveValidationProfile{
 			SystemSlug:          "snes",
 			DisplayName:         "snes",
 			ParserID:            "snes-raw-sram",
@@ -73,127 +101,22 @@ func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectio
 			AllowedSizes:        strictRawSNESSizes,
 			RequireROMSHA1:      true,
 			RequireTrustedMatch: true,
+			RejectBlank:         true,
+			SparseWarningCutoff: 16,
 			Warning:             "No structural SNES save decoder is available yet for this raw SRAM payload",
 		})
+		if result.Rejected || result.Inspection == nil {
+			return result
+		}
+		if enriched, ok := validateSNESDKCFamilySave(input, result.Inspection); ok {
+			result.Inspection = enriched
+		}
+		return result
 	case "nds":
 		return validateNintendoDSSave(input)
 	default:
 		return consoleValidationResult{}
 	}
-}
-
-type strictRawSaveValidationProfile struct {
-	SystemSlug          string
-	DisplayName         string
-	ParserID            string
-	AllowedExts         map[string]struct{}
-	AllowedSizes        map[int]struct{}
-	RequireROMSHA1      bool
-	RequireTrustedMatch bool
-	RequireSignature    func([]byte) bool
-	SignatureReason     string
-	Warning             string
-}
-
-func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetectionResult, profile strictRawSaveValidationProfile) consoleValidationResult {
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(strings.TrimSpace(input.Filename))), ".")
-	if _, ok := profile.AllowedExts[ext]; !ok {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw saves require one of the supported raw-save extensions", profile.DisplayName),
-		}
-	}
-	if len(input.Payload) == 0 {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is empty", profile.DisplayName),
-		}
-	}
-	if looksLikeExecutableOrArchivePayload(input.Payload) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: "payload looks like executable/archive",
-		}
-	}
-	if looksLikeMostlyTextPayload(input.Payload) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: "payload looks like text/noise",
-		}
-	}
-	if _, ok := profile.AllowedSizes[len(input.Payload)]; !ok {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save size %d is not recognized", profile.DisplayName, len(input.Payload)),
-		}
-	}
-	if profile.RequireROMSHA1 && strings.TrimSpace(input.ROMSHA1) == "" {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw saves require rom_sha1", profile.DisplayName),
-		}
-	}
-	if profile.RequireTrustedMatch && !detection.Evidence.Declared && !detection.Evidence.HelperTrusted && !detection.Evidence.StoredTrusted {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw saves require declared, helper, or stored system evidence", profile.DisplayName),
-		}
-	}
-	if profile.RequireSignature != nil && !profile.RequireSignature(input.Payload) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save is missing a validated payload signature", profile.DisplayName),
-		}
-	}
-
-	nonZeroBytes := countBytesNotEqual(input.Payload, 0x00)
-	evidence := []string{
-		"validated raw save class",
-		"extension=" + ext,
-		fmt.Sprintf("payloadSize=%d", len(input.Payload)),
-		fmt.Sprintf("nonZeroBytes=%d", nonZeroBytes),
-	}
-	if detection.Evidence.HelperTrusted {
-		evidence = append(evidence, "trusted helper system")
-	}
-	if detection.Evidence.StoredTrusted {
-		evidence = append(evidence, "trusted stored system")
-	}
-	if detection.Evidence.Declared && !detection.Evidence.HelperTrusted && !detection.Evidence.StoredTrusted {
-		evidence = append(evidence, "declared system")
-	}
-	if profile.RequireSignature != nil && strings.TrimSpace(profile.SignatureReason) != "" {
-		evidence = append(evidence, profile.SignatureReason)
-	}
-
-	warnings := []string(nil)
-	if strings.TrimSpace(profile.Warning) != "" {
-		warnings = append(warnings, profile.Warning)
-	}
-	if allBytesEqual(input.Payload, 0x00) {
-		warnings = append(warnings, fmt.Sprintf("%s raw save payload is entirely 0x00", profile.DisplayName))
-	}
-	if allBytesEqual(input.Payload, 0xFF) {
-		warnings = append(warnings, fmt.Sprintf("%s raw save payload is entirely 0xFF", profile.DisplayName))
-	}
-	if nonZeroBytes <= 16 {
-		warnings = append(warnings, "Payload is extremely sparse and only raw media validation is available")
-	}
-
-	inspection := &saveInspection{
-		ParserLevel:      saveParserLevelContainer,
-		ParserID:         profile.ParserID,
-		ValidatedSystem:  profile.SystemSlug,
-		TrustLevel:       n64TrustLevelMediaOnly,
-		Evidence:         evidence,
-		Warnings:         warnings,
-		PayloadSizeBytes: len(input.Payload),
-		SemanticFields: map[string]any{
-			"extension":    ext,
-			"nonZeroBytes": nonZeroBytes,
-		},
-	}
-	return consoleValidationResult{Inspection: inspection}
 }
 
 func validateNintendoDSSave(input saveCreateInput) consoleValidationResult {

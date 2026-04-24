@@ -66,6 +66,78 @@ func TestNormalizeSaveInputAcceptsWeakSNESSlugTitle(t *testing.T) {
 	}
 }
 
+func TestNormalizeSaveInputRejectsBlankSNESRawSave(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Super Mario Kart (USA).srm",
+		Payload:             make([]byte, 2048),
+		Game:                game{Name: "Super Mario Kart"},
+		Format:              "sram",
+		ROMSHA1:             "super-mario-kart-rom",
+		SlotName:            "default",
+		SystemSlug:          "snes",
+		TrustedHelperSystem: true,
+	})
+	if !result.Rejected {
+		t.Fatal("expected blank SNES raw save to be rejected")
+	}
+	if result.RejectReason != "snes raw save payload is blank (all 0x00)" {
+		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
+	}
+}
+
+func TestNormalizeSaveInputValidatesDKC3FamilySRAM(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Donkey Kong Country 3 - Dixie Kong's Double Trouble! (USA).srm",
+		Payload:             buildDKC3FixturePayload(),
+		Game:                game{Name: "Donkey Kong Country 3 - Dixie Kong's Double Trouble!"},
+		Format:              "sram",
+		ROMSHA1:             "dkc3-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "snes",
+		TrustedHelperSystem: true,
+	})
+	if result.Rejected {
+		t.Fatalf("expected DKC3 SRAM to be accepted, got reject=%q", result.RejectReason)
+	}
+	if result.Input.Inspection == nil {
+		t.Fatal("expected DKC3 inspection metadata")
+	}
+	if result.Input.Inspection.ParserID != snesDKCFamilyParserID {
+		t.Fatalf("unexpected parser id: %+v", result.Input.Inspection)
+	}
+	if result.Input.Inspection.ParserLevel != saveParserLevelStructural {
+		t.Fatalf("unexpected parser level: %+v", result.Input.Inspection)
+	}
+	if result.Input.Inspection.ValidatedGameTitle != "Donkey Kong Country 3 - Dixie Kong's Double Trouble!" {
+		t.Fatalf("unexpected validated game title: %+v", result.Input.Inspection)
+	}
+	if result.Input.DisplayTitle != "Donkey Kong Country 3 - Dixie Kong's Double Trouble!" {
+		t.Fatalf("expected validated DKC3 title, got %q", result.Input.DisplayTitle)
+	}
+}
+
+func TestNormalizeSaveInputAcceptsNESRawSaveWithInspection(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "The Legend of Zelda (USA).sav",
+		Payload:             buildNonBlankPayload(8192, 0x07),
+		Game:                game{Name: "The Legend of Zelda"},
+		Format:              "sram",
+		ROMSHA1:             "zelda-nes-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "nes",
+		TrustedHelperSystem: true,
+	})
+	if result.Rejected {
+		t.Fatalf("expected NES raw save to be accepted, got reject=%q", result.RejectReason)
+	}
+	if result.Input.Inspection == nil || result.Input.Inspection.ParserID != "nes-raw-sram" {
+		t.Fatalf("expected NES inspection metadata, got %+v", result.Input.Inspection)
+	}
+}
+
 func TestNormalizeSaveInputAcceptsGBABackupSignatureWithInspection(t *testing.T) {
 	a := &app{}
 	payload := make([]byte, 32768)
@@ -186,5 +258,16 @@ func buildNonBlankPayload(size int, value byte) []byte {
 	for idx := 0; idx < size && idx < 32; idx++ {
 		payload[idx] = value
 	}
+	return payload
+}
+
+func buildDKC3FixturePayload() []byte {
+	payload := make([]byte, dkcSRAMSize)
+	for _, signature := range snesDKC3Signatures {
+		copy(payload[signature.Offset:], []byte(signature.Value))
+	}
+	payload[0x0a] = 0x69
+	payload[0x0e] = 0xaf
+	payload[0xd2] = 0x59
 	return payload
 }

@@ -496,12 +496,55 @@ func TestRescanSavesPrunesBlankTrustedNeoGeoSave(t *testing.T) {
 	}
 }
 
+func TestRescanSavesPrunesBlankTrustedSNESRawSave(t *testing.T) {
+	h := newContractHarness(t)
+	record, err := h.app.createSave(saveCreateInput{
+		Filename:            "Super Mario Kart (USA).srm",
+		Payload:             buildNonBlankPayload(2048, 0x23),
+		Game:                game{Name: "Super Mario Kart"},
+		Format:              "sram",
+		ROMSHA1:             "super-mario-kart-rom",
+		SlotName:            "default",
+		SystemSlug:          "snes",
+		GameSlug:            "super-mario-kart",
+		TrustedHelperSystem: true,
+	})
+	if err != nil {
+		t.Fatalf("create trusted SNES save: %v", err)
+	}
+	if err := os.WriteFile(record.payloadPath, make([]byte, 2048), 0o644); err != nil {
+		t.Fatalf("overwrite SNES payload with blank media: %v", err)
+	}
+	if err := h.app.reloadSavesFromDisk(); err != nil {
+		t.Fatalf("reload SNES saves: %v", err)
+	}
+
+	result, err := h.app.rescanSaves(saveRescanOptions{DryRun: false, PruneUnsupported: true})
+	if err != nil {
+		t.Fatalf("rescan blank SNES save: %v", err)
+	}
+	if result.Removed < 1 {
+		t.Fatalf("expected blank SNES save to be pruned, got %+v", result)
+	}
+	for _, candidate := range h.app.snapshotSaveRecords() {
+		if candidate.Summary.ID == record.Summary.ID {
+			t.Fatalf("expected blank SNES save to be pruned, still found %+v", candidate)
+		}
+	}
+	for _, rejection := range result.Rejections {
+		if rejection.SaveID == record.Summary.ID && rejection.Reason == "snes raw save payload is blank (all 0x00)" {
+			return
+		}
+	}
+	t.Fatalf("expected blank SNES rejection entry for %s, got %+v", record.Summary.ID, result.Rejections)
+}
+
 func TestRescanSavesRebuildsGenesisInspectionFromTrustedMetadata(t *testing.T) {
 	h := newContractHarness(t)
 
 	record, err := h.app.createSave(saveCreateInput{
 		Filename:            "Sonic the Hedgehog.srm",
-		Payload:             make([]byte, 8192),
+		Payload:             buildNonBlankPayload(8192, 0x05),
 		Game:                game{Name: "Sonic the Hedgehog"},
 		Format:              "sram",
 		ROMSHA1:             "genesis-sonic-rom-sha1",
@@ -550,7 +593,7 @@ func TestRescanSavesPrunesTrustedGenesisRawSaveWithoutROMSHA1(t *testing.T) {
 
 	record, err := h.app.createSave(saveCreateInput{
 		Filename:            "Sonic the Hedgehog.srm",
-		Payload:             make([]byte, 8192),
+		Payload:             buildNonBlankPayload(8192, 0x05),
 		Game:                game{Name: "Sonic the Hedgehog"},
 		Format:              "sram",
 		ROMSHA1:             "genesis-sonic-rom-sha1",

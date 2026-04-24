@@ -110,6 +110,10 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		rejected = true
 		rejectReason = playStationRejectReason(normalized.System)
 	}
+	if placeholderReason := projectionPlaceholderRejectReason(input); placeholderReason != "" {
+		rejected = true
+		rejectReason = placeholderReason
+	}
 	consoleValidation := validateConsoleSpecificSave(input, detection, normalized)
 	if consoleValidation.Inspection != nil {
 		input.Inspection = consoleValidation.Inspection
@@ -158,9 +162,7 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 	}
 	if placeholderReason := projectionPlaceholderRejectReason(input); placeholderReason != "" {
 		rejected = true
-		if rejectReason == "" {
-			rejectReason = placeholderReason
-		}
+		rejectReason = placeholderReason
 	}
 
 	if detection.System == nil || !isSupportedSystemSlug(input.SystemSlug) {

@@ -35,10 +35,12 @@
       "id": "<redacted>",
       "inspection": {
         "evidence": [
-          "validated raw save class",
+          "validated raw save media",
           "extension=srm",
           "payloadSize=8192",
           "nonZeroBytes=35",
+          "nonFFBytes=8192",
+          "romSha1 present",
           "trusted stored system"
         ],
         "parserId": "gameboy-raw-sram",
@@ -46,9 +48,11 @@
         "payloadSizeBytes": 8192,
         "semanticFields": {
           "extension": "srm",
-          "nonZeroBytes": 35
+          "nonFFBytes": 8192,
+          "nonZeroBytes": 35,
+          "romSha1Present": true
         },
-        "trustLevel": "media-only",
+        "trustLevel": "rom-media-verified",
         "validatedSystem": "gameboy",
         "warnings": [
           "No structural Game Boy save decoder is available yet for this raw SRAM payload"

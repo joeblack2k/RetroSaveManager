@@ -124,6 +124,10 @@ func normalizeTestUploadPayload(fields map[string]string, fileName string, paylo
 			}
 			return buildNonBlankPayload(size, 0x23)
 		}
+	case "nes":
+		if ext == "sav" || ext == "srm" || ext == "ram" {
+			return buildNonBlankPayload(8192, 0x17)
+		}
 	case "gba":
 		if ext == "sav" || ext == "srm" || ext == "sa1" {
 			data := make([]byte, 32768)

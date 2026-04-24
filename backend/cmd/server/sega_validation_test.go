@@ -9,7 +9,7 @@ func TestNormalizeSaveInputRejectsTrustedGenesisRawSaveWithoutROMSHA1(t *testing
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{
 		Filename:            "Sonic the Hedgehog.srm",
-		Payload:             make([]byte, 8192),
+		Payload:             buildNonBlankPayload(8192, 0x05),
 		Game:                game{Name: "Sonic the Hedgehog"},
 		Format:              "sram",
 		SystemSlug:          "genesis",
@@ -27,7 +27,7 @@ func TestNormalizeSaveInputAcceptsTrustedGenesisRawSaveWithInspection(t *testing
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{
 		Filename:            "Sonic the Hedgehog.srm",
-		Payload:             make([]byte, 8192),
+		Payload:             buildNonBlankPayload(8192, 0x05),
 		Game:                game{Name: "Sonic the Hedgehog"},
 		Format:              "sram",
 		ROMSHA1:             "genesis-sonic-rom-sha1",
@@ -55,6 +55,26 @@ func TestNormalizeSaveInputAcceptsTrustedGenesisRawSaveWithInspection(t *testing
 	}
 	if result.Input.Game.HasParser {
 		t.Fatal("expected raw Sega validator to remain below structural parser level")
+	}
+}
+
+func TestNormalizeSaveInputRejectsBlankGenesisRawSave(t *testing.T) {
+	a := &app{}
+	result := a.normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Sonic the Hedgehog.srm",
+		Payload:             make([]byte, 8192),
+		Game:                game{Name: "Sonic the Hedgehog"},
+		Format:              "sram",
+		ROMSHA1:             "genesis-sonic-rom-sha1",
+		SlotName:            "default",
+		SystemSlug:          "genesis",
+		TrustedHelperSystem: true,
+	})
+	if !result.Rejected {
+		t.Fatal("expected blank Genesis raw save to be rejected")
+	}
+	if result.RejectReason != "genesis raw save payload is blank (all 0x00)" {
+		t.Fatalf("unexpected reject reason: %q", result.RejectReason)
 	}
 }
 
@@ -90,7 +110,7 @@ func TestContractSavesMultipartAcceptsGenesisWithInspection(t *testing.T) {
 		"device_type":    "mister",
 		"fingerprint":    "genesis-device",
 		"runtimeProfile": "genesis/genesis-plus-gx",
-	}, "Sonic the Hedgehog.srm", make([]byte, 8192))
+	}, "Sonic the Hedgehog.srm", buildNonBlankPayload(8192, 0x05))
 
 	list := h.request(http.MethodGet, "/saves?limit=10&offset=0", nil)
 	assertStatus(t, list, http.StatusOK)
@@ -126,7 +146,7 @@ func TestContractSavesMultipartRejectsGenesisWithoutROMSHA1(t *testing.T) {
 		"device_type":    "mister",
 		"fingerprint":    "genesis-device",
 		"runtimeProfile": "genesis/genesis-plus-gx",
-	}, "file", "Sonic the Hedgehog.srm", make([]byte, 8192))
+	}, "file", "Sonic the Hedgehog.srm", buildNonBlankPayload(8192, 0x05))
 	assertStatus(t, rr, http.StatusUnprocessableEntity)
 	assertJSONContentType(t, rr)
 }

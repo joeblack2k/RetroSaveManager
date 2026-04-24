@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -42,7 +41,7 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateN64Save(input, detection)
 	case "saturn":
 		return validateSaturnSave(input, normalized)
-	case "gameboy", "gba", "snes", "nds":
+	case "gameboy", "gba", "nes", "snes", "nds":
 		return validateNintendoRawSave(input, detection, systemSlug)
 	case "neogeo":
 		return validateNeoGeoSave(input, detection)
@@ -172,78 +171,19 @@ func validateDreamcastSave(input saveCreateInput, normalized normalizedSaveMetad
 }
 
 func validateStrictSegaRawSave(input saveCreateInput, detection saveSystemDetectionResult, systemSlug string) consoleValidationResult {
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(strings.TrimSpace(input.Filename))), ".")
-	if !isStrictSegaRawExtension(ext) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw saves require .sav, .srm, or .ram", systemSlug),
-		}
-	}
-	if len(input.Payload) == 0 {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is empty", systemSlug),
-		}
-	}
-	if looksLikeExecutableOrArchivePayload(input.Payload) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: "payload looks like executable/archive",
-		}
-	}
-	if looksLikeMostlyTextPayload(input.Payload) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: "payload looks like text/noise",
-		}
-	}
-	if !isPlausibleStrictSegaRawSaveSize(len(input.Payload)) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save size %d is not recognized", systemSlug, len(input.Payload)),
-		}
-	}
-	if strings.TrimSpace(input.ROMSHA1) == "" {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw saves require rom_sha1", systemSlug),
-		}
-	}
-	if !detection.Evidence.Declared {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw saves require an explicit system declaration", systemSlug),
-		}
-	}
-	if !detection.Evidence.HelperTrusted && !detection.Evidence.StoredTrusted {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw saves require trusted helper or stored system evidence", systemSlug),
-		}
-	}
-
-	evidence := []string{
-		"validated raw SRAM class",
-		fmt.Sprintf("payloadSize=%d", len(input.Payload)),
-		"extension=" + ext,
-		"romSha1 present",
-	}
-	if detection.Evidence.HelperTrusted {
-		evidence = append(evidence, "trusted helper system")
-	}
-	if detection.Evidence.StoredTrusted {
-		evidence = append(evidence, "trusted stored system")
-	}
-
-	inspection := &saveInspection{
-		ParserLevel:      saveParserLevelContainer,
-		ParserID:         "sega-raw-sram",
-		ValidatedSystem:  systemSlug,
-		Evidence:         evidence,
-		Warnings:         []string{"No structural decoder is available yet for this Sega raw save"},
-		PayloadSizeBytes: len(input.Payload),
-	}
-	return consoleValidationResult{Inspection: inspection}
+	return validateStrictRawSaveClass(input, detection, strictRawSaveValidationProfile{
+		SystemSlug:           systemSlug,
+		DisplayName:          systemSlug,
+		ParserID:             "sega-raw-sram",
+		AllowedExts:          map[string]struct{}{"sav": {}, "srm": {}, "ram": {}},
+		AllowedSizes:         strictSegaRawSaveSizes,
+		RequireROMSHA1:       true,
+		RequireDeclared:      true,
+		RequireHelperOrStore: true,
+		RejectBlank:          true,
+		SparseWarningCutoff:  16,
+		Warning:              "No structural decoder is available yet for this Sega raw save",
+	})
 }
 
 func isPlausibleStrictSegaRawSaveSize(size int) bool {
