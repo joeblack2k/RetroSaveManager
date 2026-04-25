@@ -48,6 +48,7 @@ Controller Pak write support is verified against a generated valid N64 PFS fixtu
 ## 6. Required Backend Logic
 - existing editor can be reused: no.
 - new parser/editor needed: yes, supplied as `modules/wave-race-64.rsmodule.zip`.
+- module version: `1.1.1`, including the live catalog title alias `Wave Race 64 - Kawasaki Jet Ski`.
 - checksum repair required: EEPROM only, rebuild `0x02-0x03`.
 - Controller Pak repair required: no metadata rewrite for byte edits; the module preserves PFS notes, inode chains, and unrelated entries.
 
