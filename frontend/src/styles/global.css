@@ -2343,6 +2343,8 @@ code {
   width: min(820px, calc(100vw - 40px));
   max-height: calc(100vh - 48px);
   overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid rgba(92, 103, 126, 0.96);
   background:
     linear-gradient(180deg, rgba(19, 23, 32, 0.98), rgba(12, 15, 22, 0.99));
@@ -2398,8 +2400,10 @@ code {
 }
 
 .treegrid-modal__body {
+  min-height: 0;
   padding: 14px 18px 18px;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .treegrid-modal__status {
