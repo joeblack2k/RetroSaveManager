@@ -21,8 +21,8 @@ jobs:
         run: |
           set -euo pipefail
           owner_lc="$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')"
-          cp docs/RELEASE_NOTES.md release-notes.md
           {
+            echo "# RetroSaveManager ${GITHUB_REF_NAME}"
             echo
             echo "## Container Images"
             echo
@@ -32,7 +32,7 @@ jobs:
             echo "## Source"
             echo
             echo "- Commit: \`${GITHUB_SHA}\`"
-          } >> release-notes.md
+          } > release-notes.md
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

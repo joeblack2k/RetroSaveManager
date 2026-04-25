@@ -20,6 +20,24 @@ tests/evidence/
 LOCAL_SECRETS.md
 LOCAL_NOTES.md
 
+# Internal project documentation kept outside Git.
+/AGENTS.md
+/DEPLOY.md
+/api.md
+/auto.md
+/backend.md
+/cheats.md
+/n64update.md
+/onboarding.md
+/playstation.md
+/saturn.md
+/wii.md
+/docs/
+/modules/README.md
+/contracts/route-matrix.md
+/backend/contracts/route-matrix.md
+/backend/cmd/server/testdata/saturn_fixture_notes.md
+
 # Env
 .env
 .env.*
