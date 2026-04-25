@@ -4,7 +4,7 @@
 - systemSlug: `neogeo`
 - canonicalTitle: `Metal Slug 5`
 - regions: MVS `mslug5`, identified by MAME as `Metal Slug 5 (NGM-2680)`
-- extensions: `.sav`, `.srm`, `.ram`
+- extensions: `.sav`, `.srm`, `.ram`, backend-normalized `sram`
 - runtimes: raw MVS backup RAM, RetroSaveManager NeoGeo compound save
 - saveModel: 64KiB MVS backup RAM; compound saves preserve an additional 8KiB memory-card tail
 
@@ -16,7 +16,9 @@
 ## 3. Format Evidence
 - container/header: NeoGeoDev documents MVS backup RAM as a 64KiB region at `$D00000-$D0FFFF`; the BIOS marker starts at `$D00010` with `BACKUP RAM OK!`.
 - slot layout: NeoGeoDev documents eight slot table entries starting at `$D00124`; each entry stores the slot NGH number and backup-RAM game block id.
-- title proof: MAME identifies `mslug5` as `Metal Slug 5 (NGM-2680)` and marks it save-capable; the module requires a slot table NGH word of `0x2680`.
+- title proof: MAME identifies `mslug5` as `Metal Slug 5 (NGM-2680)` and marks it save-capable; the module requires a slot table NGH word of `0x0268`, which is how the MVS backup RAM table stores this title.
+- byte order: MiSTer/NeoGeo compound saves may store the 64KiB backup RAM window as 16-bit byte-swapped words. The module accepts both direct and byte-swapped marker/table layouts and preserves the original layout on writes.
+- marker variant: live MiSTer/compound samples use the common spaced marker `BACKUP RAM OK !`; the module accepts that and `BACKUP RAM OK!`.
 - game data: NeoGeoDev documents per-game soft DIP bytes at `$D00220-$D0029F`, game-name blocks at `$D002A0-$D0031F`, and 0x1000-byte game data blocks after `$D00320`.
 - checksum/crc: no global checksum is documented for the MVS backup RAM cabinet setting edited here.
 - mirrored data: none for the supported cabinet byte. Compound saves preserve the trailing memory-card area unchanged.
@@ -46,7 +48,7 @@
 ## 7. Verification
 - before/after checks: module import test validates the zip, manifest, WASM ABI, and bundled YAML.
 - in-game confirmation: not performed.
-- parser/tool confirmation: parser requires payload size `65536` or `73728`, the MVS backup RAM marker, and a slot table entry for NGH `0x2680`.
+- parser/tool confirmation: parser requires payload size `65536` or `73728`, the MVS backup RAM marker, and a slot table entry for NGH `0x0268`.
 
 ## 8. Open Questions
 - Metal Slug 5-specific soft-DIP labels and bounds remain unsupported until derived from the real program header or confirmed documentation.
