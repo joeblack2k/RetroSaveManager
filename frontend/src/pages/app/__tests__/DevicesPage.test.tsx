@@ -104,7 +104,7 @@ describe("DevicesPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders rich helper metadata for each device", async () => {
+  it("renders a compact device overview and opens rich details in a modal", async () => {
     render(
       <MemoryRouter>
         <DevicesPage />
@@ -112,11 +112,17 @@ describe("DevicesPage", () => {
     );
 
     expect(await screen.findByText("Living Room MiSTer")).toBeInTheDocument();
-    expect(screen.getByText("mister-01.example.invalid")).toBeInTheDocument();
-    expect(screen.getByText("198.51.100.42")).toBeInTheDocument();
-    expect(screen.getByText("RSM Helper")).toBeInTheDocument();
-    expect(screen.getByText("2.1.0")).toBeInTheDocument();
+    expect(screen.getByLabelText("Device fleet summary")).toBeInTheDocument();
+    expect(screen.getByText(/mister-01\.example\.invalid/)).toBeInTheDocument();
+    expect(screen.getByText(/198\.51\.100\.42/)).toBeInTheDocument();
+    expect(screen.getByText(/RSM Helper/)).toBeInTheDocument();
+    expect(screen.getByText(/2.1.0/)).toBeInTheDocument();
     expect(screen.getAllByText("online").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 up / 2 down")).toBeInTheDocument();
+    expect(screen.queryByText("sha256-config")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+
     expect(screen.getByText(/sse-plus-periodic-reconcile/)).toBeInTheDocument();
     expect(screen.getByText("1800s")).toBeInTheDocument();
     expect(screen.getByText("sha256-config")).toBeInTheDocument();
@@ -142,7 +148,7 @@ describe("DevicesPage", () => {
       </MemoryRouter>
     );
 
-    const button = await screen.findByRole("button", { name: "Sync now" });
+    const button = await screen.findByRole("button", { name: "Sync" });
     fireEvent.click(button);
 
     await waitFor(() => {
@@ -156,6 +162,8 @@ describe("DevicesPage", () => {
         <DevicesPage />
       </MemoryRouter>
     );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Details" }));
 
     const button = await screen.findByRole("button", { name: "Delete" });
     fireEvent.click(button);
