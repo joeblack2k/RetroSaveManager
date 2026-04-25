@@ -113,11 +113,17 @@ func TestNormalizeSaveInputValidatesDKC3FamilySRAM(t *testing.T) {
 	if result.Input.Inspection.ParserID != snesDKCFamilyParserID {
 		t.Fatalf("unexpected parser id: %+v", result.Input.Inspection)
 	}
-	if result.Input.Inspection.ParserLevel != saveParserLevelStructural {
+	if result.Input.Inspection.ParserLevel != saveParserLevelSemantic {
 		t.Fatalf("unexpected parser level: %+v", result.Input.Inspection)
 	}
 	if result.Input.Inspection.ValidatedGameTitle != "Donkey Kong Country 3 - Dixie Kong's Double Trouble!" {
 		t.Fatalf("unexpected validated game title: %+v", result.Input.Inspection)
+	}
+	if result.Input.Inspection.ChecksumValid == nil || !*result.Input.Inspection.ChecksumValid {
+		t.Fatalf("expected valid DKC3 checksum metadata: %+v", result.Input.Inspection)
+	}
+	if len(result.Input.Inspection.ActiveSlotIndexes) != 1 || result.Input.Inspection.ActiveSlotIndexes[0] != 1 {
+		t.Fatalf("unexpected active DKC3 slots: %+v", result.Input.Inspection.ActiveSlotIndexes)
 	}
 	if result.Input.DisplayTitle != "Donkey Kong Country 3 - Dixie Kong's Double Trouble!" {
 		t.Fatalf("expected validated DKC3 title, got %q", result.Input.DisplayTitle)
@@ -274,12 +280,10 @@ func buildNonBlankPayload(size int, value byte) []byte {
 }
 
 func buildDKC3FixturePayload() []byte {
-	payload := make([]byte, dkcSRAMSize)
-	for _, signature := range snesDKC3Signatures {
-		copy(payload[signature.Offset:], []byte(signature.Value))
-	}
-	payload[0x0a] = 0x69
-	payload[0x0e] = 0xaf
-	payload[0xd2] = 0x59
-	return payload
+	return buildDKC3FixturePayloadWithCounters(0, map[string]int{
+		"bearCoins":   8,
+		"bonusCoins":  4,
+		"bananaBirds": 1,
+		"dkCoins":     2,
+	})
 }

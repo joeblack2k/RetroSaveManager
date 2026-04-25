@@ -1,0 +1,307 @@
+packId: n64--ocarina-of-time
+schemaVersion: 1
+adapterId: oot-sram
+gameId: n64/ocarina-of-time
+systemSlug: n64
+editorId: oot-sram
+title: "The Legend of Zelda: Ocarina of Time"
+match:
+  titleAliases:
+    - "The Legend of Zelda: Ocarina of Time"
+    - "Legend of Zelda, The - Ocarina of Time"
+    - "Legend of Zelda - Ocarina of Time"
+    - Ocarina of Time
+    - Zelda Ocarina of Time
+    - Zelda 64
+payload:
+  exactSizes:
+    - 32768
+  formats:
+    - sra
+    - sram
+    - bin
+selector:
+  id: file
+  label: Save File
+  type: save-file
+  options:
+    - id: A
+      label: File A
+    - id: B
+      label: File B
+    - id: C
+      label: File C
+sections:
+  - id: resources
+    title: Resources
+    fields:
+      - id: rupees
+        label: Rupees
+        type: integer
+        min: 0
+        max: 999
+        step: 1
+        op: { kind: ootNumber, field: rupees }
+      - id: maxHearts
+        label: Max Hearts
+        type: integer
+        min: 3
+        max: 20
+        step: 1
+        op: { kind: ootNumber, field: maxHearts }
+      - id: currentHearts
+        label: Current Hearts
+        type: integer
+        min: 0
+        max: 20
+        step: 1
+        op: { kind: ootNumber, field: currentHearts }
+      - id: magicLevel
+        label: Magic Meter
+        type: enum
+        options:
+          - id: none
+            label: No Magic
+          - id: normal
+            label: Normal Magic
+          - id: double
+            label: Double Magic
+        op:
+          kind: ootMagicLevel
+      - id: currentMagic
+        label: Current Magic
+        type: integer
+        min: 0
+        max: 96
+        step: 1
+        op: { kind: ootNumber, field: currentMagic }
+      - id: goldSkulltulaTokens
+        label: Gold Skulltula Tokens
+        type: integer
+        min: 0
+        max: 100
+        step: 1
+        op: { kind: ootNumber, field: goldSkulltulaTokens }
+      - id: deaths
+        label: Deaths
+        type: integer
+        min: 0
+        max: 999
+        step: 1
+        op: { kind: ootNumber, field: deaths }
+  - id: equipment
+    title: Equipment
+    fields:
+      - id: doubleDefense
+        label: Double Defense
+        type: boolean
+        op: { kind: ootBoolean, field: doubleDefense }
+      - id: swords
+        label: Swords
+        type: bitmask
+        bits:
+          - id: kokiriSword
+            bit: 0
+            label: Kokiri Sword
+          - id: masterSword
+            bit: 1
+            label: Master Sword
+          - id: biggoronSword
+            bit: 2
+            label: Biggoron Sword
+          - id: brokenGiantKnife
+            bit: 3
+            label: Broken Giant's Knife
+        op: { kind: ootEquipment, field: swords }
+      - id: shields
+        label: Shields
+        type: bitmask
+        bits:
+          - id: dekuShield
+            bit: 0
+            label: Deku Shield
+          - id: hylianShield
+            bit: 1
+            label: Hylian Shield
+          - id: mirrorShield
+            bit: 2
+            label: Mirror Shield
+        op: { kind: ootEquipment, field: shields }
+      - id: tunics
+        label: Tunics
+        type: bitmask
+        bits:
+          - id: kokiriTunic
+            bit: 0
+            label: Kokiri Tunic
+          - id: goronTunic
+            bit: 1
+            label: Goron Tunic
+          - id: zoraTunic
+            bit: 2
+            label: Zora Tunic
+        op: { kind: ootEquipment, field: tunics }
+      - id: boots
+        label: Boots
+        type: bitmask
+        bits:
+          - id: kokiriBoots
+            bit: 0
+            label: Kokiri Boots
+          - id: ironBoots
+            bit: 1
+            label: Iron Boots
+          - id: hoverBoots
+            bit: 2
+            label: Hover Boots
+        op: { kind: ootEquipment, field: boots }
+  - id: quest
+    title: Quest
+    fields:
+      - id: medallions
+        label: Medallions
+        type: bitmask
+        bits:
+          - id: forestMedallion
+            bit: 0
+            label: Forest Medallion
+          - id: fireMedallion
+            bit: 1
+            label: Fire Medallion
+          - id: waterMedallion
+            bit: 2
+            label: Water Medallion
+          - id: spiritMedallion
+            bit: 3
+            label: Spirit Medallion
+          - id: shadowMedallion
+            bit: 4
+            label: Shadow Medallion
+          - id: lightMedallion
+            bit: 5
+            label: Light Medallion
+        op:
+          kind: ootQuestItems
+      - id: songs
+        label: Songs
+        type: bitmask
+        bits:
+          - id: minuetOfForest
+            bit: 6
+            label: Minuet of Forest
+          - id: boleroOfFire
+            bit: 7
+            label: Bolero of Fire
+          - id: serenadeOfWater
+            bit: 8
+            label: Serenade of Water
+          - id: requiemOfSpirit
+            bit: 9
+            label: Requiem of Spirit
+          - id: nocturneOfShadow
+            bit: 10
+            label: Nocturne of Shadow
+          - id: preludeOfLight
+            bit: 11
+            label: Prelude of Light
+          - id: zeldasLullaby
+            bit: 12
+            label: Zelda's Lullaby
+          - id: eponasSong
+            bit: 13
+            label: Epona's Song
+          - id: sariasSong
+            bit: 14
+            label: Saria's Song
+          - id: sunsSong
+            bit: 15
+            label: Sun's Song
+          - id: songOfTime
+            bit: 16
+            label: Song of Time
+          - id: songOfStorms
+            bit: 17
+            label: Song of Storms
+        op:
+          kind: ootQuestItems
+      - id: spiritualStones
+        label: Spiritual Stones
+        type: bitmask
+        bits:
+          - id: kokiriEmerald
+            bit: 18
+            label: Kokiri's Emerald
+          - id: goronRuby
+            bit: 19
+            label: Goron's Ruby
+          - id: zoraSapphire
+            bit: 20
+            label: Zora's Sapphire
+        op:
+          kind: ootQuestItems
+      - id: questStatus
+        label: Quest Status
+        type: bitmask
+        bits:
+          - id: stoneOfAgony
+            bit: 21
+            label: Stone of Agony
+          - id: gerudosCard
+            bit: 22
+            label: Gerudo's Card
+          - id: skulltulaToken
+            bit: 23
+            label: Gold Skulltula Token
+        op:
+          kind: ootQuestItems
+presets:
+  - id: fullHealthMagic
+    label: Full Health and Magic
+    description: Max hearts, full double magic, and Double Defense.
+    updates:
+      maxHearts: 20
+      currentHearts: 20
+      magicLevel: double
+      currentMagic: 96
+      doubleDefense: true
+  - id: maxResources
+    label: Max Resources
+    description: Max rupees and Gold Skulltula token count.
+    updates:
+      rupees: 999
+      goldSkulltulaTokens: 100
+  - id: fullEquipment
+    label: Full Equipment
+    description: Add every sword, shield, tunic, and boot.
+    updates:
+      swords: [kokiriSword, masterSword, biggoronSword, brokenGiantKnife]
+      shields: [dekuShield, hylianShield, mirrorShield]
+      tunics: [kokiriTunic, goronTunic, zoraTunic]
+      boots: [kokiriBoots, ironBoots, hoverBoots]
+  - id: allQuestItems
+    label: All Quest Items
+    description: Add all medallions, songs, spiritual stones, and quest-status items.
+    updates:
+      medallions: [forestMedallion, fireMedallion, waterMedallion, spiritMedallion, shadowMedallion, lightMedallion]
+      songs: [minuetOfForest, boleroOfFire, serenadeOfWater, requiemOfSpirit, nocturneOfShadow, preludeOfLight, zeldasLullaby, eponasSong, sariasSong, sunsSong, songOfTime, songOfStorms]
+      spiritualStones: [kokiriEmerald, goronRuby, zoraSapphire]
+      questStatus: [stoneOfAgony, gerudosCard, skulltulaToken]
+  - id: heroComplete
+    label: Hero Complete
+    description: Apply the full Ocarina of Time starter-complete loadout.
+    updates:
+      maxHearts: 20
+      currentHearts: 20
+      magicLevel: double
+      currentMagic: 96
+      doubleDefense: true
+      rupees: 999
+      goldSkulltulaTokens: 100
+      swords: [kokiriSword, masterSword, biggoronSword, brokenGiantKnife]
+      shields: [dekuShield, hylianShield, mirrorShield]
+      tunics: [kokiriTunic, goronTunic, zoraTunic]
+      boots: [kokiriBoots, ironBoots, hoverBoots]
+      medallions: [forestMedallion, fireMedallion, waterMedallion, spiritMedallion, shadowMedallion, lightMedallion]
+      songs: [minuetOfForest, boleroOfFire, serenadeOfWater, requiemOfSpirit, nocturneOfShadow, preludeOfLight, zeldasLullaby, eponasSong, sariasSong, sunsSong, songOfTime, songOfStorms]
+      spiritualStones: [kokiriEmerald, goronRuby, zoraSapphire]
+      questStatus: [stoneOfAgony, gerudosCard, skulltulaToken]

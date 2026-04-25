@@ -1,6 +1,6 @@
 # RetroSaveManager Cheat Library Guide
 
-Last updated: 2026-04-24 CEST
+Last updated: 2026-04-25 CEST
 
 This document explains how cheat packs are added, synced, validated, and used by RetroSaveManager.
 It is written for AI agents and developers who create safe save-game cheat packs.
@@ -28,6 +28,105 @@ SAVE_ROOT/_rsm/cheats/packs/<packId>/
 
 Invalid YAML is never activated. Validation errors are stored and shown on `/app/cheats`.
 
+## Worker-Safe Modularity
+
+The cheat system is intentionally split so multiple agents can work in parallel without dirtying core code.
+
+Use the smallest lane that fits the job:
+
+- `YAML-only worker`: adds or updates one pack under `cheats/packs/<system>/<game>.yaml`.
+- `Research worker`: writes a dossier under `docs/cheat-intake/<system>-<game>.md` or updates an existing intake note.
+- `Backend editor worker`: adds one parser-backed editor module only when an existing editor cannot safely support the game.
+- `Game Support Module worker`: ships a reviewed `.rsmodule.zip` under `modules/` with sandboxed WASM plus YAML when support should be added without a Docker rebuild.
+
+Most cheat workers should be YAML-only.
+They must not edit backend Go files, bundled fallback packs, frontend files, Docker files, or deployment files.
+
+YAML-only worker allowed paths:
+
+```text
+cheats/packs/<system>/<game>.yaml
+docs/cheat-intake/<system>-<game>.md
+```
+
+Backend editor worker allowed paths:
+
+```text
+backend/cmd/server/cheat_<game>.go
+backend/cmd/server/cheat_<game>_test.go
+cheats/packs/<system>/<game>.yaml
+docs/cheat-intake/<system>-<game>.md
+```
+
+Runtime module worker allowed paths:
+
+```text
+modules/<game>.rsmodule.zip
+docs/cheat-intake/<system>-<game>.md
+```
+
+Module zips are documented in `docs/modules.md`.
+They may include source under `src/` for review, but the running backend only loads `parser.wasm` and declarative YAML.
+Raw Go is never compiled or executed on the production server.
+
+Shared helpers are allowed only when the change is clearly reusable and reviewed as a small module, for example:
+
+```text
+backend/cmd/server/cheat_<system>_<format>.go
+```
+
+Do not edit `backend/cmd/server/cheat_service.go` to add a game.
+Editor discovery is modular: each editor module registers itself.
+
+Example editor registration:
+
+```go
+type exampleSRAMCheatEditor struct{}
+
+func init() {
+	registerCheatEditor(exampleSRAMCheatEditor{})
+}
+
+func (exampleSRAMCheatEditor) ID() string {
+	return "example-sram"
+}
+```
+
+The matching YAML pack then references that editor:
+
+```yaml
+schemaVersion: 1
+adapterId: example-sram
+editorId: example-sram
+```
+
+This keeps the core service stable while still allowing a backend-builder agent to add new parser-backed editors.
+
+Before a worker hands off changes, run:
+
+```bash
+./scripts/validate-cheat-packs.sh
+```
+
+Before merge, the repository owner or integration agent should also run:
+
+```bash
+./scripts/validate-cheat-packs.sh
+cd backend && go test ./...
+cd ../frontend && npm run test -- --run && npm run build
+cd .. && ./scripts/security-gate.sh
+```
+
+Forbidden for cheat workers:
+
+- hardcoded local IP addresses, usernames, passwords, tokens, or private paths
+- executable logic inside YAML
+- raw hex write instructions in YAML
+- RAM-only Action Replay, GameShark, Game Genie, or trainer codes as save edits
+- filename-only matching as proof
+- changing existing save-management behavior
+- editing unrelated files to make tests pass
+
 ## GitHub Library Source
 
 Default source:
@@ -48,6 +147,21 @@ CHEAT_LIBRARY_PATH=<folder-inside-repo>
 
 Public GitHub repositories only are supported in this phase.
 Do not put tokens or secrets in cheat files, docs, examples, or environment snippets.
+
+## Runtime Module Source
+
+Cheats can also arrive through Game Support Modules.
+Those modules live in the GitHub module library and are synced separately from YAML-only cheat packs:
+
+```text
+MODULE_LIBRARY_REPO=joeblack2k/RetroSaveManager
+MODULE_LIBRARY_REF=main
+MODULE_LIBRARY_PATH=modules
+```
+
+Use `/app/settings` or `POST /api/modules/sync` to import `.rsmodule.zip` bundles.
+Module-backed packs then appear in `/app/cheats` and in `My Saves` just like built-in packs.
+See `docs/modules.md` for the WASM ABI, manifest schema, upload endpoint, and safety rules.
 
 ## Bundled Fallback Packs
 
@@ -198,7 +312,11 @@ Current parser-backed editors include:
 - `sm64-eeprom` for Nintendo 64 Super Mario 64 EEPROM saves
 - `mk64-eeprom` for Nintendo 64 Mario Kart 64 EEPROM saves
 - `dkr-eeprom` for Nintendo 64 Diddy Kong Racing EEPROM saves
+- `oot-sram` for Nintendo 64 The Legend of Zelda: Ocarina of Time SRAM saves
+- `sf64-eeprom` for Nintendo 64 Star Fox 64 EEPROM saves
 - `dkc-sram` for SNES Donkey Kong Country SRAM saves
+- `dkc3-sram` for SNES Donkey Kong Country 3 SRAM saves
+- `alttp-sram` for SNES The Legend of Zelda: A Link to the Past SRAM saves
 
 If a game does not fit an existing editor, the agent must provide a code-ready dossier and a backend editor must be implemented first.
 

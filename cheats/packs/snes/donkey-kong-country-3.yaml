@@ -1,0 +1,80 @@
+packId: snes--donkey-kong-country-3
+schemaVersion: 1
+adapterId: dkc3-sram
+gameId: snes/donkey-kong-country-3
+systemSlug: snes
+editorId: dkc3-sram
+title: Donkey Kong Country 3 - Dixie Kong's Double Trouble!
+match:
+  titleAliases:
+    - Donkey Kong Country 3 - Dixie Kong's Double Trouble!
+    - Donkey Kong Country 3
+    - DKC3
+payload:
+  exactSizes:
+    - 2048
+  formats:
+    - sa1
+    - srm
+    - sav
+    - sram
+selector:
+  id: slot
+  label: Save Slot
+  type: save-file
+  options:
+    - id: "1"
+      label: Slot 1
+    - id: "2"
+      label: Slot 2
+    - id: "3"
+      label: Slot 3
+sections:
+  - id: collectibles
+    title: Collectibles
+    fields:
+      - id: bearCoins
+        label: Bear Coins
+        type: integer
+        min: 0
+        max: 99
+        op: { kind: dkc3Counter, field: bearCoins }
+      - id: bonusCoins
+        label: Bonus Coins
+        type: integer
+        min: 0
+        max: 85
+        op: { kind: dkc3Counter, field: bonusCoins }
+      - id: dkCoins
+        label: DK Coins
+        type: integer
+        min: 0
+        max: 41
+        op: { kind: dkc3Counter, field: dkCoins }
+      - id: bananaBirds
+        label: Banana Birds
+        type: integer
+        min: 0
+        max: 15
+        op: { kind: dkc3Counter, field: bananaBirds }
+presets:
+  - id: maxCurrencies
+    label: Max Currencies
+    description: Set Bear, Bonus, and DK coin counters to their safe maxima.
+    updates:
+      bearCoins: 99
+      bonusCoins: 85
+      dkCoins: 41
+  - id: freeBananaBirdQueen
+    label: Free Banana Bird Queen
+    description: Set the Banana Bird counter to the full set of fifteen.
+    updates:
+      bananaBirds: 15
+  - id: maxCollectibles
+    label: Max Collectibles
+    description: Max every supported DKC3 collectible counter in the selected save slot.
+    updates:
+      bearCoins: 99
+      bonusCoins: 85
+      dkCoins: 41
+      bananaBirds: 15

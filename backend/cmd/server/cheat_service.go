@@ -23,9 +23,16 @@ type cheatService struct {
 	saveRoot     string
 	curatedRoot  string
 	runtimeStore *cheatRuntimeStore
+	modules      *gameModuleService
 	builtinPacks []cheatPack
 	adapters     map[string]cheatAdapter
 	adapterList  []cheatAdapter
+}
+
+func (s *cheatService) setModuleService(modules *gameModuleService) {
+	if s != nil {
+		s.modules = modules
+	}
 }
 
 type resolvedCheatPack struct {
@@ -51,12 +58,7 @@ func newCheatService(saveRoot string) (*cheatService, error) {
 	if err != nil {
 		return nil, err
 	}
-	editors := map[string]cheatEditor{
-		"dkr-eeprom":  dkrEEPROMCheatEditor{},
-		"dkc-sram":    dkcSRAMCheatEditor{},
-		"sm64-eeprom": sm64EEPROMCheatEditor{},
-		"mk64-eeprom": mk64EEPROMCheatEditor{},
-	}
+	editors := builtinCheatEditors()
 	adapters := map[string]cheatAdapter{}
 	for i := range packs {
 		packs[i].PackID = firstNonEmpty(packs[i].PackID, canonicalCheatPackID(firstNonEmpty(packs[i].GameID, packs[i].Title)))
@@ -369,9 +371,39 @@ func (s *cheatService) resolve(record saveRecord) (*resolvedCheatPack, error) {
 }
 
 func (s *cheatService) resolveAdapter(summary saveSummary) cheatAdapter {
-	for _, adapter := range s.adapterList {
+	for _, adapter := range s.allAdapterList() {
 		if adapter.Supports(summary, summary.Inspection) {
 			return adapter
+		}
+	}
+	return nil
+}
+
+func (s *cheatService) allAdapterList() []cheatAdapter {
+	if s == nil {
+		return nil
+	}
+	items := append([]cheatAdapter{}, s.adapterList...)
+	if s.modules != nil {
+		items = append(items, s.modules.moduleAdapters()...)
+	}
+	sortCheatAdapters(items)
+	return items
+}
+
+func (s *cheatService) adapterByID(id string) cheatAdapter {
+	target := strings.TrimSpace(id)
+	if target == "" || s == nil {
+		return nil
+	}
+	if adapter := s.adapters[target]; adapter != nil {
+		return adapter
+	}
+	if s.modules != nil {
+		for _, adapter := range s.modules.moduleAdapters() {
+			if adapter.ID() == target {
+				return adapter
+			}
 		}
 	}
 	return nil
@@ -603,11 +635,18 @@ func (s *cheatService) listManagedPacks() ([]cheatManagedPack, error) {
 	if err != nil {
 		return nil, err
 	}
+	modulePacks := []cheatManagedPack{}
+	if s.modules != nil {
+		modulePacks, err = s.modules.managedCheatPacks()
+		if err != nil {
+			return nil, err
+		}
+	}
 	tombstones, err := s.runtimeStore.loadTombstones()
 	if err != nil {
 		return nil, err
 	}
-	out := make([]cheatManagedPack, 0, len(runtimePacks)+len(s.builtinPacks))
+	out := make([]cheatManagedPack, 0, len(runtimePacks)+len(modulePacks)+len(s.builtinPacks))
 	seenBuiltin := map[string]struct{}{}
 	for _, item := range runtimePacks {
 		item.Pack.PackID = firstNonEmpty(item.Pack.PackID, item.Manifest.PackID)
@@ -615,6 +654,17 @@ func (s *cheatService) listManagedPacks() ([]cheatManagedPack, error) {
 		item.Manifest.PackID = firstNonEmpty(item.Manifest.PackID, item.Pack.PackID)
 		item.Manifest.AdapterID = firstNonEmpty(item.Manifest.AdapterID, item.Pack.AdapterID, item.Pack.EditorID)
 		item.SupportsSaveUI = item.Manifest.Status == cheatPackStatusActive
+		out = append(out, item)
+		seenBuiltin[item.Manifest.PackID] = struct{}{}
+	}
+	for _, item := range modulePacks {
+		item.Pack.PackID = firstNonEmpty(item.Pack.PackID, item.Manifest.PackID)
+		item.Pack.AdapterID = firstNonEmpty(item.Pack.AdapterID, item.Manifest.AdapterID, item.Pack.EditorID)
+		item.Manifest.PackID = firstNonEmpty(item.Manifest.PackID, item.Pack.PackID)
+		item.Manifest.AdapterID = firstNonEmpty(item.Manifest.AdapterID, item.Pack.AdapterID, item.Pack.EditorID)
+		if _, exists := seenBuiltin[item.Manifest.PackID]; exists {
+			continue
+		}
 		out = append(out, item)
 		seenBuiltin[item.Manifest.PackID] = struct{}{}
 	}
@@ -696,7 +746,7 @@ func (s *cheatService) validateLiveCheatPack(pack cheatPack) (cheatPack, error) 
 	if strings.TrimSpace(pack.AdapterID) == "" {
 		return cheatPack{}, errors.New("adapterId is required")
 	}
-	adapter := s.adapters[strings.TrimSpace(pack.AdapterID)]
+	adapter := s.adapterByID(strings.TrimSpace(pack.AdapterID))
 	if adapter == nil {
 		return cheatPack{}, fmt.Errorf("unknown adapterId %q", pack.AdapterID)
 	}
@@ -721,6 +771,13 @@ func (s *cheatService) deleteManagedPack(packID string, principal map[string]any
 	if err != nil {
 		return cheatManagedPack{}, err
 	}
+	if item.Manifest.Source == cheatPackSourceModule && s.modules != nil {
+		if _, ok, moduleErr := s.modules.setStatusByPackID(item.Manifest.PackID, gameModuleStatusDeleted); moduleErr != nil {
+			return cheatManagedPack{}, moduleErr
+		} else if ok {
+			return s.getManagedPack(packID)
+		}
+	}
 	if item.Builtin {
 		if err := s.runtimeStore.writeTombstone(item.Manifest.PackID, cheatPackStatusDeleted, principalString(principal, "email"), item.Manifest.Source); err != nil {
 			return cheatManagedPack{}, err
@@ -734,6 +791,13 @@ func (s *cheatService) disableManagedPack(packID string, principal map[string]an
 	item, err := s.getManagedPack(packID)
 	if err != nil {
 		return cheatManagedPack{}, err
+	}
+	if item.Manifest.Source == cheatPackSourceModule && s.modules != nil {
+		if _, ok, moduleErr := s.modules.setStatusByPackID(item.Manifest.PackID, gameModuleStatusDisabled); moduleErr != nil {
+			return cheatManagedPack{}, moduleErr
+		} else if ok {
+			return s.getManagedPack(packID)
+		}
 	}
 	if item.Builtin {
 		if err := s.runtimeStore.writeTombstone(item.Manifest.PackID, cheatPackStatusDisabled, principalString(principal, "email"), item.Manifest.Source); err != nil {
@@ -749,6 +813,13 @@ func (s *cheatService) enableManagedPack(packID string) (cheatManagedPack, error
 	if err != nil {
 		return cheatManagedPack{}, err
 	}
+	if item.Manifest.Source == cheatPackSourceModule && s.modules != nil {
+		if _, ok, moduleErr := s.modules.setStatusByPackID(item.Manifest.PackID, gameModuleStatusActive); moduleErr != nil {
+			return cheatManagedPack{}, moduleErr
+		} else if ok {
+			return s.getManagedPack(packID)
+		}
+	}
 	if item.Builtin {
 		if err := s.runtimeStore.clearTombstone(item.Manifest.PackID); err != nil {
 			return cheatManagedPack{}, err
@@ -759,8 +830,9 @@ func (s *cheatService) enableManagedPack(packID string) (cheatManagedPack, error
 }
 
 func (s *cheatService) listAdapterDescriptors() []cheatAdapterDescriptor {
-	items := make([]cheatAdapterDescriptor, 0, len(s.adapterList))
-	for _, adapter := range s.adapterList {
+	adapters := s.allAdapterList()
+	items := make([]cheatAdapterDescriptor, 0, len(adapters))
+	for _, adapter := range adapters {
 		items = append(items, cheatAdapterDescriptor{
 			ID:                     adapter.ID(),
 			Kind:                   adapter.Kind(),

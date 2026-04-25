@@ -11,6 +11,10 @@ import type {
   Device,
   DeviceConfigGlobal,
   DeviceConfigSource,
+  GameModuleLibraryStatus,
+  GameModuleListResponse,
+  GameModuleRecord,
+  GameModuleRescanResponse,
   LibraryEntry,
   ReferralInfo,
   RoadmapItem,
@@ -213,6 +217,54 @@ export async function syncCheatLibrary(): Promise<CheatLibraryStatus> {
     method: "POST"
   });
   return response.library;
+}
+
+export function listGameModules(): Promise<GameModuleListResponse> {
+  return apiFetchJSON<GameModuleListResponse>("/api/modules");
+}
+
+export async function syncGameModules(): Promise<GameModuleLibraryStatus> {
+  const response = await apiFetchJSON<{ library: GameModuleLibraryStatus }>("/api/modules/sync", {
+    method: "POST"
+  });
+  return response.library;
+}
+
+export async function uploadGameModule(file: File): Promise<GameModuleRecord> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiFetchJSON<{ module: GameModuleRecord }>("/api/modules/upload", {
+    method: "POST",
+    body: form
+  });
+  return response.module;
+}
+
+export async function enableGameModule(moduleId: string): Promise<GameModuleRecord> {
+  const response = await apiFetchJSON<{ module: GameModuleRecord }>(`/api/modules/${encodeURIComponent(moduleId)}/enable`, {
+    method: "POST"
+  });
+  return response.module;
+}
+
+export async function disableGameModule(moduleId: string): Promise<GameModuleRecord> {
+  const response = await apiFetchJSON<{ module: GameModuleRecord }>(`/api/modules/${encodeURIComponent(moduleId)}/disable`, {
+    method: "POST"
+  });
+  return response.module;
+}
+
+export async function deleteGameModule(moduleId: string): Promise<GameModuleRecord> {
+  const response = await apiFetchJSON<{ module: GameModuleRecord }>(`/api/modules/${encodeURIComponent(moduleId)}`, {
+    method: "DELETE"
+  });
+  return response.module;
+}
+
+export function rescanGameModules(): Promise<GameModuleRescanResponse> {
+  return apiFetchJSON<GameModuleRescanResponse>("/api/modules/rescan", {
+    method: "POST"
+  });
 }
 
 export function deleteSave(id: string, options?: { psLogicalKey?: string }): Promise<{ success: boolean; remainingVersions: number }> {

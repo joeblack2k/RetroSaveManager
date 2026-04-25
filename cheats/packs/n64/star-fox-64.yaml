@@ -1,0 +1,202 @@
+packId: n64--star-fox-64
+schemaVersion: 1
+adapterId: sf64-eeprom
+gameId: n64/star-fox-64
+systemSlug: n64
+editorId: sf64-eeprom
+title: Star Fox 64
+match:
+  titleAliases:
+    - Star Fox 64
+    - Starfox 64
+    - Lylat Wars
+payload:
+  exactSizes:
+    - 512
+    - 2048
+  formats:
+    - eep
+    - bin
+    - sram
+sections:
+  - id: audio
+    title: Audio
+    fields:
+      - id: soundMode
+        label: Sound Mode
+        type: enum
+        options:
+          - id: stereo
+            label: Stereo
+          - id: mono
+            label: Mono
+          - id: headphones
+            label: Headphones
+        op:
+          kind: sf64SoundMode
+      - id: musicVolume
+        label: Music Volume
+        type: integer
+        min: 0
+        max: 99
+        step: 1
+        op: { kind: sf64Volume, field: musicVolume }
+      - id: voiceVolume
+        label: Voice Volume
+        type: integer
+        min: 0
+        max: 99
+        step: 1
+        op: { kind: sf64Volume, field: voiceVolume }
+      - id: sfxVolume
+        label: SFX Volume
+        type: integer
+        min: 0
+        max: 99
+        step: 1
+        op: { kind: sf64Volume, field: sfxVolume }
+  - id: versus-unlocks
+    title: Versus Unlocks
+    fields:
+      - id: venom2Played
+        label: Venom 2 Played
+        type: boolean
+        op: { kind: sf64PlanetFlagBoolean, field: venom2, flag: played }
+      - id: venom2NormalClear
+        label: Venom 2 Normal Clear
+        type: boolean
+        op: { kind: sf64PlanetFlagBoolean, field: venom2, flag: normalClear }
+      - id: venom2ExpertClear
+        label: Venom 2 Expert Clear
+        type: boolean
+        op: { kind: sf64PlanetFlagBoolean, field: venom2, flag: expertClear }
+  - id: mission-flags
+    title: Mission Flags
+    fields:
+      - id: playedPlanets
+        label: Played Planets
+        type: bitmask
+        bits: &sf64PlanetBits
+          - id: corneria
+            bit: 9
+            label: Corneria
+          - id: meteo
+            bit: 0
+            label: Meteo
+          - id: sectorY
+            bit: 5
+            label: Sector Y
+          - id: fortuna
+            bit: 12
+            label: Fortuna
+          - id: katina
+            bit: 6
+            label: Katina
+          - id: sectorX
+            bit: 4
+            label: Sector X
+          - id: solar
+            bit: 13
+            label: Solar
+          - id: aquas
+            bit: 11
+            label: Aquas
+          - id: zoness
+            bit: 8
+            label: Zoness
+          - id: titania
+            bit: 10
+            label: Titania
+          - id: macbeth
+            bit: 7
+            label: Macbeth
+          - id: sectorZ
+            bit: 3
+            label: Sector Z
+          - id: bolse
+            bit: 2
+            label: Bolse
+          - id: area6
+            bit: 1
+            label: Area 6
+          - id: venom1
+            bit: 14
+            label: Venom 1
+          - id: venom2
+            bit: 15
+            label: Venom 2
+        op: { kind: sf64PlanetFlag, flag: played }
+      - id: normalClearPlanets
+        label: Normal Clear Planets
+        type: bitmask
+        bits: *sf64PlanetBits
+        op: { kind: sf64PlanetFlag, flag: normalClear }
+      - id: normalMedalPlanets
+        label: Normal Medal Planets
+        type: bitmask
+        bits: *sf64PlanetBits
+        op: { kind: sf64PlanetFlag, flag: normalMedal }
+      - id: expertClearPlanets
+        label: Expert Clear Planets
+        type: bitmask
+        bits: *sf64PlanetBits
+        op: { kind: sf64PlanetFlag, flag: expertClear }
+      - id: expertMedalPlanets
+        label: Expert Medal Planets
+        type: bitmask
+        bits: *sf64PlanetBits
+        op: { kind: sf64PlanetFlag, flag: expertMedal }
+presets:
+  - id: unlockVersusVehicles
+    label: Unlock Versus Vehicles
+    description: Unlock Landmaster and on-foot versus by marking Venom 2 clear in Normal and Expert.
+    updates:
+      venom2Played: true
+      venom2NormalClear: true
+      venom2ExpertClear: true
+  - id: unlockExpertMode
+    label: Unlock Expert Mode
+    description: Set every normal medal flag so Expert mode is available.
+    updates:
+      playedPlanets: &allSf64Planets
+        - corneria
+        - meteo
+        - sectorY
+        - fortuna
+        - katina
+        - sectorX
+        - solar
+        - aquas
+        - zoness
+        - titania
+        - macbeth
+        - sectorZ
+        - bolse
+        - area6
+        - venom1
+        - venom2
+      normalClearPlanets: *allSf64Planets
+      normalMedalPlanets: *allSf64Planets
+  - id: allNormalMedals
+    label: All Normal Medals
+    description: Mark every planet as played, cleared, and medaled in Normal mode.
+    updates:
+      playedPlanets: *allSf64Planets
+      normalClearPlanets: *allSf64Planets
+      normalMedalPlanets: *allSf64Planets
+  - id: allExpertMedals
+    label: All Expert Medals
+    description: Mark every planet as played, cleared, and medaled in Expert mode.
+    updates:
+      playedPlanets: *allSf64Planets
+      expertClearPlanets: *allSf64Planets
+      expertMedalPlanets: *allSf64Planets
+  - id: allMedals
+    label: All Medals
+    description: Mark every planet as played, cleared, and medaled in both modes.
+    updates:
+      playedPlanets: *allSf64Planets
+      normalClearPlanets: *allSf64Planets
+      normalMedalPlanets: *allSf64Planets
+      expertClearPlanets: *allSf64Planets
+      expertMedalPlanets: *allSf64Planets

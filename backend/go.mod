@@ -10,4 +10,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/clktmr/n64 v0.1.2 // indirect
+require (
+	github.com/clktmr/n64 v0.1.2 // indirect
+	github.com/tetratelabs/wazero v1.11.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+)

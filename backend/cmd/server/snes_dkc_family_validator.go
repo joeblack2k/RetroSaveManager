@@ -16,7 +16,7 @@ var snesDKC3Signatures = []snesDKC3Signature{
 	{Offset: 0x23, Value: "FUNK"},
 	{Offset: 0x33, Value: "SWANK"},
 	{Offset: 0x43, Value: "WRINKL"},
-	{Offset: 0x68, Value: "DIXY"},
+	{Offset: 0x68, Value: "DIXI"},
 }
 
 func validateSNESDKCFamilySave(input saveCreateInput, base *saveInspection) (*saveInspection, bool) {
@@ -72,6 +72,39 @@ func validateSNESDKC3Save(input saveCreateInput, base *saveInspection) (*saveIns
 	for _, signature := range snesDKC3Signatures {
 		if hasASCIIAt(input.Payload, signature.Offset, signature.Value) {
 			matches = append(matches, signature.Value)
+		}
+	}
+	if parsed, err := parseDKC3SRAM(input.Payload); err == nil {
+		activeSlots := make([]int, 0, dkc3SlotCount)
+		for idx, slot := range parsed.Slots {
+			if slot != nil {
+				activeSlots = append(activeSlots, idx+1)
+			}
+		}
+		if len(activeSlots) > 0 {
+			inspection := cloneSaveInspection(base)
+			inspection.ParserLevel = saveParserLevelSemantic
+			inspection.ParserID = snesDKCFamilyParserID
+			inspection.ValidatedSystem = "snes"
+			inspection.ValidatedGameID = "snes/donkey-kong-country-3"
+			inspection.ValidatedGameTitle = "Donkey Kong Country 3 - Dixie Kong's Double Trouble!"
+			inspection.TrustLevel = n64TrustLevelSemanticVerified
+			inspection.Evidence = append(cloneEvidence(base.Evidence), "validated Donkey Kong Country 3 SRAM slot marker/checksum")
+			for _, match := range matches {
+				inspection.Evidence = append(inspection.Evidence, "signature="+match)
+			}
+			inspection.Warnings = filterSNESRawGenericWarnings(base.Warnings)
+			inspection.PayloadSizeBytes = len(input.Payload)
+			inspection.SlotCount = len(activeSlots)
+			inspection.ActiveSlotIndexes = activeSlots
+			inspection.ChecksumValid = boolPtr(true)
+			inspection.SemanticFields = mergeSemanticFields(base.SemanticFields, map[string]any{
+				"family":      "donkey-kong-country",
+				"variant":     "dkc3",
+				"activeSlots": activeSlots,
+				"signatures":  matches,
+			})
+			return inspection, true
 		}
 	}
 	if len(matches) < 4 {

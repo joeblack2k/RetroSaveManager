@@ -132,6 +132,25 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 			}
 		}
 	}
+	if !rejected && a != nil {
+		if modules := a.moduleService(); modules != nil {
+			if inspection, ok := modules.inspectSave(input, input.Inspection); ok {
+				input.Inspection = inspection
+				input.Game.HasParser = true
+				if title := strings.TrimSpace(inspection.ValidatedGameTitle); title != "" && !normalized.IsPSMemoryCard {
+					input.DisplayTitle = canonicalDisplayTitle(title)
+					input.Game.Name = input.DisplayTitle
+					input.Game.DisplayTitle = input.DisplayTitle
+				}
+				if input.RegionCode == regionUnknown && inspection.SemanticFields != nil {
+					if region, ok := inspection.SemanticFields["region"].(string); ok && normalizeRegionCode(region) != regionUnknown {
+						input.RegionCode = normalizeRegionCode(region)
+						input.RegionFlag = regionFlagFromCode(input.RegionCode)
+					}
+				}
+			}
+		}
+	}
 	decorateN64ProjectionFields(&input)
 	if consoleValidation.Rejected {
 		rejected = true

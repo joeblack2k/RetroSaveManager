@@ -1556,6 +1556,76 @@ code {
   color: #dce4f5;
 }
 
+.module-library {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.module-library__header {
+  border: 1px solid #465066;
+  background: #1b202a;
+  border-radius: 0.35rem;
+  padding: 0.85rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.module-library__header h3 {
+  margin: 0;
+  color: #f2f4ff;
+  font-size: 0.98rem;
+  letter-spacing: 0.02em;
+}
+
+.module-library__header p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  max-width: 62rem;
+}
+
+.module-library__actions,
+.module-library-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.module-upload-form {
+  border: 1px solid #384255;
+  background: #171c25;
+  border-radius: 0.35rem;
+  padding: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.module-upload-form label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: min(26rem, 100%);
+  color: #dce4f5;
+}
+
+.module-upload-form input {
+  max-width: 100%;
+}
+
+.module-library-table td:first-child,
+.module-library-table td:nth-child(4) {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.module-library-table small,
+.module-library-table td:first-child span {
+  color: var(--text-muted);
+}
+
 .generated-key-box {
   border: 1px solid #4a5164;
   border-radius: 0.66rem;

@@ -54,10 +54,17 @@ func TestN64CheatInventoryByObservedTitle(t *testing.T) {
 			wantSupported: false,
 		},
 		{
-			name:          "star-fox-64-has-no-curated-pack",
+			name:          "star-fox-64-invalid-payload-does-not-fake-support",
 			fileName:      "Star Fox 64 (USA).eep",
 			payload:       buildTestN64Payload("eep", "star-fox-64"),
 			wantSupported: false,
+		},
+		{
+			name:          "star-fox-64-valid-parser-backed-payload",
+			fileName:      "Star Fox 64 (USA).eep",
+			payload:       buildSF64FixturePayload(),
+			wantSupported: true,
+			wantEditorID:  "sf64-eeprom",
 		},
 		{
 			name:          "diddy-kong-racing-valid-canonical-eeprom-payload",
@@ -65,6 +72,13 @@ func TestN64CheatInventoryByObservedTitle(t *testing.T) {
 			payload:       normalizeN64EEPROM(buildDKRFixturePayload()),
 			wantSupported: true,
 			wantEditorID:  "dkr-eeprom",
+		},
+		{
+			name:          "ocarina-of-time-valid-word-swapped-sram-payload",
+			fileName:      "Legend of Zelda, The - Ocarina of Time (USA).sra",
+			payload:       buildOOTWordSwappedPopulatedFixture(),
+			wantSupported: true,
+			wantEditorID:  "oot-sram",
 		},
 		{
 			name:          "wave-race-64-has-no-curated-pack",

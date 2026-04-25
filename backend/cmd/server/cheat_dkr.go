@@ -15,6 +15,10 @@ const (
 
 type dkrEEPROMCheatEditor struct{}
 
+func init() {
+	registerCheatEditor(dkrEEPROMCheatEditor{})
+}
+
 type dkrParsedSlot struct {
 	Present        bool
 	CourseStatus   [34]byte

@@ -54,6 +54,7 @@ type app struct {
 	saves                       []saveSummary
 	saveStore                   *saveStore
 	cheats                      *cheatService
+	modules                     *gameModuleService
 	playStationStore            *playStationStore
 	n64ControllerPakStoreRef    *n64ControllerPakStore
 	saveRecords                 []saveRecord
@@ -180,10 +181,19 @@ func (a *app) initSaveStore() error {
 	a.saveStore = store
 	a.mu.Unlock()
 
+	modules, err := newGameModuleService(store.root)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.modules = modules
+	a.mu.Unlock()
+
 	cheats, err := newCheatService(store.root)
 	if err != nil {
 		return err
 	}
+	cheats.setModuleService(modules)
 	a.mu.Lock()
 	a.cheats = cheats
 	a.mu.Unlock()
@@ -222,6 +232,12 @@ func (a *app) cheatService() *cheatService {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.cheats
+}
+
+func (a *app) moduleService() *gameModuleService {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.modules
 }
 
 func (a *app) summaryForRecord(record saveRecord) saveSummary {

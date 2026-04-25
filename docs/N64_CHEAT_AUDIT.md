@@ -1,15 +1,18 @@
 # N64 Cheat Audit
 
-Last updated: 2026-04-23 CEST
+Last updated: 2026-04-25 CEST
 
 This audit was derived from repository evidence inside `RetroSaveManager`.
 It does not claim that real end-user N64 saves are present in this workspace.
 
 ## What was actually found
 
-- `cheats.md` confirms only two curated N64 cheat packs currently ship:
+- `cheats.md` confirms these curated N64 cheat packs currently ship:
   - `n64/super-mario-64` via `sm64-eeprom`
   - `n64/mario-kart-64` via `mk64-eeprom`
+  - `n64/diddy-kong-racing` via `dkr-eeprom`
+  - `n64/ocarina-of-time` via `oot-sram`
+  - `n64/star-fox-64` via `sf64-eeprom`
 - No real N64 save tree such as `SAVE_ROOT/Nintendo 64/...` was found in this workspace.
 - N64 save titles do appear in backend tests and API contract coverage.
 - Matching is strict: title, payload size, payload format, and successful parser read must all pass before cheats are exposed.
@@ -47,12 +50,13 @@ These generic files also exist in tests, but they are not useful for cheat autho
   - Evidence: curated pack exists, parser/editor exists, automated cheat endpoint tests exist
   - Safe scope today: sound mode, Grand Prix cup progress, presets
 
-### Not supported from current repo evidence
-
 - `Star Fox 64`
-  - Status: not supported
-  - Why: no curated pack, no parser/editor, no verified editable-field dossier
-  - Required next step: real samples plus a research dossier, likely followed by a new backend editor
+  - Status: supported
+  - Editor: `sf64-eeprom`
+  - Evidence: curated pack exists, parser/editor exists, automated cheat endpoint tests exist
+  - Safe scope today: sound mode, volume levels, route-node played/clear/medal flags, presets
+
+### Not supported from current repo evidence
 
 - `Wave Race 64`
   - Status: not supported
@@ -87,4 +91,5 @@ The backend test `backend/cmd/server/cheat_n64_inventory_test.go` now checks:
 - `Super Mario 64` only reports cheats for a valid parser-backed payload
 - `Mario Kart 64` only reports cheats for a valid parser-backed payload
 - invalid payloads do not fake support for those titles
-- `Star Fox 64`, `Wave Race 64`, `F-Zero X`, and `Yoshi's Story` remain unsupported with current repo evidence
+- `Star Fox 64` only reports cheats for a valid checksummed EEPROM payload
+- `Wave Race 64`, `F-Zero X`, and `Yoshi's Story` remain unsupported with current repo evidence

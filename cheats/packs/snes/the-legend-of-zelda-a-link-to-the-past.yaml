@@ -1,0 +1,427 @@
+packId: snes--the-legend-of-zelda-a-link-to-the-past
+schemaVersion: 1
+adapterId: alttp-sram
+gameId: snes/the-legend-of-zelda-a-link-to-the-past
+systemSlug: snes
+editorId: alttp-sram
+title: "The Legend of Zelda: A Link to the Past"
+match:
+  titleAliases:
+    - "The Legend of Zelda: A Link to the Past"
+    - "The Legend of Zelda - A Link to the Past"
+    - "Legend of Zelda, The - A Link to the Past"
+    - "Zelda no Densetsu: Kamigami no Triforce"
+    - "Zelda no Densetsu - Kamigami no Triforce"
+    - "A Link to the Past"
+payload:
+  exactSizes:
+    - 8192
+  formats:
+    - srm
+    - sav
+    - sram
+selector:
+  id: slot
+  label: Save Slot
+  type: save-file
+  options:
+    - id: "1"
+      label: Slot 1
+    - id: "2"
+      label: Slot 2
+    - id: "3"
+      label: Slot 3
+sections:
+  - id: resources
+    title: Resources
+    fields:
+      - id: rupees
+        label: Rupees
+        type: integer
+        min: 0
+        max: 999
+        op: { kind: alttpCounter, field: rupees }
+      - id: bombs
+        label: Bombs
+        type: integer
+        min: 0
+        max: 50
+        op: { kind: alttpCounter, field: bombs }
+      - id: bombUpgrades
+        label: Bomb Capacity Upgrade
+        type: integer
+        min: 0
+        max: 7
+        op: { kind: alttpCounter, field: bombUpgrades }
+      - id: arrows
+        label: Arrows
+        type: integer
+        min: 0
+        max: 70
+        op: { kind: alttpCounter, field: arrows }
+      - id: arrowUpgrades
+        label: Arrow Capacity Upgrade
+        type: integer
+        min: 0
+        max: 7
+        op: { kind: alttpCounter, field: arrowUpgrades }
+      - id: heartContainers
+        label: Heart Containers
+        type: integer
+        min: 3
+        max: 20
+        op: { kind: alttpCounter, field: heartContainers }
+      - id: heartPieces
+        label: Heart Pieces
+        type: integer
+        min: 0
+        max: 3
+        op: { kind: alttpCounter, field: heartPieces }
+      - id: magicPower
+        label: Magic Power
+        type: integer
+        min: 0
+        max: 128
+        op: { kind: alttpCounter, field: magicPower }
+      - id: magicUpgrade
+        label: Magic Consumption
+        type: enum
+        options: &magicUpgradeOptions
+          - id: normal
+            label: Normal
+          - id: half
+            label: Half
+          - id: quarter
+            label: Quarter
+        op: { kind: alttpEnum, field: magicUpgrade }
+  - id: equipment
+    title: Equipment
+    fields:
+      - id: bow
+        label: Bow
+        type: enum
+        options: &bowOptions
+          - id: none
+            label: None
+          - id: bow
+            label: Bow
+          - id: bowAndArrows
+            label: Bow and Arrows
+          - id: silverBow
+            label: Silver Bow
+          - id: bowAndSilverArrows
+            label: Bow and Silver Arrows
+        op: { kind: alttpEnum, field: bow }
+      - id: boomerang
+        label: Boomerang
+        type: enum
+        options: &boomerangOptions
+          - id: none
+            label: None
+          - id: blue
+            label: Blue Boomerang
+          - id: red
+            label: Magical Boomerang
+        op: { kind: alttpEnum, field: boomerang }
+      - id: mushroomPowder
+        label: Mushroom or Powder
+        type: enum
+        options: &mushroomPowderOptions
+          - id: none
+            label: None
+          - id: mushroom
+            label: Mushroom
+          - id: powder
+            label: Magic Powder
+        op: { kind: alttpEnum, field: mushroomPowder }
+      - id: shovelFlute
+        label: Shovel or Flute
+        type: enum
+        options: &shovelFluteOptions
+          - id: none
+            label: None
+          - id: shovel
+            label: Shovel
+          - id: flute
+            label: Flute
+          - id: fluteAndBird
+            label: Flute and Bird
+        op: { kind: alttpEnum, field: shovelFlute }
+      - id: gloves
+        label: Gloves
+        type: enum
+        options: &gloveOptions
+          - id: none
+            label: None
+          - id: powerGlove
+            label: Power Glove
+          - id: titansMitts
+            label: "Titan's Mitts"
+        op: { kind: alttpEnum, field: gloves }
+      - id: sword
+        label: Sword
+        type: enum
+        options: &swordOptions
+          - id: none
+            label: None
+          - id: fighter
+            label: Fighter's Sword
+          - id: master
+            label: Master Sword
+          - id: tempered
+            label: Tempered Sword
+          - id: golden
+            label: Golden Sword
+        op: { kind: alttpEnum, field: sword }
+      - id: shield
+        label: Shield
+        type: enum
+        options: &shieldOptions
+          - id: none
+            label: None
+          - id: fighter
+            label: Fighter's Shield
+          - id: red
+            label: Red Shield
+          - id: mirror
+            label: Mirror Shield
+        op: { kind: alttpEnum, field: shield }
+      - id: armor
+        label: Mail
+        type: enum
+        options: &armorOptions
+          - id: green
+            label: Green Mail
+          - id: blue
+            label: Blue Mail
+          - id: red
+            label: Red Mail
+        op: { kind: alttpEnum, field: armor }
+  - id: inventory
+    title: Inventory
+    fields:
+      - id: hookshot
+        label: Hookshot
+        type: boolean
+        op: { kind: alttpBoolean, field: hookshot }
+      - id: fireRod
+        label: Fire Rod
+        type: boolean
+        op: { kind: alttpBoolean, field: fireRod }
+      - id: iceRod
+        label: Ice Rod
+        type: boolean
+        op: { kind: alttpBoolean, field: iceRod }
+      - id: bombos
+        label: Bombos
+        type: boolean
+        op: { kind: alttpBoolean, field: bombos }
+      - id: ether
+        label: Ether
+        type: boolean
+        op: { kind: alttpBoolean, field: ether }
+      - id: quake
+        label: Quake
+        type: boolean
+        op: { kind: alttpBoolean, field: quake }
+      - id: lamp
+        label: Lamp
+        type: boolean
+        op: { kind: alttpBoolean, field: lamp }
+      - id: hammer
+        label: Magic Hammer
+        type: boolean
+        op: { kind: alttpBoolean, field: hammer }
+      - id: bugNet
+        label: Bug-Catching Net
+        type: boolean
+        op: { kind: alttpBoolean, field: bugNet }
+      - id: book
+        label: Book of Mudora
+        type: boolean
+        op: { kind: alttpBoolean, field: book }
+      - id: caneSomaria
+        label: Cane of Somaria
+        type: boolean
+        op: { kind: alttpBoolean, field: caneSomaria }
+      - id: caneByrna
+        label: Cane of Byrna
+        type: boolean
+        op: { kind: alttpBoolean, field: caneByrna }
+      - id: magicCape
+        label: Magic Cape
+        type: boolean
+        op: { kind: alttpBoolean, field: magicCape }
+      - id: magicMirror
+        label: Magic Mirror
+        type: boolean
+        op: { kind: alttpBoolean, field: magicMirror }
+      - id: pegasusBoots
+        label: Pegasus Boots
+        type: boolean
+        op: { kind: alttpBoolean, field: pegasusBoots }
+      - id: zoraFlippers
+        label: Zora's Flippers
+        type: boolean
+        op: { kind: alttpBoolean, field: zoraFlippers }
+      - id: moonPearl
+        label: Moon Pearl
+        type: boolean
+        op: { kind: alttpBoolean, field: moonPearl }
+  - id: bottles
+    title: Bottles
+    fields:
+      - id: bottle1
+        label: Bottle 1
+        type: enum
+        options: &bottleOptions
+          - id: none
+            label: None
+          - id: mushroom
+            label: Mushroom
+          - id: empty
+            label: Empty Bottle
+          - id: redPotion
+            label: Red Potion
+          - id: greenPotion
+            label: Green Potion
+          - id: bluePotion
+            label: Blue Potion
+          - id: fairy
+            label: Fairy
+          - id: bee
+            label: Bee
+          - id: goodBee
+            label: Good Bee
+        op: { kind: alttpEnum, field: bottle1 }
+      - id: bottle2
+        label: Bottle 2
+        type: enum
+        options: *bottleOptions
+        op: { kind: alttpEnum, field: bottle2 }
+      - id: bottle3
+        label: Bottle 3
+        type: enum
+        options: *bottleOptions
+        op: { kind: alttpEnum, field: bottle3 }
+      - id: bottle4
+        label: Bottle 4
+        type: enum
+        options: *bottleOptions
+        op: { kind: alttpEnum, field: bottle4 }
+  - id: quest
+    title: Quest Items
+    fields:
+      - id: pendants
+        label: Pendants
+        type: bitmask
+        bits:
+          - id: redPendant
+            bit: 0
+            label: Pendant of Power
+          - id: bluePendant
+            bit: 1
+            label: Pendant of Wisdom
+          - id: greenPendant
+            bit: 2
+            label: Pendant of Courage
+        op: { kind: alttpBitmask, field: pendants }
+      - id: crystals
+        label: Crystals
+        type: bitmask
+        bits:
+          - id: miseryMire
+            bit: 0
+            label: Misery Mire
+          - id: palaceOfDarkness
+            bit: 1
+            label: Palace of Darkness
+          - id: icePalace
+            bit: 2
+            label: Ice Palace
+          - id: turtleRock
+            bit: 3
+            label: Turtle Rock
+          - id: swampPalace
+            bit: 4
+            label: Swamp Palace
+          - id: thievesTown
+            bit: 5
+            label: Thieves' Town
+          - id: skullWoods
+            bit: 6
+            label: Skull Woods
+        op: { kind: alttpBitmask, field: crystals }
+presets:
+  - id: maxResources
+    label: Max Resources
+    description: Set rupees, bombs, arrows, capacity upgrades, and magic power to safe maxima.
+    updates:
+      rupees: 999
+      bombUpgrades: 7
+      bombs: 50
+      arrowUpgrades: 7
+      arrows: 70
+      magicPower: 128
+  - id: maxHealthMagic
+    label: Max Health and Magic
+    description: Set full hearts, clear partial heart pieces, refill magic, and enable quarter magic.
+    updates:
+      heartContainers: 20
+      heartPieces: 0
+      magicPower: 128
+      magicUpgrade: quarter
+  - id: fullAdventureKit
+    label: Full Adventure Kit
+    description: Give major equipment, dungeon rewards, bottles, and full resources for the selected slot.
+    updates:
+      rupees: 999
+      bombUpgrades: 7
+      bombs: 50
+      arrowUpgrades: 7
+      arrows: 70
+      heartContainers: 20
+      heartPieces: 0
+      magicPower: 128
+      magicUpgrade: quarter
+      bow: bowAndSilverArrows
+      boomerang: red
+      mushroomPowder: powder
+      shovelFlute: fluteAndBird
+      gloves: titansMitts
+      sword: golden
+      shield: mirror
+      armor: red
+      hookshot: true
+      fireRod: true
+      iceRod: true
+      bombos: true
+      ether: true
+      quake: true
+      lamp: true
+      hammer: true
+      bugNet: true
+      book: true
+      caneSomaria: true
+      caneByrna: true
+      magicCape: true
+      magicMirror: true
+      pegasusBoots: true
+      zoraFlippers: true
+      moonPearl: true
+      bottle1: bluePotion
+      bottle2: fairy
+      bottle3: fairy
+      bottle4: fairy
+      pendants:
+        - redPendant
+        - bluePendant
+        - greenPendant
+      crystals:
+        - palaceOfDarkness
+        - swampPalace
+        - skullWoods
+        - thievesTown
+        - icePalace
+        - miseryMire
+        - turtleRock

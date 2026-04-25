@@ -65,6 +65,14 @@ func mountAgentRoutes(r chi.Router, app *app) {
 	r.Get("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoStatus)
 	r.Post("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoEnable)
 
+	r.Get("/modules", app.handleModulesList)
+	r.Post("/modules/sync", app.handleModulesSync)
+	r.Post("/modules/upload", app.handleModulesUpload)
+	r.Post("/modules/rescan", app.handleModulesRescan)
+	r.Post("/modules/{id}/enable", app.handleModuleEnable)
+	r.Post("/modules/{id}/disable", app.handleModuleDisable)
+	r.Delete("/modules/{id}", app.handleModuleDelete)
+
 	r.Get("/cheats/packs", app.handleCheatPacksList)
 	r.Post("/cheats/packs", app.handleCheatPackCreate)
 	r.Get("/cheats/packs/{id}", app.handleCheatPackGet)
@@ -109,6 +117,10 @@ func (a *app) handleAgentAPIIndex(w http.ResponseWriter, r *http.Request) {
 			"romLookup":          basePath + "/roms/lookup",
 			"conflicts":          basePath + "/conflicts",
 			"autoEnroll":         basePath + "/helpers/auto-enroll",
+			"modules":            basePath + "/modules",
+			"modulesSync":        basePath + "/modules/sync",
+			"modulesUpload":      basePath + "/modules/upload",
+			"modulesRescan":      basePath + "/modules/rescan",
 			"cheatPacks":         basePath + "/cheats/packs",
 			"cheatLibrary":       basePath + "/cheats/library",
 			"cheatLibrarySync":   basePath + "/cheats/library/sync",

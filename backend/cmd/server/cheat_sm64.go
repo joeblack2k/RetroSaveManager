@@ -39,6 +39,10 @@ const (
 
 type sm64EEPROMCheatEditor struct{}
 
+func init() {
+	registerCheatEditor(sm64EEPROMCheatEditor{})
+}
+
 type sm64ParsedFile struct {
 	Flags            uint32
 	CourseStars      [sm64CourseCount]byte

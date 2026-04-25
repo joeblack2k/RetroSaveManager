@@ -15,6 +15,10 @@ const (
 
 type mk64EEPROMCheatEditor struct{}
 
+func init() {
+	registerCheatEditor(mk64EEPROMCheatEditor{})
+}
+
 type mk64ParsedStuff struct {
 	GrandPrixPoints     [4]byte
 	SoundMode           byte

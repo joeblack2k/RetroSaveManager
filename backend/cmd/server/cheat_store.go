@@ -16,6 +16,7 @@ import (
 const (
 	cheatPackSourceBuiltin  = "builtin"
 	cheatPackSourceGithub   = "github"
+	cheatPackSourceModule   = "module"
 	cheatPackSourceUploaded = "uploaded"
 	cheatPackSourceWorker   = "worker"
 

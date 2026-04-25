@@ -23,6 +23,10 @@ const (
 
 type dkcSRAMCheatEditor struct{}
 
+func init() {
+	registerCheatEditor(dkcSRAMCheatEditor{})
+}
+
 type dkcParsedSRAM struct {
 	Payload []byte
 	Slots   [dkcSlotCount][]byte

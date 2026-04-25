@@ -211,6 +211,91 @@ export type CheatLibraryStatus = {
   errors: CheatLibrarySyncError[];
 };
 
+export type GameModuleCheatPackRef = {
+  path: string;
+};
+
+export type GameModulePayloadPolicy = {
+  exactSizes?: number[];
+  formats?: string[];
+};
+
+export type GameModuleManifest = {
+  moduleId: string;
+  schemaVersion: number;
+  version: string;
+  systemSlug: string;
+  gameId: string;
+  title: string;
+  parserId: string;
+  wasmFile: string;
+  abiVersion: string;
+  cheatPacks?: GameModuleCheatPackRef[];
+  payload: GameModulePayloadPolicy;
+  titleAliases?: string[];
+  romHashes?: string[];
+};
+
+export type GameModuleRecord = {
+  manifest: GameModuleManifest;
+  status: string;
+  source: string;
+  sourcePath?: string;
+  sourceRevision?: string;
+  sourceSha256?: string;
+  importedAt: string;
+  updatedAt: string;
+  lastSyncedAt?: string;
+  errors?: string[];
+  cheatPackIds?: string[];
+};
+
+export type GameModuleLibraryConfig = {
+  repo: string;
+  ref: string;
+  path: string;
+};
+
+export type GameModuleSyncImported = {
+  path: string;
+  moduleId?: string;
+  title?: string;
+  systemSlug?: string;
+  status?: string;
+  sha256?: string;
+};
+
+export type GameModuleSyncError = {
+  path: string;
+  message: string;
+};
+
+export type GameModuleLibraryStatus = {
+  config: GameModuleLibraryConfig;
+  lastSyncedAt?: string;
+  importedCount: number;
+  errorCount: number;
+  imported: GameModuleSyncImported[];
+  errors: GameModuleSyncError[];
+};
+
+export type GameModuleListResponse = {
+  success: boolean;
+  modules: GameModuleRecord[];
+  library: GameModuleLibraryStatus;
+};
+
+export type GameModuleRescanResponse = {
+  success: boolean;
+  result: {
+    scanned?: number;
+    accepted?: number;
+    rejected?: number;
+    updated?: number;
+    [key: string]: unknown;
+  };
+};
+
 export type SaveDownloadProfile = {
   id: string;
   label: string;
