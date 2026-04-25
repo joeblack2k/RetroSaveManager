@@ -1,5 +1,49 @@
 # Release Notes
 
+## v0.1.10 - 2026-04-25
+
+### Included
+
+- Runtime game support modules:
+  - added GitHub-backed `.rsmodule.zip` bundles under `modules/`
+  - modules use sandboxed WASM plus declarative YAML, so new parser-backed details and cheats can be added without rebuilding Docker
+  - module sync now validates bundle paths, file sizes, manifests, WASM ABI exports, and cheat-pack schemas before activation
+- New module-backed parser/cheat coverage:
+  - Game Boy / Game Boy Color: `Donkey Kong Country`, `Pokemon Red/Blue/Yellow`, `Super Mario Bros. Deluxe`, and `Wario Land II`
+  - Game Boy Advance: `Wario Land 4`
+  - Nintendo 64: `Banjo-Kazooie`, `Banjo-Tooie`, `Wave Race 64`, and `Yoshi's Story`
+  - Nintendo DS: `New Super Mario Bros.`
+  - Neo Geo: `Double Dragon` and `Metal Slug 5`
+  - PlayStation: `Castlevania: Symphony of the Night`
+  - PlayStation 2: `Burnout 3: Takedown` and `Mortal Kombat Shaolin Monks`
+  - Sega Saturn: `Quake`
+  - Super Nintendo: `Super Mario World`
+  - Nintendo Wii: `Super Mario Galaxy 2`
+- Logical-save module bridges:
+  - PlayStation and PlayStation 2 cheat modules can target extracted logical saves instead of full memory-card images
+  - Sega Saturn modules can target extracted backup-RAM entries, including YabaSanshiro-style images
+  - module-backed cheat applies still create a new current save version and preserve existing history
+- Save details and My Saves integration:
+  - save summaries now expose module-backed cheat capabilities after module sync/rescan
+  - save detail pages can render semantic module fields such as progress, lives, stage, inventory, or verified save facts
+- Codebase cleanup:
+  - split the runtime module backend into focused files for import, GitHub library sync, WASM runner, inspection, cheat packs, and adapter bridging
+  - added contributor-facing comments around the module security model and WASM boundary
+
+### Deploy Notes
+
+- Existing servers should run `POST /api/modules/sync` after updating so the runtime imports the new GitHub module library.
+- Run `POST /api/modules/rescan` after sync to enrich existing saves with module semantic fields and cheat capabilities.
+
+### Validation Summary
+
+- Cheat pack validation passed locally
+- Full backend test suite passed locally
+- Full frontend test suite passed locally
+- Frontend production build passed locally
+- Security gate passed locally
+- Live Docker deploy on the internal Docker host imported `19` active modules with `0` module sync errors
+
 ## v0.1.9 - 2026-04-25
 
 ### Included
