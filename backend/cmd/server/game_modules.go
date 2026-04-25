@@ -987,8 +987,9 @@ func (s *gameModuleService) syncLibrary(ctx context.Context) (gameModuleLibraryS
 		_ = s.writeLibraryStatus(status)
 		return status, nil
 	}
-	for _, sourcePath := range files {
-		data, err := fetchGameModuleLibraryRaw(ctx, config, sourcePath)
+	for _, file := range files {
+		sourcePath := file.Path
+		data, err := fetchGameModuleLibraryRaw(ctx, config, sourcePath, file.SHA)
 		if err != nil {
 			status.Errors = append(status.Errors, gameModuleSyncError{Path: sourcePath, Message: err.Error()})
 			continue
@@ -1019,7 +1020,7 @@ func gameModuleLibraryConfigFromEnv() gameModuleLibraryConfig {
 	}
 }
 
-func fetchGameModuleLibraryTree(ctx context.Context, config gameModuleLibraryConfig) ([]string, error) {
+func fetchGameModuleLibraryTree(ctx context.Context, config gameModuleLibraryConfig) ([]githubLibraryFile, error) {
 	var tree githubTreeResponse
 	if err := fetchCheatLibraryJSON(ctx, gameModuleTreeURL(config), &tree); err != nil {
 		return nil, err
@@ -1028,7 +1029,7 @@ func fetchGameModuleLibraryTree(ctx context.Context, config gameModuleLibraryCon
 	if prefix != "" {
 		prefix += "/"
 	}
-	files := make([]string, 0, len(tree.Tree))
+	files := make([]githubLibraryFile, 0, len(tree.Tree))
 	for _, item := range tree.Tree {
 		if strings.TrimSpace(item.Type) != "blob" {
 			continue
@@ -1038,15 +1039,15 @@ func fetchGameModuleLibraryTree(ctx context.Context, config gameModuleLibraryCon
 			continue
 		}
 		if strings.EqualFold(filepath.Ext(itemPath), ".zip") && strings.HasSuffix(strings.ToLower(itemPath), ".rsmodule.zip") {
-			files = append(files, itemPath)
+			files = append(files, githubLibraryFile{Path: itemPath, SHA: strings.TrimSpace(item.SHA)})
 		}
 	}
-	sort.Strings(files)
+	sort.SliceStable(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
 }
 
-func fetchGameModuleLibraryRaw(ctx context.Context, config gameModuleLibraryConfig, sourcePath string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gameModuleRawURL(config, sourcePath), nil)
+func fetchGameModuleLibraryRaw(ctx context.Context, config gameModuleLibraryConfig, sourcePath, cacheKey string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gameModuleRawURL(config, sourcePath, cacheKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1077,7 +1078,7 @@ func gameModuleTreeURL(config gameModuleLibraryConfig) string {
 	return apiBase + "/" + urlPathEscapeSegments(config.Repo) + "/git/trees/" + url.PathEscape(config.Ref) + "?recursive=1"
 }
 
-func gameModuleRawURL(config gameModuleLibraryConfig, sourcePath string) string {
+func gameModuleRawURL(config gameModuleLibraryConfig, sourcePath, cacheKey string) string {
 	rawBase := strings.TrimRight(firstNonEmpty(strings.TrimSpace(os.Getenv("MODULE_LIBRARY_RAW_BASE")), "https://raw.githubusercontent.com"), "/")
-	return rawBase + "/" + urlPathEscapeSegments(config.Repo) + "/" + url.PathEscape(config.Ref) + "/" + urlPathEscapeSegments(sourcePath)
+	return withRawCacheBuster(rawBase+"/"+urlPathEscapeSegments(config.Repo)+"/"+url.PathEscape(config.Ref)+"/"+urlPathEscapeSegments(sourcePath), cacheKey)
 }

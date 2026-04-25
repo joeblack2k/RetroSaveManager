@@ -30,6 +30,12 @@ type githubTreeResponse struct {
 type githubTreeItem struct {
 	Path string `json:"path"`
 	Type string `json:"type"`
+	SHA  string `json:"sha,omitempty"`
+}
+
+type githubLibraryFile struct {
+	Path string
+	SHA  string
 }
 
 func (s *cheatService) libraryStatus() (cheatLibraryStatus, error) {
@@ -64,8 +70,9 @@ func (s *cheatService) syncLibrary(ctx context.Context) (cheatLibraryStatus, err
 		}
 		existingByID[packID] = item
 	}
-	for _, sourcePath := range files {
-		data, fetchErr := fetchCheatLibraryRaw(ctx, config, sourcePath)
+	for _, file := range files {
+		sourcePath := file.Path
+		data, fetchErr := fetchCheatLibraryRaw(ctx, config, sourcePath, file.SHA)
 		if fetchErr != nil {
 			status.Errors = append(status.Errors, cheatLibrarySyncError{Path: sourcePath, Message: fetchErr.Error()})
 			continue
@@ -144,7 +151,7 @@ func cleanCheatLibraryPath(raw string) string {
 	return cleaned
 }
 
-func fetchCheatLibraryTree(ctx context.Context, config cheatLibraryConfig) ([]string, error) {
+func fetchCheatLibraryTree(ctx context.Context, config cheatLibraryConfig) ([]githubLibraryFile, error) {
 	var tree githubTreeResponse
 	if err := fetchCheatLibraryJSON(ctx, cheatLibraryTreeURL(config), &tree); err != nil {
 		return nil, err
@@ -153,7 +160,7 @@ func fetchCheatLibraryTree(ctx context.Context, config cheatLibraryConfig) ([]st
 	if prefix != "" {
 		prefix += "/"
 	}
-	files := make([]string, 0, len(tree.Tree))
+	files := make([]githubLibraryFile, 0, len(tree.Tree))
 	for _, item := range tree.Tree {
 		if strings.TrimSpace(item.Type) != "blob" {
 			continue
@@ -166,14 +173,14 @@ func fetchCheatLibraryTree(ctx context.Context, config cheatLibraryConfig) ([]st
 		if ext != ".yaml" && ext != ".yml" {
 			continue
 		}
-		files = append(files, itemPath)
+		files = append(files, githubLibraryFile{Path: itemPath, SHA: strings.TrimSpace(item.SHA)})
 	}
-	sort.Strings(files)
+	sort.SliceStable(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
 }
 
-func fetchCheatLibraryRaw(ctx context.Context, config cheatLibraryConfig, sourcePath string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cheatLibraryRawURL(config, sourcePath), nil)
+func fetchCheatLibraryRaw(ctx context.Context, config cheatLibraryConfig, sourcePath, cacheKey string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cheatLibraryRawURL(config, sourcePath, cacheKey), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -226,9 +233,21 @@ func cheatLibraryTreeURL(config cheatLibraryConfig) string {
 	return apiBase + "/" + urlPathEscapeSegments(config.Repo) + "/git/trees/" + url.PathEscape(config.Ref) + "?recursive=1"
 }
 
-func cheatLibraryRawURL(config cheatLibraryConfig, sourcePath string) string {
+func cheatLibraryRawURL(config cheatLibraryConfig, sourcePath, cacheKey string) string {
 	rawBase := strings.TrimRight(firstNonEmpty(strings.TrimSpace(os.Getenv("CHEAT_LIBRARY_RAW_BASE")), "https://raw.githubusercontent.com"), "/")
-	return rawBase + "/" + urlPathEscapeSegments(config.Repo) + "/" + url.PathEscape(config.Ref) + "/" + urlPathEscapeSegments(sourcePath)
+	return withRawCacheBuster(rawBase+"/"+urlPathEscapeSegments(config.Repo)+"/"+url.PathEscape(config.Ref)+"/"+urlPathEscapeSegments(sourcePath), cacheKey)
+}
+
+func withRawCacheBuster(rawURL, cacheKey string) string {
+	cacheKey = strings.TrimSpace(cacheKey)
+	if cacheKey == "" {
+		return rawURL
+	}
+	separator := "?"
+	if strings.Contains(rawURL, "?") {
+		separator = "&"
+	}
+	return rawURL + separator + "r=" + url.QueryEscape(cacheKey)
 }
 
 func urlPathEscapeSegments(value string) string {
