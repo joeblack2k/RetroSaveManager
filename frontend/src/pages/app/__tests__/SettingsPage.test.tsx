@@ -2,14 +2,13 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "../SettingsPage";
 import * as retrosaveApi from "../../../services/retrosaveApi";
-import type { AppPassword, AuthUser, GameModuleListResponse, GameModuleRecord } from "../../../services/types";
+import type { AppPassword, GameModuleListResponse, GameModuleRecord } from "../../../services/types";
 
 vi.mock("../../../services/retrosaveApi", () => ({
   createAppPassword: vi.fn(),
   deleteGameModule: vi.fn(),
   disableGameModule: vi.fn(),
   enableGameModule: vi.fn(),
-  getCurrentUser: vi.fn(),
   listAppPasswords: vi.fn(),
   listGameModules: vi.fn(),
   rescanGameModules: vi.fn(),
@@ -19,14 +18,6 @@ vi.mock("../../../services/retrosaveApi", () => ({
 }));
 
 describe("SettingsPage", () => {
-  const user: AuthUser = {
-    id: "user-1",
-    email: "demo@example.invalid",
-    gameCount: 2,
-    fileCount: 4,
-    storageUsedBytes: 2048
-  };
-
   const appPasswords: AppPassword[] = [
     {
       id: "key-1",
@@ -90,7 +81,6 @@ describe("SettingsPage", () => {
   };
 
   beforeEach(() => {
-    vi.mocked(retrosaveApi.getCurrentUser).mockResolvedValue(user);
     vi.mocked(retrosaveApi.listAppPasswords).mockResolvedValue(appPasswords);
     vi.mocked(retrosaveApi.listGameModules).mockResolvedValue(moduleList);
     vi.mocked(retrosaveApi.syncGameModules).mockResolvedValue(moduleList.library);
@@ -111,8 +101,10 @@ describe("SettingsPage", () => {
     expect(await screen.findByRole("heading", { name: "Game Support Modules" })).toBeInTheDocument();
     expect(screen.getByText("Module Game")).toBeInTheDocument();
     expect(screen.getByText("gb-module-game")).toBeInTheDocument();
-    expect(screen.getByText("module-game-parser")).toBeInTheDocument();
-    expect(screen.getByText("joeblack2k/RetroSaveManager@main")).toBeInTheDocument();
+    expect(screen.getByText("gameboy - 1 cheat packs")).toBeInTheDocument();
+    expect(screen.getByText("1 saved keys")).toBeInTheDocument();
+    expect(screen.getByText("Advanced module upload")).toBeInTheDocument();
+    expect(screen.queryByText("module-game-parser")).not.toBeInTheDocument();
   });
 
   it("syncs modules from GitHub and refreshes settings", async () => {

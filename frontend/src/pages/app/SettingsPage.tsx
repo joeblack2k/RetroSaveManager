@@ -2,13 +2,11 @@ import { ChangeEvent, FormEvent, useCallback, useMemo, useState } from "react";
 import { SectionCard } from "../../components/SectionCard";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { apiBaseForUi } from "../../services/apiClient";
 import {
   createAppPassword,
   deleteGameModule,
   disableGameModule,
   enableGameModule,
-  getCurrentUser,
   listAppPasswords,
   listGameModules,
   rescanGameModules,
@@ -16,13 +14,13 @@ import {
   syncGameModules,
   uploadGameModule
 } from "../../services/retrosaveApi";
-import type { GameModuleListResponse, GameModuleRecord } from "../../services/types";
-import { formatBytes, formatDate } from "../../utils/format";
+import type { AppPassword, GameModuleListResponse, GameModuleRecord } from "../../services/types";
+import { formatDate } from "../../utils/format";
 
 export function SettingsPage(): JSX.Element {
   const loader = useCallback(async () => {
-    const [user, appPasswords, modules] = await Promise.all([getCurrentUser(), listAppPasswords(), listGameModules()]);
-    return { user, appPasswords, modules };
+    const [appPasswords, modules] = await Promise.all([listAppPasswords(), listGameModules()]);
+    return { appPasswords, modules };
   }, []);
   const { loading, error, data, reload } = useAsyncData(loader, []);
 
@@ -153,108 +151,13 @@ export function SettingsPage(): JSX.Element {
   }
 
   return (
-    <SectionCard title="Settings" subtitle="Runtime modules and device authentication for this web app.">
-      <p>
-        <strong>API base:</strong> <code>{apiBaseForUi()}</code>
-      </p>
-      <p>
-        <strong>Auth mode:</strong> <code>disabled</code>
-      </p>
+    <SectionCard title="Settings" subtitle="A small control room for runtime game support.">
       {loading ? <LoadingState label="Loading settings..." /> : null}
       {error ? <ErrorState message={error} /> : null}
       {actionError ? <ErrorState message={actionError} /> : null}
 
       {data ? (
-        <>
-          <div className="stack compact">
-            <p>
-              <strong>User:</strong> {data.user.email}
-            </p>
-            <p>
-              <strong>Storage used:</strong> {formatBytes(data.user.storageUsedBytes)}
-            </p>
-            <p>
-              <strong>Games:</strong> {data.user.gameCount}
-            </p>
-            <p>
-              <strong>Files:</strong> {data.user.fileCount}
-            </p>
-          </div>
-
-          <hr className="divider" />
-
-          <div className="stack compact">
-            <h3>App Passwords</h3>
-            <p>Generate a separate key for each helper or device. The full key is shown only once.</p>
-            <small>Use the sidebar Add helper control to open a temporary 15 minute helper window.</small>
-          </div>
-
-          <form className="inline-actions" onSubmit={(event) => void onGenerate(event)}>
-            <input
-              value={nameDraft}
-              onChange={(event) => setNameDraft(event.target.value)}
-              placeholder="Name, for example SteamDeck"
-              aria-label="App password name"
-            />
-            <button className="btn btn-primary" type="submit" disabled={generateBusy}>
-              {generateBusy ? "Generating..." : "Generate"}
-            </button>
-          </form>
-
-          {generatedKey ? (
-            <div className="generated-key-box" role="status" aria-live="polite">
-              <p>
-                <strong>New key:</strong> <code>{generatedKey}</code>
-              </p>
-              <div className="inline-actions">
-                <button className="btn btn-ghost" type="button" onClick={() => void onCopy()}>
-                  Copy
-                </button>
-                <button className="btn btn-ghost" type="button" onClick={() => setGeneratedKey(null)}>
-                  Hide
-                </button>
-                {copyStatus ? <small>{copyStatus}</small> : null}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="saves-table-wrap">
-            <table className="saves-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Last 4</th>
-                  <th>Bound Device</th>
-                  <th>Console sync</th>
-                  <th>Created</th>
-                  <th>Last used</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.appPasswords.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>
-                      <code>{item.lastFour}</code>
-                    </td>
-                    <td>{item.boundDeviceId ? `Device #${item.boundDeviceId}` : "Not bound"}</td>
-                    <td>{item.syncAll ? "All" : (item.allowedSystemSlugs ?? []).join(", ") || "None"}</td>
-                    <td>{formatDate(item.createdAt)}</td>
-                    <td>{item.lastUsedAt ? formatDate(item.lastUsedAt) : "-"}</td>
-                    <td>
-                      <button className="btn btn-ghost" type="button" onClick={() => void onRevoke(item.id)}>
-                        Revoke
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <hr className="divider" />
-
+        <div className="settings-page">
           <GameSupportModulesPanel
             modules={data.modules}
             busyKey={moduleBusy}
@@ -269,7 +172,20 @@ export function SettingsPage(): JSX.Element {
             onDisable={(moduleId) => void onDisableModule(moduleId)}
             onDelete={(moduleId) => void onDeleteModule(moduleId)}
           />
-        </>
+
+          <HelperKeysPanel
+            appPasswords={data.appPasswords}
+            nameDraft={nameDraft}
+            generatedKey={generatedKey}
+            generateBusy={generateBusy}
+            copyStatus={copyStatus}
+            onNameChange={setNameDraft}
+            onGenerate={(event) => void onGenerate(event)}
+            onCopy={() => void onCopy()}
+            onHideKey={() => setGeneratedKey(null)}
+            onRevoke={(id) => void onRevoke(id)}
+          />
+        </div>
       ) : null}
     </SectionCard>
   );
@@ -318,15 +234,12 @@ function GameSupportModulesPanel({
 
   return (
     <section className="module-library" aria-label="Game Support Modules">
-      <header className="module-library__header">
+      <header className="settings-hero">
         <div>
           <h3>Game Support Modules</h3>
-          <p>
-            Load parser-backed details and cheats from sandboxed WASM modules. Modules can come from GitHub or a local
-            <code>.rsmodule.zip</code> upload.
-          </p>
+          <p>Import parser-backed gameplay details and cheats from the GitHub module library.</p>
         </div>
-        <div className="module-library__actions">
+        <div className="settings-hero__actions">
           <button className="btn btn-primary" type="button" onClick={onSync} disabled={busyKey !== null}>
             {busyKey === "sync" ? "Syncing..." : "Sync from GitHub"}
           </button>
@@ -336,26 +249,13 @@ function GameSupportModulesPanel({
         </div>
       </header>
 
-      <div className="cheats-summary" aria-label="Module summary">
-        <span>{modules.modules.length} modules</span>
-        <span>{counts.active} enabled</span>
-        <span>{counts.disabled} disabled</span>
-        <span>{counts.failed} failed</span>
-        <span>{modules.library.config.repo}@{modules.library.config.ref}</span>
-        <span>{modules.library.config.path}</span>
-        <span>{modules.library.lastSyncedAt ? `Last sync ${formatDate(modules.library.lastSyncedAt)}` : "Never synced"}</span>
+      <div className="settings-summary-grid" aria-label="Module summary">
+        <SummaryTile label="Modules" value={String(modules.modules.length)} />
+        <SummaryTile label="Enabled" value={String(counts.active)} tone="good" />
+        <SummaryTile label="Disabled" value={String(counts.disabled)} />
+        <SummaryTile label="Failed" value={String(counts.failed)} tone={counts.failed > 0 ? "bad" : undefined} />
+        <SummaryTile label="Last sync" value={modules.library.lastSyncedAt ? formatDate(modules.library.lastSyncedAt) : "Never"} />
       </div>
-
-      <form className="module-upload-form" onSubmit={onUpload}>
-        <label>
-          Upload module zip
-          <input type="file" accept=".rsmodule.zip,.zip" onChange={onFileChange} />
-        </label>
-        <button className="btn btn-ghost" type="submit" disabled={busyKey !== null || !selectedFile}>
-          {busyKey === "upload" ? "Uploading..." : "Upload module"}
-        </button>
-        {selectedFile ? <small>{selectedFile.name}</small> : null}
-      </form>
 
       {message ? <p className="success-state">{message}</p> : null}
       {error ? <ErrorState message={error} /> : null}
@@ -375,42 +275,43 @@ function GameSupportModulesPanel({
       ) : null}
 
       {modules.modules.length > 0 ? (
-        <div className="cheat-library-table-wrap">
-          <table className="cheat-library-table module-library-table">
-            <thead>
-              <tr>
-                <th>Module</th>
-                <th>System</th>
-                <th>Parser</th>
-                <th>Source</th>
-                <th>Status</th>
-                <th>Cheats</th>
-                <th>Updated</th>
-                <th>Controls</th>
-              </tr>
-            </thead>
-            <tbody>
-              {modules.modules.map((item) => (
-                <ModuleRow
-                  key={item.manifest.moduleId}
-                  item={item}
-                  busyKey={busyKey}
-                  onEnable={onEnable}
-                  onDisable={onDisable}
-                  onDelete={onDelete}
-                />
-              ))}
-            </tbody>
-          </table>
+        <div className="settings-module-list">
+          {modules.modules.map((item) => (
+            <ModuleCard
+              key={item.manifest.moduleId}
+              item={item}
+              busyKey={busyKey}
+              onEnable={onEnable}
+              onDisable={onDisable}
+              onDelete={onDelete}
+            />
+          ))}
         </div>
       ) : (
         <p className="empty-state">No game support modules are installed yet.</p>
       )}
+
+      <details className="settings-disclosure">
+        <summary>
+          <span>Advanced module upload</span>
+          <small>For local module testing</small>
+        </summary>
+        <form className="module-upload-form" onSubmit={onUpload}>
+          <label>
+            Upload module zip
+            <input type="file" accept=".rsmodule.zip,.zip" onChange={onFileChange} />
+          </label>
+          <button className="btn btn-ghost" type="submit" disabled={busyKey !== null || !selectedFile}>
+            {busyKey === "upload" ? "Uploading..." : "Upload module"}
+          </button>
+          {selectedFile ? <small>{selectedFile.name}</small> : null}
+        </form>
+      </details>
     </section>
   );
 }
 
-function ModuleRow({
+function ModuleCard({
   item,
   busyKey,
   onEnable,
@@ -426,42 +327,134 @@ function ModuleRow({
   const moduleId = item.manifest.moduleId;
   const busy = busyKey !== null;
   return (
-    <tr>
-      <td>
-        <strong>{item.manifest.title}</strong>
-        <span>{moduleId}</span>
-        <span>v{item.manifest.version}</span>
-      </td>
-      <td>{item.manifest.systemSlug}</td>
-      <td>
-        <code>{item.manifest.parserId}</code>
-      </td>
-      <td>
-        <span>{item.source}</span>
-        {item.sourcePath ? <small>{item.sourcePath}</small> : null}
-      </td>
-      <td>
-        <span className={`cheat-status-badge cheat-status-badge--${normalizeStatusToken(item.status)}`}>{item.status}</span>
-      </td>
-      <td>{item.cheatPackIds?.length ?? item.manifest.cheatPacks?.length ?? 0}</td>
-      <td>{formatDate(item.updatedAt)}</td>
-      <td>
-        <div className="module-library-controls">
-          {item.status === "active" ? (
-            <button className="btn btn-ghost" type="button" onClick={() => onDisable(moduleId)} disabled={busy}>
-              {busyKey === `disable:${moduleId}` ? "Disabling..." : "Disable"}
-            </button>
-          ) : (
-            <button className="btn btn-ghost" type="button" onClick={() => onEnable(moduleId)} disabled={busy}>
-              {busyKey === `enable:${moduleId}` ? "Enabling..." : "Enable"}
-            </button>
-          )}
-          <button className="btn btn-ghost" type="button" onClick={() => onDelete(moduleId)} disabled={busy}>
-            {busyKey === `delete:${moduleId}` ? "Deleting..." : "Delete"}
-          </button>
+    <article className="settings-module-card">
+      <div className="settings-module-card__title">
+        <div>
+          <strong>{item.manifest.title}</strong>
+          <span>
+            {item.manifest.systemSlug} - {item.cheatPackIds?.length ?? item.manifest.cheatPacks?.length ?? 0} cheat packs
+          </span>
         </div>
-      </td>
-    </tr>
+        <span className={`cheat-status-badge cheat-status-badge--${normalizeStatusToken(item.status)}`}>{item.status}</span>
+      </div>
+      <dl className="settings-module-card__meta">
+        <div>
+          <dt>Module</dt>
+          <dd>{moduleId}</dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd>{formatDate(item.updatedAt)}</dd>
+        </div>
+      </dl>
+      <div className="module-library-controls">
+        {item.status === "active" ? (
+          <button className="btn btn-ghost" type="button" onClick={() => onDisable(moduleId)} disabled={busy}>
+            {busyKey === `disable:${moduleId}` ? "Disabling..." : "Disable"}
+          </button>
+        ) : (
+          <button className="btn btn-ghost" type="button" onClick={() => onEnable(moduleId)} disabled={busy}>
+            {busyKey === `enable:${moduleId}` ? "Enabling..." : "Enable"}
+          </button>
+        )}
+        <button className="btn btn-ghost" type="button" onClick={() => onDelete(moduleId)} disabled={busy}>
+          {busyKey === `delete:${moduleId}` ? "Deleting..." : "Delete"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function SummaryTile({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }): JSX.Element {
+  return (
+    <div className={tone ? `settings-summary-tile settings-summary-tile--${tone}` : "settings-summary-tile"}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function HelperKeysPanel({
+  appPasswords,
+  nameDraft,
+  generatedKey,
+  generateBusy,
+  copyStatus,
+  onNameChange,
+  onGenerate,
+  onCopy,
+  onHideKey,
+  onRevoke
+}: {
+  appPasswords: AppPassword[];
+  nameDraft: string;
+  generatedKey: string | null;
+  generateBusy: boolean;
+  copyStatus: string | null;
+  onNameChange: (value: string) => void;
+  onGenerate: (event: FormEvent) => void;
+  onCopy: () => void;
+  onHideKey: () => void;
+  onRevoke: (id: string) => void;
+}): JSX.Element {
+  return (
+    <details className="settings-disclosure">
+      <summary>
+        <span>Helper keys</span>
+        <small>{appPasswords.length} saved keys</small>
+      </summary>
+      <div className="settings-disclosure__body">
+        <p>
+          Use this only for fixed helper credentials. For normal onboarding, use <strong>Add helper</strong> in the
+          sidebar.
+        </p>
+        <form className="inline-actions" onSubmit={onGenerate}>
+          <input
+            value={nameDraft}
+            onChange={(event) => onNameChange(event.target.value)}
+            placeholder="Name, for example SteamDeck"
+            aria-label="App password name"
+          />
+          <button className="btn btn-primary" type="submit" disabled={generateBusy}>
+            {generateBusy ? "Generating..." : "Generate key"}
+          </button>
+        </form>
+
+        {generatedKey ? (
+          <div className="generated-key-box" role="status" aria-live="polite">
+            <p>
+              <strong>New key:</strong> <code>{generatedKey}</code>
+            </p>
+            <div className="inline-actions">
+              <button className="btn btn-ghost" type="button" onClick={onCopy}>
+                Copy
+              </button>
+              <button className="btn btn-ghost" type="button" onClick={onHideKey}>
+                Hide
+              </button>
+              {copyStatus ? <small>{copyStatus}</small> : null}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="settings-key-list">
+          {appPasswords.map((item) => (
+            <div className="settings-key-row" key={item.id}>
+              <div>
+                <strong>{item.name}</strong>
+                <span>
+                  key ends in <code>{item.lastFour}</code> - created {formatDate(item.createdAt)}
+                </span>
+              </div>
+              <button className="btn btn-ghost" type="button" onClick={() => onRevoke(item.id)}>
+                Revoke
+              </button>
+            </div>
+          ))}
+          {appPasswords.length === 0 ? <p className="empty-state">No fixed helper keys have been created.</p> : null}
+        </div>
+      </div>
+    </details>
   );
 }
 

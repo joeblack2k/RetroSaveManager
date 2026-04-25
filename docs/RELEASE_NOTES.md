@@ -1,5 +1,26 @@
 # Release Notes
 
+## v0.1.11 - 2026-04-25
+
+### Included
+
+- Settings page cleanup:
+  - removed duplicate API/auth/user/storage summary noise from the main settings view
+  - made Game Support Modules the primary settings control
+  - replaced the wide technical module table with compact module cards
+  - moved fixed helper key management into a collapsed `Helper keys` panel
+  - moved local `.rsmodule.zip` uploads into a collapsed advanced panel
+- Settings visual refresh:
+  - tighter dark layout aligned with the cleaner `My Saves` and save detail direction
+  - lower information density for non-essential technical fields
+  - clearer sync and refresh actions for runtime modules
+
+### Validation Summary
+
+- Full frontend test suite passed locally
+- Frontend production build passed locally
+- Security gate passed locally
+
 ## v0.1.10 - 2026-04-25
 
 ### Included
