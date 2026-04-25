@@ -1,4 +1,4 @@
-export function LoadingState({ label = "Laden..." }: { label?: string }): JSX.Element {
+export function LoadingState({ label = "Loading..." }: { label?: string }): JSX.Element {
   return (
     <div className="load-state" role="status" aria-live="polite">
       <span className="load-state__dot" />

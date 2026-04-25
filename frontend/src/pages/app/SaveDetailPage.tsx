@@ -15,6 +15,11 @@ type DownloadModalState = {
   profiles: SaveDownloadProfile[];
 };
 
+type DetailMetric = {
+  label: string;
+  value: string;
+};
+
 export function SaveDetailPage(): JSX.Element {
   const params = useParams<{ saveId: string }>();
   const [searchParams] = useSearchParams();
@@ -65,7 +70,7 @@ export function SaveDetailPage(): JSX.Element {
     }
     return rawDisplayTitle || "Unknown game";
   }, [logicalEntry?.title, rawDisplayTitle, showPlayStationSelector]);
-  const systemName = data?.summary?.system?.name || latest?.game.system?.name || "Unknown";
+  const systemName = data?.summary?.system?.name || latest?.game.system?.name || "Unknown console";
   const regionCode = normalizeRegionCode((data?.summary?.regionCode || latest?.regionCode || latest?.game.regionCode || logicalEntry?.regionCode || "UNKNOWN").toString());
   const languageCodes = mergeLanguageCodes(data?.summary?.languageCodes, latest?.languageCodes, latest?.game.languageCodes, fallbackSummary.languageCodes);
   const saveCount = showPlayStationSelector ? playStationEntries.length : data?.summary?.saveCount || fallbackSummary.saveCount;
@@ -74,7 +79,26 @@ export function SaveDetailPage(): JSX.Element {
     : data?.summary?.totalSizeBytes || fallbackSummary.totalSizeBytes;
   const latestVersion = showPlayStationSelector ? 0 : data?.summary?.latestVersion || fallbackSummary.latestVersion;
   const latestCreatedAt = data?.summary?.latestCreatedAt || fallbackSummary.latestCreatedAt;
+  const currentSizeBytes = logicalEntry?.sizeBytes || latest?.fileSize || 0;
   const saveInsight = useMemo(() => buildSaveInsight(latest), [latest]);
+  const hasCheats = Boolean(latest?.cheats?.supported && (latest.cheats.availableCount || 0) > 0);
+  const parserBadge = saveInsight?.parserLevel || (latest?.inspection ? "Verified" : "Protected");
+  const currentDownloadRequest = latest
+    ? {
+        saveId: effectiveLogicalKey ? saveId : latest.id,
+        psLogicalKey: effectiveLogicalKey || undefined,
+        revisionId: effectiveLogicalKey ? latest.id : undefined
+      }
+    : null;
+
+  const heroMetrics: DetailMetric[] = [
+    { label: "Console", value: systemName },
+    { label: "Region", value: showPlayStationSelector ? "Multiple" : `${regionToFlagEmoji(regionCode)} ${regionCode}` },
+    { label: showPlayStationSelector ? "Available saves" : "Versions", value: String(saveCount) },
+    { label: "Current size", value: formatBytes(currentSizeBytes || totalSizeBytes) },
+    { label: "Updated", value: formatDate(latestCreatedAt) },
+    { label: "Decoder", value: parserBadge }
+  ];
 
   async function handleRollback(target: SaveSummary): Promise<void> {
     const confirmed = window.confirm(`Rollback to version ${target.version} of ${displayTitle}?\n\nA new latest version will be created as the promoted sync copy.`);
@@ -91,7 +115,7 @@ export function SaveDetailPage(): JSX.Element {
           ? { saveId, psLogicalKey: effectiveLogicalKey, revisionId: target.id }
           : { saveId: target.id }
       );
-      setRollbackMessage(`Rollback complete. New version: v${response.save.version}`);
+      setRollbackMessage(`Rollback complete. New current version: v${response.save.version}`);
       await reload();
     } catch (err: unknown) {
       setRollbackError(err instanceof Error ? err.message : "Rollback failed.");
@@ -110,178 +134,68 @@ export function SaveDetailPage(): JSX.Element {
   }
 
   return (
-    <SectionCard title="Save details & history" subtitle="Inspect metadata, version history, downloads, and rollback options for this save.">
+    <SectionCard title="Save Details" subtitle="A clean readout of the current sync save, parser-backed gameplay facts, and version history.">
       {loading ? <LoadingState label="Loading save history..." /> : null}
       {error ? <ErrorState message={error} /> : null}
       {!loading && !error && versions.length === 0 ? <ErrorState message="No versions found for this save." /> : null}
 
-      {rollbackError ? <p className="error-state">{rollbackError}</p> : null}
-      {rollbackMessage ? <p className="success-state">{rollbackMessage}</p> : null}
-
       {!loading && !error && versions.length > 0 ? (
-        <div className="stack">
-          <div className="stack compact">
-            <p><strong>Game:</strong> {displayTitle}</p>
-            <p><strong>Console:</strong> {systemName}</p>
-            {!showPlayStationSelector ? <p><strong>Region:</strong> {regionToFlagEmoji(regionCode)} {regionCode}</p> : null}
-            {!showPlayStationSelector ? <p><strong>Languages:</strong> {languageCodes.length > 0 ? languageCodes.join(", ") : "-"}</p> : null}
-            <p><strong>{showPlayStationSelector ? "Available saves" : "Total saves"}:</strong> {saveCount}</p>
-            <p><strong>Total size:</strong> {formatBytes(totalSizeBytes)}</p>
-            {!showPlayStationSelector ? <p><strong>Latest version:</strong> v{latestVersion}</p> : null}
-            <p><strong>Latest date:</strong> {formatDate(latestCreatedAt)}</p>
-          </div>
+        <div className="save-detail-shell">
+          <header className="save-detail-hero">
+            <div className="save-detail-hero__main">
+              <Link className="save-detail-back" to="/app/my-games">&lt; My Saves</Link>
+              <p className="save-detail-eyebrow">{systemName} / current sync save</p>
+              <h2>{displayTitle}</h2>
+              <p className="save-detail-subtitle">
+                {showPlayStationSelector
+                  ? "This memory-card upload contains multiple game saves. Select one to inspect its own history."
+                  : `Version ${latestVersion} is leading for sync. Last updated ${formatDate(latestCreatedAt)}.`}
+              </p>
+              <div className="save-detail-metrics" aria-label="Save summary">
+                {heroMetrics.map((metric) => (
+                  <div className="save-detail-metric" key={metric.label}>
+                    <span>{metric.label}</span>
+                    <strong>{metric.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="save-detail-actions">
+              {hasCheats ? <span className="save-detail-tag save-detail-tag--cheats">Cheats available</span> : null}
+              {saveInsight?.parserLevel ? <span className="save-detail-tag">{saveInsight.parserLevel} verified</span> : null}
+              {currentDownloadRequest ? (
+                <button
+                  className="save-detail-primary-btn"
+                  type="button"
+                  onClick={() => openDownloadModal(displayTitle, currentDownloadRequest, latest?.downloadProfiles)}
+                >
+                  Download current
+                </button>
+              ) : null}
+            </div>
+          </header>
 
-          {!showPlayStationSelector && saveInsight ? <SaveInsightsPanel insight={saveInsight} /> : null}
+          {rollbackError ? <p className="error-state">{rollbackError}</p> : null}
+          {rollbackMessage ? <p className="success-state">{rollbackMessage}</p> : null}
 
           {showPlayStationSelector ? (
-            <div className="stack compact">
-              <p>This PlayStation upload contains individual game saves. Open the game you want to inspect instead of the projection container.</p>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Preview</th>
-                    <th>Save</th>
-                    <th>Region</th>
-                    <th>Size</th>
-                    <th>Details</th>
-                    <th>Download</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {playStationEntries.map((entry, index) => {
-                    const entryLogicalKey = (entry.logicalKey || "").trim();
-                    const canOpen = entryLogicalKey !== "";
-                    return (
-                      <tr key={`${entryLogicalKey || entry.productCode || entry.directoryName || entry.title}-${index}`}>
-                        <td>
-                          {entry.iconDataUrl ? (
-                            <img
-                              className="memory-card-entry-preview"
-                              src={entry.iconDataUrl}
-                              alt={`${entry.title} icon`}
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="memory-card-entry-preview memory-card-entry-preview--empty" aria-hidden="true" />
-                          )}
-                        </td>
-                        <td>
-                          <div className="memory-card-entry-title-cell">
-                            <strong>{entry.title}</strong>
-                            {entry.productCode ? <span>{entry.productCode}</span> : entry.directoryName ? <span>{entry.directoryName}</span> : null}
-                          </div>
-                        </td>
-                        <td>{regionToFlagEmoji((entry.regionCode || "UNKNOWN").toString())} {normalizeRegionCode((entry.regionCode || "UNKNOWN").toString())}</td>
-                        <td>{formatBytes(entry.totalSizeBytes || entry.sizeBytes || 0)}</td>
-                        <td>
-                          {canOpen ? (
-                            <Link className="saves-action-link" to={buildSaveDetailsHref({ primarySaveID: saveId, psLogicalKey: entryLogicalKey })}>
-                              Details
-                            </Link>
-                          ) : (
-                            <span>-</span>
-                          )}
-                        </td>
-                        <td>
-                          {canOpen ? (
-                            <button
-                              className="saves-action-btn"
-                              type="button"
-                              onClick={() =>
-                                openDownloadModal(entry.title, { saveId, psLogicalKey: entryLogicalKey }, latest?.downloadProfiles)
-                              }
-                            >
-                              Download
-                            </button>
-                          ) : (
-                            <span>-</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : logicalEntry ? (
-            <div className="stack compact">
-              {logicalEntry.iconDataUrl ? (
-                <img
-                  className="memory-card-entry-preview"
-                  src={logicalEntry.iconDataUrl}
-                  alt={`${logicalEntry.title} icon`}
-                  loading="lazy"
-                />
-              ) : null}
-              {logicalEntry.productCode ? <p><strong>Product code:</strong> {logicalEntry.productCode}</p> : null}
-              {logicalEntry.directoryName ? <p><strong>Directory:</strong> {logicalEntry.directoryName}</p> : null}
-              {logicalEntry.slot > 0 ? <p><strong>Slot:</strong> {logicalEntry.slot}</p> : null}
-              {logicalEntry.blocks > 0 ? <p><strong>Blocks:</strong> {logicalEntry.blocks}</p> : null}
-              <p><strong>Current save size:</strong> {logicalEntry.sizeBytes ? formatBytes(logicalEntry.sizeBytes) : formatBytes(latest?.fileSize || 0)}</p>
-            </div>
-          ) : null}
-
-          {!showPlayStationSelector ? (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Version</th>
-                  <th>Date</th>
-                  <th>File</th>
-                  <th>Size</th>
-                  <th>SHA256</th>
-                  <th>Region</th>
-                  <th>Languages</th>
-                  <th>Download</th>
-                  <th>Rollback</th>
-                </tr>
-              </thead>
-              <tbody>
-                {versions.map((version, index) => {
-                  const isLatest = index === 0;
-                  const versionRegion = normalizeRegionCode((version.regionCode || version.game.regionCode || "UNKNOWN").toString());
-                  const versionLanguages = mergeLanguageCodes(version.languageCodes, version.game.languageCodes);
-                  const isBusy = rollbackingId === version.id;
-                  return (
-                    <tr key={version.id}>
-                      <td>v{version.version}</td>
-                      <td>{formatDate(version.createdAt)}</td>
-                      <td>{version.filename}</td>
-                      <td>{formatBytes(version.fileSize)}</td>
-                      <td><code>{version.sha256}</code></td>
-                      <td>{regionToFlagEmoji(versionRegion)} {versionRegion}</td>
-                      <td>{versionLanguages.length > 0 ? versionLanguages.join(", ") : "-"}</td>
-                      <td>
-                        <button
-                          className="saves-action-btn"
-                          type="button"
-                          onClick={() =>
-                            openDownloadModal(displayTitle, {
-                              saveId: effectiveLogicalKey ? saveId : version.id,
-                              psLogicalKey: effectiveLogicalKey || undefined,
-                              revisionId: effectiveLogicalKey ? version.id : undefined
-                            }, version.downloadProfiles)
-                          }
-                        >
-                          Download
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          className="saves-action-btn"
-                          type="button"
-                          disabled={isLatest || isBusy}
-                          onClick={() => void handleRollback(version)}
-                        >
-                          {isLatest ? "Current" : isBusy ? "..." : "Rollback"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : null}
+            <PlayStationSavePicker entries={playStationEntries} saveId={saveId} latest={latest} openDownloadModal={openDownloadModal} />
+          ) : (
+            <>
+              <DecodedSavePanel insight={saveInsight} systemName={systemName} />
+              {logicalEntry ? <LogicalSavePanel entry={logicalEntry} latest={latest} /> : null}
+              <TechnicalDetailsPanel latest={latest} insight={saveInsight} languageCodes={languageCodes} />
+              <VersionHistoryTable
+                versions={versions}
+                displayTitle={displayTitle}
+                effectiveLogicalKey={effectiveLogicalKey}
+                saveId={saveId}
+                rollbackingId={rollbackingId}
+                handleRollback={handleRollback}
+                openDownloadModal={openDownloadModal}
+              />
+            </>
+          )}
         </div>
       ) : null}
 
@@ -340,72 +254,273 @@ export function SaveDetailPage(): JSX.Element {
   );
 }
 
-function SaveInsightsPanel({ insight }: { insight: SaveInsightModel }): JSX.Element {
-  const gameplayRows = insight.rows.filter((row) => row.kind === "gameplay");
-  const technicalRows = insight.rows.filter((row) => row.kind !== "gameplay");
-  return (
-    <section className="save-insights" aria-labelledby="save-insights-title">
-      <header className="save-insights__header">
+function DecodedSavePanel({ insight, systemName }: { insight: SaveInsightModel | null; systemName: string }): JSX.Element {
+  const gameplayRows = insight?.rows.filter((row) => row.kind === "gameplay") ?? [];
+  if (gameplayRows.length === 0) {
+    return (
+      <section className="save-detail-panel save-detail-decoder-empty" aria-labelledby="save-detail-decoder-title">
         <div>
-          <p className="save-insights__eyebrow">Parser-backed readout</p>
-          <h2 id="save-insights-title">{insight.title}</h2>
-          <p>{insight.subtitle}</p>
+          <p className="save-detail-eyebrow">Gameplay decoder</p>
+          <h3 id="save-detail-decoder-title">No gameplay facts yet</h3>
+          <p>
+            This save is still protected and versioned. Add a parser-backed Game Support Module for {systemName} to show lives, world, stage, inventory, and other fun details here automatically.
+          </p>
         </div>
-        <div className="save-insights__badge">
-          <span>{insight.parserLevel}</span>
-          <strong>{insight.parserId}</strong>
-        </div>
-      </header>
+        <span className="save-detail-tag">Waiting for parser</span>
+      </section>
+    );
+  }
 
-      {gameplayRows.length > 0 ? (
-        <div className="save-insights__section">
-          <h3>Gameplay facts</h3>
-          <div className="save-insights__grid">
-            {gameplayRows.map((row) => (
-              <div className="save-insights__tile save-insights__tile--gameplay" key={row.label}>
-                <span>{row.label}</span>
-                <strong>{row.value}</strong>
-              </div>
-            ))}
+  return (
+    <section className="save-detail-panel" aria-labelledby="save-detail-decoder-title">
+      <div className="save-detail-panel__header">
+        <div>
+          <p className="save-detail-eyebrow">Decoded gameplay</p>
+          <h3 id="save-detail-decoder-title">{insight?.title || "Gameplay facts"}</h3>
+          <p>{insight?.subtitle || "Parser-backed facts from the current save."}</p>
+        </div>
+        <span className="save-detail-tag save-detail-tag--good">{insight?.parserId || "parser active"}</span>
+      </div>
+      <div className="save-detail-gameplay-grid">
+        {gameplayRows.map((row) => (
+          <div className="save-detail-gameplay-card" key={row.label}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
           </div>
+        ))}
+      </div>
+      {insight?.warnings.length ? (
+        <div className="save-detail-note-line">
+          {insight.warnings.slice(0, 2).map((warning) => (
+            <span key={warning}>{warning}</span>
+          ))}
         </div>
       ) : null}
+    </section>
+  );
+}
 
-      {technicalRows.length > 0 ? (
-        <div className="save-insights__section">
-          <h3>Verified metadata</h3>
-          <div className="save-insights__grid">
-            {technicalRows.map((row) => (
-              <div className="save-insights__tile" key={row.label}>
-                <span>{row.label}</span>
-                <strong>{row.value}</strong>
-              </div>
-            ))}
+function TechnicalDetailsPanel({ latest, insight, languageCodes }: { latest: SaveSummary | null; insight: SaveInsightModel | null; languageCodes: string[] }): JSX.Element | null {
+  if (!latest && !insight) {
+    return null;
+  }
+  const technicalRows = insight?.rows.filter((row) => row.kind !== "gameplay") ?? [];
+  const rows: DetailMetric[] = [
+    { label: "Filename", value: latest?.filename || "-" },
+    { label: "Format", value: latest?.format || "-" },
+    { label: "SHA256", value: latest?.sha256 || "-" },
+    { label: "Languages", value: languageCodes.length > 0 ? languageCodes.join(", ") : "-" },
+    { label: "Source profile", value: latest?.sourceArtifactProfile || "-" },
+    { label: "Runtime profile", value: latest?.runtimeProfile || "-" }
+  ];
+  for (const row of technicalRows) {
+    rows.push({ label: row.label, value: row.value });
+  }
+
+  return (
+    <details className="save-detail-technical">
+      <summary>Verified technical data</summary>
+      <div className="save-detail-technical-grid">
+        {rows.filter((row) => row.value && row.value !== "-").map((row) => (
+          <div className="save-detail-tech-row" key={`${row.label}:${row.value}`}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
           </div>
-        </div>
-      ) : null}
-
-      {insight.warnings.length > 0 ? (
-        <div className="save-insights__notes">
-          <strong>Notes</strong>
-          <ul>
-            {insight.warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {insight.evidence.length > 0 ? (
-        <details className="save-insights__evidence">
-          <summary>Parser evidence</summary>
+        ))}
+      </div>
+      {insight?.evidence.length ? (
+        <div className="save-detail-evidence">
+          <span>Parser evidence</span>
           <ul>
             {insight.evidence.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
-        </details>
+        </div>
       ) : null}
+    </details>
+  );
+}
+
+function LogicalSavePanel({ entry, latest }: { entry: MemoryCardEntry; latest: SaveSummary | null }): JSX.Element {
+  return (
+    <section className="save-detail-panel save-detail-logical" aria-label="Logical save">
+      {entry.iconDataUrl ? <img className="memory-card-entry-preview" src={entry.iconDataUrl} alt={`${entry.title} icon`} loading="lazy" /> : null}
+      <div>
+        <p className="save-detail-eyebrow">Logical save</p>
+        <h3>{entry.title}</h3>
+        <p>
+          {entry.productCode ? `${entry.productCode} / ` : ""}
+          {entry.directoryName || "PlayStation entry"}
+        </p>
+      </div>
+      <div className="save-detail-logical__stats">
+        {entry.slot > 0 ? <span>Slot {entry.slot}</span> : null}
+        {entry.blocks > 0 ? <span>{entry.blocks} blocks</span> : null}
+        <span>{formatBytes(entry.sizeBytes || latest?.fileSize || 0)}</span>
+      </div>
+    </section>
+  );
+}
+
+function PlayStationSavePicker({
+  entries,
+  saveId,
+  latest,
+  openDownloadModal
+}: {
+  entries: MemoryCardEntry[];
+  saveId: string;
+  latest: SaveSummary | null;
+  openDownloadModal: (title: string, request: { saveId: string; psLogicalKey?: string; revisionId?: string }, profiles: SaveDownloadProfile[] | undefined) => void;
+}): JSX.Element {
+  return (
+    <section className="save-detail-panel" aria-labelledby="save-detail-picker-title">
+      <div className="save-detail-panel__header">
+        <div>
+          <p className="save-detail-eyebrow">Memory card entries</p>
+          <h3 id="save-detail-picker-title">Select a save</h3>
+          <p>Each entry has its own details, version history, and download options.</p>
+        </div>
+      </div>
+      <div className="save-detail-table-wrap">
+        <table className="save-detail-table">
+          <thead>
+            <tr>
+              <th>Save</th>
+              <th>Region</th>
+              <th>Size</th>
+              <th>Details</th>
+              <th>Download</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry, index) => {
+              const entryLogicalKey = (entry.logicalKey || "").trim();
+              const canOpen = entryLogicalKey !== "";
+              return (
+                <tr key={`${entryLogicalKey || entry.productCode || entry.directoryName || entry.title}-${index}`}>
+                  <td>
+                    <div className="save-detail-entry-cell">
+                      {entry.iconDataUrl ? (
+                        <img className="memory-card-entry-preview" src={entry.iconDataUrl} alt={`${entry.title} icon`} loading="lazy" />
+                      ) : (
+                        <div className="memory-card-entry-preview memory-card-entry-preview--empty" aria-hidden="true" />
+                      )}
+                      <div>
+                        <strong>{entry.title}</strong>
+                        <span>{entry.productCode || entry.directoryName || "Memory card save"}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{regionToFlagEmoji((entry.regionCode || "UNKNOWN").toString())} {normalizeRegionCode((entry.regionCode || "UNKNOWN").toString())}</td>
+                  <td>{formatBytes(entry.totalSizeBytes || entry.sizeBytes || 0)}</td>
+                  <td>
+                    {canOpen ? (
+                      <Link className="saves-action-link" to={buildSaveDetailsHref({ primarySaveID: saveId, psLogicalKey: entryLogicalKey })}>
+                        Details
+                      </Link>
+                    ) : (
+                      <span>-</span>
+                    )}
+                  </td>
+                  <td>
+                    {canOpen ? (
+                      <button
+                        className="saves-action-btn"
+                        type="button"
+                        onClick={() => openDownloadModal(entry.title, { saveId, psLogicalKey: entryLogicalKey }, latest?.downloadProfiles)}
+                      >
+                        Download
+                      </button>
+                    ) : (
+                      <span>-</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function VersionHistoryTable({
+  versions,
+  displayTitle,
+  effectiveLogicalKey,
+  saveId,
+  rollbackingId,
+  handleRollback,
+  openDownloadModal
+}: {
+  versions: SaveSummary[];
+  displayTitle: string;
+  effectiveLogicalKey: string;
+  saveId: string;
+  rollbackingId: string | null;
+  handleRollback: (target: SaveSummary) => Promise<void>;
+  openDownloadModal: (title: string, request: { saveId: string; psLogicalKey?: string; revisionId?: string }, profiles: SaveDownloadProfile[] | undefined) => void;
+}): JSX.Element {
+  return (
+    <section className="save-detail-panel" aria-labelledby="save-detail-history-title">
+      <div className="save-detail-panel__header">
+        <div>
+          <p className="save-detail-eyebrow">History</p>
+          <h3 id="save-detail-history-title">Sync versions</h3>
+          <p>Only meaningful controls are shown here. Full hashes and file internals live under technical data.</p>
+        </div>
+      </div>
+      <div className="save-detail-table-wrap">
+        <table className="save-detail-table">
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Date</th>
+              <th>Size</th>
+              <th>Status</th>
+              <th>Download</th>
+              <th>Rollback</th>
+            </tr>
+          </thead>
+          <tbody>
+            {versions.map((version, index) => {
+              const isLatest = index === 0;
+              const isBusy = rollbackingId === version.id;
+              return (
+                <tr key={version.id}>
+                  <td>v{version.version}</td>
+                  <td>{formatDate(version.createdAt)}</td>
+                  <td>{formatBytes(version.fileSize)}</td>
+                  <td>{isLatest ? <span className="save-detail-status">Current sync</span> : <span className="save-detail-status save-detail-status--old">History</span>}</td>
+                  <td>
+                    <button
+                      className="saves-action-btn"
+                      type="button"
+                      onClick={() =>
+                        openDownloadModal(displayTitle, {
+                          saveId: effectiveLogicalKey ? saveId : version.id,
+                          psLogicalKey: effectiveLogicalKey || undefined,
+                          revisionId: effectiveLogicalKey ? version.id : undefined
+                        }, version.downloadProfiles)
+                      }
+                    >
+                      Download
+                    </button>
+                  </td>
+                  <td>
+                    <button className="saves-action-btn" type="button" disabled={isLatest || isBusy} onClick={() => void handleRollback(version)}>
+                      {isLatest ? "Current" : isBusy ? "..." : "Rollback"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

@@ -15,15 +15,15 @@ export function DeviceVerifyPage(): JSX.Element {
     setError(null);
     try {
       const response = await verifyDevice(code);
-      const expires = response.expiresAt ? ` (expires ${new Date(response.expiresAt).toLocaleString("nl-NL")})` : "";
-      setMessage(`Device code geverifieerd${expires}`);
+      const expires = response.expiresAt ? ` (expires ${new Date(response.expiresAt).toLocaleString("en-US")})` : "";
+      setMessage(`Device code verified${expires}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Verificatie mislukt");
+      setError(err instanceof Error ? err.message : "Verification failed");
     }
   }
 
   return (
-    <SectionCard title="Device verification" subtitle="Gebruik deze pagina voor helper device-code flows.">
+    <SectionCard title="Device verification" subtitle="Use this page for helper device-code flows.">
       <form className="stack" onSubmit={onSubmit}>
         <label className="field">
           <span>Code</span>

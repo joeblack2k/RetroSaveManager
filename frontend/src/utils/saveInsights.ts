@@ -24,12 +24,14 @@ type GameplayField = {
 
 const gameplayFields: GameplayField[] = [
   { label: "Save slot", keys: ["currentSlot", "slot", "selectedSlot"] },
+  { label: "Save file", keys: ["file", "saveFile", "currentFile"] },
   { label: "Character", keys: ["character", "player", "playerCharacter", "selectedCharacter"] },
+  { label: "Rider", keys: ["rider", "currentRider", "selectedRider"] },
   { label: "Lives", keys: ["lives", "lifeCount", "currentLives", "playerLives"] },
   { label: "Lives", keys: ["livesNote", "lifeNote", "livesUnavailableReason"] },
   { label: "Continues", keys: ["continues", "continueCount"] },
   { label: "Current map", keys: ["map", "currentMap", "mapName", "location", "currentLocation"] },
-  { label: "World", keys: ["world", "currentWorld"] },
+  { label: "World", keys: ["world", "currentWorld", "worldName", "currentWorldName"] },
   { label: "Level", keys: ["level", "currentLevel", "stage", "currentStage"] },
   { label: "Zone", keys: ["zone", "currentZone"] },
   { label: "Act", keys: ["act", "currentAct"] },
@@ -39,8 +41,51 @@ const gameplayFields: GameplayField[] = [
   { label: "Stars", keys: ["stars", "starCount", "collectedStars"] },
   { label: "Coins", keys: ["coins", "coinCount"] },
   { label: "Hearts", keys: ["hearts", "heartContainers"] },
-  { label: "Keys", keys: ["keys", "keyCount"] }
+  { label: "Keys", keys: ["keys", "keyCount"] },
+  { label: "Score", keys: ["score", "currentScore", "highScore"] },
+  { label: "Music", keys: ["musicEnabled", "musicOn"] },
+  { label: "Laps", keys: ["lapCount", "normalLapCount", "currentLap"] },
+  { label: "Wave mode", keys: ["waveMode", "normalWaveMode"] },
+  { label: "Buoy misses", keys: ["buoyMissLimit", "normalBuoyMissLimit"] }
 ];
+
+const technicalSemanticKeys = new Set([
+  "blankCheck",
+  "container",
+  "copy1MagicValid",
+  "copy1NonZeroData",
+  "copy2MagicValid",
+  "copy2NonZeroData",
+  "dataBytesPerCopy",
+  "editableFields",
+  "embeddedFileName",
+  "entryCount",
+  "extension",
+  "format",
+  "identicalCopies",
+  "mediaType",
+  "nonFFBytes",
+  "nonZeroBytes",
+  "rawSaveKind",
+  "romLinked",
+  "romSha1Present",
+  "semanticDecoderState",
+  "signatureCount",
+  "signatures",
+  "sourcePath",
+  "storedChecksumCopy1",
+  "storedChecksumCopy2",
+  "titleCode",
+  "validBackupSlots",
+  "validCopies",
+  "validPrimarySlots",
+  "variant",
+  "verificationLevels"
+]);
+
+const technicalKeyPattern = /(checksum|crc|magic|offset|bytes|length|payload|source|sha|hash|copy|valid|verified|signature|container|extension|format|media|rom|parser|raw|nonzero|nonff)/i;
+const knownGameplayKeys = new Set(gameplayFields.flatMap((field) => field.keys));
+const maxGameplayRows = 18;
 
 export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSize"> | null | undefined): SaveInsightModel | null {
   const inspection = save?.inspection;
@@ -63,6 +108,16 @@ export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSiz
   for (const field of gameplayFields) {
     const value = firstFieldValue(fields, field.keys);
     addRow(field.label, value, "gameplay");
+  }
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (rows.filter((row) => row.kind === "gameplay").length >= maxGameplayRows) {
+      break;
+    }
+    if (!isAutoGameplayField(key, value)) {
+      continue;
+    }
+    addRow(humanizeFieldName(key), value, "gameplay");
   }
 
   addRow("Validated game", inspection.validatedGameTitle);
@@ -181,6 +236,32 @@ function formatInsightValue(value: unknown): string {
     return formatted.join(", ");
   }
   return JSON.stringify(value);
+}
+
+function isAutoGameplayField(key: string, value: unknown): boolean {
+  if (knownGameplayKeys.has(key) || technicalSemanticKeys.has(key) || technicalKeyPattern.test(key)) {
+    return false;
+  }
+  const formatted = formatInsightValue(value);
+  if (!formatted || formatted.length > 120) {
+    return false;
+  }
+  if (Array.isArray(value) && value.length > 8) {
+    return false;
+  }
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return false;
+  }
+  return true;
+}
+
+function humanizeFieldName(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/^./, (char) => char.toUpperCase());
 }
 
 function humanizeParserLevel(value: string | undefined): string {

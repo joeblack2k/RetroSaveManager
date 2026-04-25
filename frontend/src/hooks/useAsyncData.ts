@@ -30,7 +30,7 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: DependencyList =
         if (!active) {
           return;
         }
-        const message = err instanceof Error ? err.message : "Onbekende fout";
+        const message = err instanceof Error ? err.message : "Unknown error";
         setState({ loading: false, data: null, error: message });
       });
 

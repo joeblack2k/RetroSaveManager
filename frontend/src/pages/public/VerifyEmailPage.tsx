@@ -17,14 +17,14 @@ export function VerifyEmailPage(): JSX.Element {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token })
       });
-      setMessage(response.message || "E-mail geverifieerd");
+      setMessage(response.message || "E-mail verified");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Verificatie mislukt");
+      setError(err instanceof Error ? err.message : "Verification failed");
     }
   }
 
   return (
-    <SectionCard title="Verify email" subtitle="Stub-compatible endpoint voor web parity.">
+    <SectionCard title="Verify email" subtitle="Stub-compatible endpoint for web parity.">
       <form className="stack" onSubmit={onSubmit}>
         <label className="field">
           <span>Verification token</span>
