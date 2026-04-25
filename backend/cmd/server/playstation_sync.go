@@ -205,6 +205,10 @@ type psImportConflict struct {
 	CloudSHA256     string
 }
 
+type psProjectionRebuildOptions struct {
+	Force bool
+}
+
 type psExtractedEntry struct {
 	LogicalKey        string
 	SystemSlug        string
@@ -368,6 +372,17 @@ func supportedProjectionProfiles(systemSlug string) []string {
 		return []string{"ps2/pcsx2"}
 	default:
 		return nil
+	}
+}
+
+func playStationSystemSlugFromRuntimeProfile(runtimeProfile string) string {
+	switch {
+	case strings.HasPrefix(strings.ToLower(strings.TrimSpace(runtimeProfile)), "psx/"):
+		return "psx"
+	case strings.HasPrefix(strings.ToLower(strings.TrimSpace(runtimeProfile)), "ps2/"):
+		return "ps2"
+	default:
+		return ""
 	}
 }
 
@@ -953,6 +968,10 @@ func hashPS2LogicalEntry(entry psExtractedEntry) string {
 }
 
 func (s *playStationStore) rebuildProjectionLinesLocked(systemSlug, cardSlot, originProfile, sourceImportID, fallbackCardName string) ([]psBuiltProjection, error) {
+	return s.rebuildProjectionLinesLockedWithOptions(systemSlug, cardSlot, originProfile, sourceImportID, fallbackCardName, psProjectionRebuildOptions{})
+}
+
+func (s *playStationStore) rebuildProjectionLinesLockedWithOptions(systemSlug, cardSlot, originProfile, sourceImportID, fallbackCardName string, options psProjectionRebuildOptions) ([]psBuiltProjection, error) {
 	profiles := supportedProjectionProfiles(systemSlug)
 	built := make([]psBuiltProjection, 0, len(profiles))
 	for _, profile := range profiles {
@@ -974,7 +993,7 @@ func (s *playStationStore) rebuildProjectionLinesLocked(systemSlug, cardSlot, or
 		}
 		sha := sha256.Sum256(payload)
 		shaHex := hex.EncodeToString(sha[:])
-		if !strings.HasPrefix(strings.TrimSpace(sourceImportID), "rollback:") && strings.TrimSpace(line.LatestProjectionID) != "" {
+		if !options.Force && !strings.HasPrefix(strings.TrimSpace(sourceImportID), "rollback:") && strings.TrimSpace(line.LatestProjectionID) != "" {
 			if latest, ok := s.state.Projections[strings.TrimSpace(line.LatestProjectionID)]; ok && strings.TrimSpace(latest.SHA256) == shaHex {
 				s.state.ProjectionLines[lineKey] = line
 				continue
@@ -1037,6 +1056,45 @@ func (s *playStationStore) rebuildProjectionLinesLocked(systemSlug, cardSlot, or
 		_ = fallbackCardName
 	}
 	return built, nil
+}
+
+func (s *playStationStore) forceRebuildProjectionLine(runtimeProfile, cardSlot, reason string) ([]psBuiltProjection, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	lineKey := projectionLineKey(runtimeProfile, cardSlot)
+	line, ok := s.state.ProjectionLines[lineKey]
+	if !ok {
+		return nil, nil
+	}
+	systemSlug := supportedSystemSlugFromLabel(line.SystemSlug)
+	if systemSlug == "" {
+		systemSlug = playStationSystemSlugFromRuntimeProfile(runtimeProfile)
+	}
+	if systemSlug == "" {
+		return nil, fmt.Errorf("playstation projection line %s has no system", lineKey)
+	}
+	source := strings.TrimSpace(reason)
+	if source == "" {
+		source = "repair:projection-line"
+	}
+	built, err := s.rebuildProjectionLinesLockedWithOptions(systemSlug, line.CardSlot, runtimeProfile, source, line.CardSlot, psProjectionRebuildOptions{Force: true})
+	if err != nil {
+		return nil, err
+	}
+	if len(built) > 0 {
+		if err := s.persistLocked(); err != nil {
+			return nil, err
+		}
+	}
+	return built, nil
+}
+
+func (s *playStationStore) hasProjectionLine(runtimeProfile, cardSlot string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.state.ProjectionLines[projectionLineKey(runtimeProfile, cardSlot)]
+	return ok
 }
 
 func (s *playStationStore) projectionFilenameForLineLocked(runtimeProfile, systemSlug, cardSlot, originProfile string) string {

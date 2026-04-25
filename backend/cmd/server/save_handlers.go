@@ -106,19 +106,21 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "slotName must be an explicit Memory Card 1/2 for PlayStation helper latest checks", StatusCode: http.StatusBadRequest})
 				return
 			}
-			if store := a.playStationSyncStore(); store != nil {
-				if saveID, _, exists := store.latestProjectionSaveRecord(runtimeProfile, cardSlot); exists {
-					latest, found := a.findSaveRecordByID(saveID)
-					if found && saveRecordPayloadExists(latest) {
-						writeJSON(w, http.StatusOK, map[string]any{
-							"success": true,
-							"exists":  true,
-							"sha256":  latest.Summary.SHA256,
-							"version": latest.Summary.Version,
-							"id":      latest.Summary.ID,
-						})
-						return
-					}
+			if a.playStationSyncStore() != nil {
+				latest, found, err := a.latestPlayStationProjectionRecord(runtimeProfile, cardSlot, saveCreateInput{CreatedAt: time.Now().UTC()})
+				if err != nil {
+					writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+					return
+				}
+				if found {
+					writeJSON(w, http.StatusOK, map[string]any{
+						"success": true,
+						"exists":  true,
+						"sha256":  latest.Summary.SHA256,
+						"version": latest.Summary.Version,
+						"id":      latest.Summary.ID,
+					})
+					return
 				}
 			}
 		} else if runtimeProfile != "" && strings.HasPrefix(runtimeProfile, "n64/") {
@@ -1689,6 +1691,50 @@ func (a *app) playStationSyncStore() *playStationStore {
 	return a.playStationStore
 }
 
+func (a *app) latestPlayStationProjectionRecord(runtimeProfile, cardSlot string, template saveCreateInput) (saveRecord, bool, error) {
+	store := a.playStationSyncStore()
+	if store == nil {
+		return saveRecord{}, false, fmt.Errorf("playstation store is not initialized")
+	}
+	if saveID, _, ok := store.latestProjectionSaveRecord(runtimeProfile, cardSlot); ok {
+		if record, found := a.findSaveRecordByID(saveID); found && saveRecordPayloadExists(record) {
+			return record, true, nil
+		}
+		return a.repairPlayStationProjectionRecord(runtimeProfile, cardSlot, template)
+	}
+	if !store.hasProjectionLine(runtimeProfile, cardSlot) {
+		return saveRecord{}, false, nil
+	}
+	return a.repairPlayStationProjectionRecord(runtimeProfile, cardSlot, template)
+}
+
+func (a *app) repairPlayStationProjectionRecord(runtimeProfile, cardSlot string, template saveCreateInput) (saveRecord, bool, error) {
+	store := a.playStationSyncStore()
+	if store == nil {
+		return saveRecord{}, false, fmt.Errorf("playstation store is not initialized")
+	}
+	built, err := store.forceRebuildProjectionLine(runtimeProfile, cardSlot, "repair:stale-save-record-pointer")
+	if err != nil {
+		return saveRecord{}, false, err
+	}
+	if len(built) == 0 {
+		return saveRecord{}, false, nil
+	}
+	recordsByLine, err := a.materializePlayStationProjections(template, built)
+	if err != nil {
+		return saveRecord{}, false, err
+	}
+	if record, ok := recordsByLine[projectionLineKey(runtimeProfile, cardSlot)]; ok {
+		return record, true, nil
+	}
+	if saveID, _, ok := store.latestProjectionSaveRecord(runtimeProfile, cardSlot); ok {
+		if record, found := a.findSaveRecordByID(saveID); found && saveRecordPayloadExists(record) {
+			return record, true, nil
+		}
+	}
+	return saveRecord{}, false, fmt.Errorf("playstation projection repair did not materialize %s %s", runtimeProfile, cardSlot)
+}
+
 func (a *app) createPlayStationProjectionSaveDetailed(input saveCreateInput, preview normalizedSaveInputResult, deviceType, requestedProfile, fingerprint string) (playStationProjectionSaveResult, error) {
 	store := a.playStationSyncStore()
 	if store == nil {
@@ -1740,13 +1786,19 @@ func (a *app) createPlayStationProjectionSaveDetailed(input saveCreateInput, pre
 	if primary, ok := recordsByLine[result.PrimaryProjectionLineKey]; ok {
 		return playStationProjectionSaveResult{Record: primary, Conflict: result.Conflict, Disposition: result.Disposition}, nil
 	}
-	saveID, _, ok := store.latestProjectionSaveRecord(runtimeProfile, cardSlot)
-	if !ok {
-		return playStationProjectionSaveResult{}, fmt.Errorf("primary PlayStation projection was not created")
+	record, found, err := a.latestPlayStationProjectionRecord(runtimeProfile, cardSlot, saveCreateInput{
+		Metadata:      input.Metadata,
+		RegionCode:    preview.Input.RegionCode,
+		RegionFlag:    preview.Input.RegionFlag,
+		LanguageCodes: preview.Input.LanguageCodes,
+		CoverArtURL:   preview.Input.CoverArtURL,
+		CreatedAt:     createdAt,
+	})
+	if err != nil {
+		return playStationProjectionSaveResult{}, err
 	}
-	record, found := a.findSaveRecordByID(saveID)
 	if !found {
-		return playStationProjectionSaveResult{}, fmt.Errorf("playstation projection save record %s not found", saveID)
+		return playStationProjectionSaveResult{}, fmt.Errorf("primary PlayStation projection was not created")
 	}
 	return playStationProjectionSaveResult{Record: record, Conflict: result.Conflict, Disposition: result.Disposition}, nil
 }

@@ -98,7 +98,7 @@ describe("CheatsPage", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Cheat Library" })).toBeInTheDocument();
-    expect(screen.getByText("SM64 Runtime UI")).toBeInTheDocument();
+    expect(await screen.findByText("SM64 Runtime UI")).toBeInTheDocument();
     expect(screen.getAllByText("1 packs").length).toBeGreaterThan(0);
     expect(screen.getByText("1 active")).toBeInTheDocument();
     expect(screen.getByText("joeblack2k/RetroSaveManager@main")).toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("CheatsPage", () => {
     );
 
     await screen.findByRole("heading", { name: "Cheat Library" });
-    fireEvent.click(screen.getByRole("button", { name: "Sync from GitHub" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sync from GitHub" }));
 
     await waitFor(() => {
       expect(retrosaveApi.syncCheatLibrary).toHaveBeenCalledTimes(1);
@@ -155,7 +155,7 @@ describe("CheatsPage", () => {
     );
 
     await screen.findByRole("heading", { name: "Cheat Library" });
-    fireEvent.click(screen.getByRole("button", { name: "Show advanced tools" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Show advanced tools" }));
 
     fireEvent.change(screen.getByRole("textbox", { name: "Pack YAML" }), {
       target: {

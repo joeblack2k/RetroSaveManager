@@ -415,8 +415,15 @@ func (a *app) projectPlayStationProjectionPayload(record saveRecord, requestedPr
 			return "", "", nil, fmt.Errorf("playstation projection %q is not available for %s", profile, cardSlot)
 		}
 		resolved, found := a.findSaveRecordByID(saveID)
-		if !found {
-			return "", "", nil, fmt.Errorf("playstation projection save record not found")
+		if !found || !saveRecordPayloadExists(resolved) {
+			repaired, repairedOK, err := a.latestPlayStationProjectionRecord(profile, cardSlot, a.playStationTemplateInputFromSummary(record.Summary))
+			if err != nil {
+				return "", "", nil, err
+			}
+			if !repairedOK {
+				return "", "", nil, fmt.Errorf("playstation projection save record not found")
+			}
+			resolved = repaired
 		}
 		targetRecord = resolved
 	}

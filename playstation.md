@@ -670,3 +670,17 @@ The helper cannot safely repair this client-side. Re-uploading the same valid ca
    - `sensors.lastSync.errors=0`
    - Devices freshness becomes `online`, not `degraded`.
 3. Existing PS1 projections remain downloadable and pass the strict raw-card validator.
+
+### Backend fix implemented
+
+Date: 2026-04-25 14:33:19 CEST
+
+Status: implemented in backend code, pending deploy validation.
+
+Fix summary:
+
+- Projection `SaveRecordID` values are now treated as soft pointers.
+- `/save/latest`, PS upload ingest, and cross-profile PS downloads resolve the latest projection through a repair-aware path.
+- If the projection state points at a missing or payload-less save record, the backend force-rebuilds the projection line from canonical logical saves.
+- The rebuilt projection is materialized as a new normal save record and the projection pointer is updated to that new record.
+- A contract test now simulates the stale pointer failure and confirms a repeated valid MiSTer PS1 upload repairs the pointer instead of returning `422`.

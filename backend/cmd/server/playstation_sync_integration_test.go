@@ -74,6 +74,50 @@ func TestPlayStationProjectionDownloadReturnsValidPS1RawCard(t *testing.T) {
 	}
 }
 
+func TestPlayStationProjectionUploadRepairsStaleSaveRecordPointer(t *testing.T) {
+	h := newContractHarness(t)
+	payload := makeTestPS1Card(t, "SCUS_941.63", "Final Fantasy VII Save")
+	input := saveCreateInput{
+		Filename: "psx.sav",
+		Payload:  payload,
+		Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+		Format:   "mcr",
+		SlotName: "Memory Card 1",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "mister", "psx/mister", "mister-psx")
+	if err != nil {
+		t.Fatalf("create playstation projection: %v", err)
+	}
+	oldID := record.Summary.ID
+	removeSaveRecordFromAppForTest(t, h.app, oldID)
+
+	repaired, _, err := h.app.createPlayStationProjectionSave(input, preview, "mister", "psx/mister", "mister-psx")
+	if err != nil {
+		t.Fatalf("expected stale projection pointer to repair, got %v", err)
+	}
+	if repaired.Summary.ID == oldID {
+		t.Fatalf("expected repaired projection to create a new save record, got stale id %q", repaired.Summary.ID)
+	}
+	if !saveRecordPayloadExists(repaired) {
+		t.Fatalf("expected repaired projection payload to exist")
+	}
+
+	store := h.app.playStationSyncStore()
+	latestID, _, ok := store.latestProjectionSaveRecord("psx/mister", "Memory Card 1")
+	if !ok {
+		t.Fatal("expected latest MiSTer projection after repair")
+	}
+	if latestID != repaired.Summary.ID {
+		t.Fatalf("expected projection pointer to be repaired to %q, got %q", repaired.Summary.ID, latestID)
+	}
+	download := h.request(http.MethodGet, "/saves/download?id="+url.QueryEscape(repaired.Summary.ID), nil)
+	assertStatus(t, download, http.StatusOK)
+	if err := validatePS1RawCard(download.Body.Bytes()); err != nil {
+		t.Fatalf("expected repaired PS1 projection to remain valid, got %v", err)
+	}
+}
+
 func TestPlayStationProjectionImportBuildsPS2Projection(t *testing.T) {
 	h := newContractHarness(t)
 	payload := mustDecodePS2Fixture(t)
@@ -365,6 +409,35 @@ func TestPlayStationBackfillMigratesLegacyPS2RawSave(t *testing.T) {
 	if !found {
 		t.Fatal("expected migrated ps2/pcsx2 projection record")
 	}
+}
+
+func removeSaveRecordFromAppForTest(t *testing.T, a *app, saveID string) {
+	t.Helper()
+	record, found := a.findSaveRecordByID(saveID)
+	if !found {
+		t.Fatalf("save record %q not found before removal", saveID)
+	}
+	if record.dirPath != "" {
+		if err := os.RemoveAll(record.dirPath); err != nil {
+			t.Fatalf("remove save record dir: %v", err)
+		}
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	saveRecords := a.saveRecords[:0]
+	for _, candidate := range a.saveRecords {
+		if candidate.Summary.ID != saveID {
+			saveRecords = append(saveRecords, candidate)
+		}
+	}
+	a.saveRecords = saveRecords
+	summaries := a.saves[:0]
+	for _, candidate := range a.saves {
+		if candidate.ID != saveID {
+			summaries = append(summaries, candidate)
+		}
+	}
+	a.saves = summaries
 }
 
 func makeTestPS1Card(t *testing.T, productCode, title string) []byte {
