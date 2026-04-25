@@ -604,3 +604,69 @@ Status: confirmed backend-side format acceptance gap for Dreamcast payloads.
 2. `dc_nvmem.bin` remains rejected.
 3. Two consecutive helper sync runs on unchanged Dreamcast cards converge to `in_sync`.
 4. `/saves/download` payload for PS1 passes structural validator every time.
+
+## 24. Backend Incident Note: PS1 projection line points at missing save record
+
+Date: 2026-04-25 13:36:35 CEST
+
+Status: confirmed backend-side projection-store integrity bug. Helper Devices telemetry is working and correctly reports `degraded` because PlayStation sync returns one hard error.
+
+### What was observed
+
+1. MiSTer helper `0.4.15` reports complete Devices telemetry:
+   - `helperName=sgm-mister-helper`
+   - `helperVersion=0.4.15`
+   - `lastSeenUserAgent=sgm-mister-helper/0.4.15 SGM-Helper`
+   - `configGlobal`, `configSources`, `configCapabilities`, `service`, `sensors`, and `effectivePolicy` are populated.
+2. Backend push control works:
+   - `POST /devices/13/command` with `command=sync` broadcasts `sync.requested`.
+   - MiSTer service receives it and increments `syncCycles`.
+3. The only remaining reason Devices shows `degraded` is:
+   - `service.lastSyncOk=false`
+   - `service.lastError="sync completed with 1 error(s); run with --verbose for details"`
+   - `sensors.lastSync.errors=1`
+4. Verbose helper sync shows the single hard error is PS1:
+   - local file: `/media/fat/saves/PSX/psx.sav`
+   - local validation: `psx savegame`, `adapter=ps1-raw`, `container=ps1-raw`
+   - upload/download target: MiSTer PlayStation raw memory card projection.
+5. Backend returns:
+   - `422 Unprocessable Entity`
+   - message: `playstation projection save record save-1777007482840473378-9d8b412d71bc not found`
+
+### Why this is backend-side
+
+The failing message is produced by backend `createPlayStationProjectionSaveDetailed`.
+
+Current backend flow:
+
+1. `playStationStore.importMemoryCard(...)` imports or deduplicates the card.
+2. If `result.Built` is empty, backend falls back to `store.latestProjectionSaveRecord(runtimeProfile, cardSlot)`.
+3. `latestProjectionSaveRecord` returns a `SaveRecordID` from the projection state.
+4. `findSaveRecordByID(saveID)` fails because the projection store points at a save record that no longer exists in the normal save store.
+5. Backend returns `playstation projection save record <id> not found`.
+
+The helper cannot safely repair this client-side. Re-uploading the same valid card can hit the same stale projection pointer and loop back to the same `422`.
+
+### Required backend fix
+
+1. Treat projection-state `SaveRecordID` references as soft pointers.
+2. When `latestProjectionSaveRecord` returns a save id but `findSaveRecordByID(saveID)` fails, backend must repair centrally:
+   - either rebuild/materialize the projection line and attach a new save record;
+   - or clear the stale projection pointer and force a fresh materialization from the current import.
+3. The repair must happen inside the backend projection path, not in helpers.
+4. Return a successful projection save record once repair completes.
+5. Add a contract test that simulates stale projection state:
+   - projection line exists;
+   - projection has `SaveRecordID`;
+   - normal save store no longer contains that record;
+   - uploading a valid PS1 raw card repairs the pointer and returns success.
+
+### Acceptance criteria for backend developer
+
+1. MiSTer helper sync of `/media/fat/saves/PSX/psx.sav` no longer returns `422`.
+2. Two consecutive MiSTer service syncs converge to:
+   - `service.lastSyncOk=true`
+   - `service.lastError=null`
+   - `sensors.lastSync.errors=0`
+   - Devices freshness becomes `online`, not `degraded`.
+3. Existing PS1 projections remain downloadable and pass the strict raw-card validator.
