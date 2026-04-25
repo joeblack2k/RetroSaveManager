@@ -207,6 +207,79 @@ func TestRepositoryGameModulesImport(t *testing.T) {
 	}
 }
 
+func TestSaturnQuakeRepositoryModuleInspectsFixture(t *testing.T) {
+	root := findRepositoryModuleRoot(t)
+	data, err := os.ReadFile(filepath.Join(root, "saturn-quake.rsmodule.zip"))
+	if err != nil {
+		t.Fatalf("read Saturn Quake module: %v", err)
+	}
+	service, err := newGameModuleService(t.TempDir())
+	if err != nil {
+		t.Fatalf("new module service: %v", err)
+	}
+	record, err := service.importZip(context.Background(), data, gameModuleSourceInfo{Source: gameModuleSourceGithub, SourcePath: "modules/saturn-quake.rsmodule.zip"})
+	if err != nil {
+		t.Fatalf("import Saturn Quake module: %v", err)
+	}
+	payload := loadSaturnFixture(t, "saturn_quake_usa.sav")
+	inspection, ok := service.inspectSave(saveCreateInput{
+		Filename:     "Quake (USA).sav",
+		Payload:      payload,
+		Format:       "sav",
+		SystemSlug:   "saturn",
+		DisplayTitle: "Quake",
+	}, &saveInspection{ParserLevel: saveParserLevelStructural, ParserID: "saturn-backup-ram", ValidatedSystem: "saturn"})
+	if !ok {
+		t.Fatal("expected Saturn Quake module to inspect real fixture")
+	}
+	if inspection.ParserID != "saturn-quake-wasm" || inspection.ValidatedGameID != "saturn/quake" {
+		t.Fatalf("unexpected inspection: %+v", inspection)
+	}
+	if got := inspection.SemanticFields["saturnEntryFilename"]; got != "LOBOQUAKE__" {
+		t.Fatalf("expected LOBOQUAKE__ entry, got %+v", inspection.SemanticFields)
+	}
+	if got := inspection.SemanticFields["quakeRecordCount"]; got != float64(12) {
+		t.Fatalf("expected 12 Quake records, got %+v", inspection.SemanticFields)
+	}
+	if got := inspection.SemanticFields["safeWritableFields"]; got != float64(0) {
+		t.Fatalf("expected read-only support, got %+v", inspection.SemanticFields)
+	}
+	if got := inspection.SemanticFields["health"]; got != float64(100) {
+		t.Fatalf("expected parsed health 100, got %+v", inspection.SemanticFields)
+	}
+	if got := inspection.SemanticFields["currentAmmo"]; got != float64(25) {
+		t.Fatalf("expected parsed current ammo 25, got %+v", inspection.SemanticFields)
+	}
+	if got := inspection.SemanticFields["slotChecksumStored"]; got != float64(798) {
+		t.Fatalf("expected parsed slot checksum 798, got %+v", inspection.SemanticFields)
+	}
+
+	packs, err := service.moduleCheatPacks(record)
+	if err != nil {
+		t.Fatalf("load Saturn Quake pack: %v", err)
+	}
+	if len(packs) != 1 {
+		t.Fatalf("expected one Saturn Quake pack, got %d", len(packs))
+	}
+	state, err := (gameModuleCheatAdapter{service: service, record: record}).Read(cheatAdapterContext{}, packs[0], payload)
+	if err != nil {
+		t.Fatalf("read Saturn Quake cheats: %v", err)
+	}
+	slot1 := state.SlotValues["slot01"]
+	if slot1 == nil {
+		t.Fatalf("expected slot01 values, got %+v", state.SlotValues)
+	}
+	if got := slot1["checksumStatus"]; got != "valid" {
+		t.Fatalf("expected valid slot checksum, got %+v", slot1)
+	}
+	if got := slot1["health"]; got != float64(100) {
+		t.Fatalf("expected slot health 100, got %+v", slot1)
+	}
+	if got := slot1["inventoryWeaponMask"]; got != float64(768) {
+		t.Fatalf("expected inventory/weapon mask 768, got %+v", slot1)
+	}
+}
+
 func findRepositoryModuleRoot(t *testing.T) string {
 	t.Helper()
 	cwd, err := os.Getwd()

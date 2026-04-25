@@ -1,6 +1,9 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -217,6 +220,143 @@ func TestPlayStationLogicalHistoryDownloadAndDeletePS2Entry(t *testing.T) {
 	}
 	if latest.Summary.MemoryCard.Entries[0].Title != "Mortal Kombat Shaolin Monks" {
 		t.Fatalf("unexpected remaining ps2 entry after logical delete: %#v", latest.Summary.MemoryCard.Entries)
+	}
+}
+
+func TestPlayStationLogicalCheatsUseExtractedPS2Payload(t *testing.T) {
+	h := newContractHarness(t)
+	payload := mustDecodePS2Fixture(t)
+	input := saveCreateInput{
+		Filename: "Mcd001.ps2",
+		Payload:  payload,
+		Game:     game{Name: "PCSX2 Card", System: supportedSystemFromSlug("ps2")},
+		Format:   "ps2",
+		SlotName: "Memory Card 1",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	record, _, err := h.app.createPlayStationProjectionSave(input, preview, "pcsx2", "ps2/pcsx2", "deck-ps2")
+	if err != nil {
+		t.Fatalf("create ps2 projection: %v", err)
+	}
+	if record.Summary.MemoryCard == nil || len(record.Summary.MemoryCard.Entries) == 0 {
+		t.Fatalf("expected ps2 logical entries on projection, got %#v", record.Summary.MemoryCard)
+	}
+	logicalKey := strings.TrimSpace(record.Summary.MemoryCard.Entries[0].LogicalKey)
+	if logicalKey == "" {
+		t.Fatal("expected first ps2 entry to expose logicalKey")
+	}
+
+	store := h.app.playStationSyncStore()
+	ctx, err := store.logicalContextForSaveRecord(record.Summary.ID, logicalKey)
+	if err != nil {
+		t.Fatalf("logical context: %v", err)
+	}
+	latest, ok := ctx.Logical.latestRevision()
+	if !ok || latest.PS2 == nil {
+		t.Fatal("expected latest ps2 logical revision")
+	}
+	currentZip, err := buildPS2LogicalSaveArchive(ctx.Logical, latest, playStationLogicalDownloadFilename(ctx.Projection, ctx.Logical))
+	if err != nil {
+		t.Fatalf("build current ps2 logical zip: %v", err)
+	}
+	patchedPS2 := clonePS2LogicalRevisionForTest(*latest.PS2)
+	for i := range patchedPS2.Nodes {
+		if !patchedPS2.Nodes[i].Directory && len(patchedPS2.Nodes[i].Data) > 0 {
+			patchedPS2.Nodes[i].Data[0] ^= 0x01
+			break
+		}
+	}
+	patchedRevision := latest
+	patchedRevision.PS2 = &patchedPS2
+	patchedZip, err := buildPS2LogicalSaveArchive(ctx.Logical, patchedRevision, playStationLogicalDownloadFilename(ctx.Projection, ctx.Logical))
+	if err != nil {
+		t.Fatalf("build patched ps2 logical zip: %v", err)
+	}
+
+	moduleZip := buildPS2LogicalTestModuleZip(t, []int{len(currentZip), len(patchedZip)}, testModuleWASMResponse(t, map[string]any{
+		"supported":          true,
+		"parserLevel":        saveParserLevelSemantic,
+		"parserId":           "ps2-burnout-test-parser",
+		"validatedSystem":    "ps2",
+		"validatedGameId":    "ps2/burnout-3",
+		"validatedGameTitle": "Burnout 3",
+		"trustLevel":         "module-semantic-verified",
+		"semanticFields": map[string]any{
+			"boostTokens": float64(9),
+		},
+		"values": map[string]any{
+			"boostTokens": float64(9),
+		},
+		"payload": patchedZip,
+		"changed": map[string]any{
+			"boostTokens": float64(10),
+		},
+	}))
+	modules := h.app.moduleService()
+	if modules == nil {
+		t.Fatal("expected module service")
+	}
+	if _, err := modules.importZip(context.Background(), moduleZip, gameModuleSourceInfo{Source: gameModuleSourceUploaded, SourcePath: "ps2-burnout-test.rsmodule.zip"}); err != nil {
+		t.Fatalf("import ps2 logical module: %v", err)
+	}
+
+	list := h.request(http.MethodGet, "/saves?limit=100&offset=0", nil)
+	assertStatus(t, list, http.StatusOK)
+	foundLogicalCheats := false
+	for _, raw := range mustArray(t, decodeJSONMap(t, list.Body)["saves"], "saves") {
+		item := mustObject(t, raw, "save")
+		itemLogicalKey, _ := item["logicalKey"].(string)
+		if strings.TrimSpace(itemLogicalKey) != logicalKey {
+			continue
+		}
+		cheatsRaw, ok := item["cheats"]
+		if !ok || cheatsRaw == nil {
+			t.Fatalf("expected logical cheat support on list item: %s", prettyJSON(item))
+		}
+		cheats := mustObject(t, cheatsRaw, "cheats")
+		if !mustBool(t, cheats["supported"], "cheats.supported") {
+			t.Fatalf("expected logical cheat support: %s", prettyJSON(item))
+		}
+		inspection := mustObject(t, item["inspection"], "inspection")
+		fields := mustObject(t, inspection["semanticFields"], "semanticFields")
+		if got := mustNumber(t, fields["boostTokens"], "boostTokens"); got != 9 {
+			t.Fatalf("expected module semantic field, got %s", prettyJSON(item))
+		}
+		foundLogicalCheats = true
+	}
+	if !foundLogicalCheats {
+		t.Fatalf("expected logical PS2 save with cheats in /saves: %s", list.Body.String())
+	}
+
+	cheats := h.request(http.MethodGet, "/save/cheats?saveId="+url.QueryEscape(record.Summary.ID)+"&psLogicalKey="+url.QueryEscape(logicalKey), nil)
+	assertStatus(t, cheats, http.StatusOK)
+	cheatState := mustObject(t, decodeJSONMap(t, cheats.Body)["cheats"], "cheats")
+	if !mustBool(t, cheatState["supported"], "cheats.supported") {
+		t.Fatalf("expected supported logical cheats: %s", cheats.Body.String())
+	}
+	if got := mustString(t, cheatState["editorId"], "cheats.editorId"); got != "ps2-burnout-test-parser" {
+		t.Fatalf("unexpected logical editor: %q", got)
+	}
+
+	applyReq := `{"saveId":"` + record.Summary.ID + `","psLogicalKey":"` + logicalKey + `","editorId":"ps2-burnout-test-parser","updates":{"boostTokens":10}}`
+	applied := h.json(http.MethodPost, "/save/cheats/apply", strings.NewReader(applyReq))
+	assertStatus(t, applied, http.StatusOK)
+	newSave := mustObject(t, decodeJSONMap(t, applied.Body)["save"], "save")
+	newSaveID := mustString(t, newSave["id"], "save.id")
+	if newSaveID == record.Summary.ID {
+		t.Fatalf("expected a new projection save after logical cheat apply")
+	}
+
+	history := h.request(http.MethodGet, "/save?saveId="+url.QueryEscape(newSaveID)+"&psLogicalKey="+url.QueryEscape(logicalKey), nil)
+	assertStatus(t, history, http.StatusOK)
+	versions := mustArray(t, decodeJSONMap(t, history.Body)["versions"], "versions")
+	if len(versions) != 2 {
+		t.Fatalf("expected 2 logical versions after cheat apply, got %d: %s", len(versions), history.Body.String())
+	}
+	latestVersion := mustObject(t, versions[0], "latest version")
+	inspection := mustObject(t, latestVersion["inspection"], "latest.inspection")
+	if got := mustString(t, inspection["parserId"], "latest.inspection.parserId"); got != "ps2-burnout-test-parser" {
+		t.Fatalf("expected module inspection on latest logical version, got %s", prettyJSON(latestVersion))
 	}
 }
 
@@ -453,6 +593,98 @@ func makeTestPS1Card(t *testing.T, productCode, title string) []byte {
 	payload[blockOffset+0x80] = 0x11
 	copy(payload[blockOffset+4:blockOffset+4+len(title)], []byte(title))
 	return payload
+}
+
+func clonePS2LogicalRevisionForTest(source ps2LogicalRevision) ps2LogicalRevision {
+	clone := ps2LogicalRevision{
+		DirectoryName: source.DirectoryName,
+		Nodes:         make([]ps2LogicalFSNode, len(source.Nodes)),
+	}
+	for i, node := range source.Nodes {
+		clone.Nodes[i] = node
+		if node.Data != nil {
+			clone.Nodes[i].Data = append([]byte(nil), node.Data...)
+		}
+	}
+	return clone
+}
+
+func buildPS2LogicalTestModuleZip(t *testing.T, exactSizes []int, wasm []byte) []byte {
+	t.Helper()
+	sizeLines := ""
+	for _, size := range uniquePositiveIntsForTest(exactSizes) {
+		sizeLines += fmt.Sprintf("    - %d\n", size)
+	}
+	var buf strings.Builder
+	buf.WriteString(fmt.Sprintf(`moduleId: ps2-burnout-test
+schemaVersion: 1
+version: 1.0.0
+systemSlug: ps2
+gameId: ps2/burnout-3
+title: Burnout 3
+parserId: ps2-burnout-test-parser
+wasmFile: parser.wasm
+abiVersion: rsm-wasm-json-v1
+titleAliases:
+  - Burnout 3
+payload:
+  exactSizes:
+%s
+  formats:
+    - zip
+cheatPacks:
+  - path: cheats/burnout-3.yaml
+`, sizeLines))
+	var out bytes.Buffer
+	zw := zip.NewWriter(&out)
+	writeZipFile(t, zw, "rsm-module.yaml", []byte(buf.String()))
+	writeZipFile(t, zw, "parser.wasm", wasm)
+	writeZipFile(t, zw, "cheats/burnout-3.yaml", []byte(fmt.Sprintf(`packId: ps2--burnout-3-test
+schemaVersion: 1
+adapterId: ps2-burnout-test-parser
+gameId: ps2/burnout-3
+systemSlug: ps2
+editorId: ps2-burnout-test-parser
+title: Burnout 3
+match:
+  titleAliases:
+    - Burnout 3
+payload:
+  exactSizes:
+%s
+  formats:
+    - zip
+sections:
+  - id: stats
+    title: Stats
+    fields:
+      - id: boostTokens
+        label: Boost Tokens
+        type: integer
+        min: 0
+        max: 99
+        op: { kind: moduleNumber, field: boostTokens }
+`, sizeLines)))
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close ps2 logical module zip: %v", err)
+	}
+	return out.Bytes()
+}
+
+func uniquePositiveIntsForTest(values []int) []int {
+	seen := map[int]struct{}{}
+	out := make([]int, 0, len(values))
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func validatePS1RawCard(payload []byte) error {

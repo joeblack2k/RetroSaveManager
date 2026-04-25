@@ -148,12 +148,21 @@ export function rollbackSave(params: {
   });
 }
 
-export function getSaveCheats(saveId: string): Promise<SaveCheatResponse> {
-  return apiFetchJSON<SaveCheatResponse>(`/save/cheats?saveId=${encodeURIComponent(saveId)}`);
+export function getSaveCheats(saveId: string, psLogicalKey?: string, saturnEntry?: string): Promise<SaveCheatResponse> {
+  const search = new URLSearchParams({ saveId });
+  if (psLogicalKey) {
+    search.set("psLogicalKey", psLogicalKey);
+  }
+  if (saturnEntry) {
+    search.set("saturnEntry", saturnEntry);
+  }
+  return apiFetchJSON<SaveCheatResponse>(`/save/cheats?${search.toString()}`);
 }
 
 export function applySaveCheats(params: {
   saveId: string;
+  psLogicalKey?: string;
+  saturnEntry?: string;
   editorId: string;
   slotId?: string;
   updates?: Record<string, unknown>;

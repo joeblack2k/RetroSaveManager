@@ -116,12 +116,15 @@ type saveCheatEditorState struct {
 }
 
 type saveCheatApplyRequest struct {
-	SaveID    string                     `json:"saveId"`
-	EditorID  string                     `json:"editorId"`
-	AdapterID string                     `json:"adapterId,omitempty"`
-	SlotID    string                     `json:"slotId,omitempty"`
-	Updates   map[string]json.RawMessage `json:"updates,omitempty"`
-	PresetIDs []string                   `json:"presetIds,omitempty"`
+	SaveID       string                     `json:"saveId"`
+	LogicalKey   string                     `json:"logicalKey,omitempty"`
+	PSLogicalKey string                     `json:"psLogicalKey,omitempty"`
+	SaturnEntry  string                     `json:"saturnEntry,omitempty"`
+	EditorID     string                     `json:"editorId"`
+	AdapterID    string                     `json:"adapterId,omitempty"`
+	SlotID       string                     `json:"slotId,omitempty"`
+	Updates      map[string]json.RawMessage `json:"updates,omitempty"`
+	PresetIDs    []string                   `json:"presetIds,omitempty"`
 }
 
 type cheatPackManifest struct {

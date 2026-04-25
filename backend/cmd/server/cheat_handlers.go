@@ -21,21 +21,49 @@ func (a *app) handleSaveCheats(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
 		return
 	}
+	logicalKey := requestedLogicalKey(r.URL.Query())
+	saturnEntry := strings.TrimSpace(r.URL.Query().Get("saturnEntry"))
 	service := a.cheatService()
 	if service == nil {
 		writeJSON(w, http.StatusServiceUnavailable, apiError{Error: "Service Unavailable", Message: "Cheat service is not initialized", StatusCode: http.StatusServiceUnavailable})
 		return
 	}
-	state, err := service.get(record)
+	displayTitle := ""
+	var state saveCheatEditorState
+	var err error
+	if logicalKey != "" {
+		if _, _, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
+			target, targetErr := a.playStationLogicalCheatTarget(record, logicalKey)
+			if targetErr != nil {
+				writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: targetErr.Error(), StatusCode: http.StatusNotFound})
+				return
+			}
+			state, err = service.getPayload(record, target.Summary, target.Payload, true)
+			displayTitle = firstNonEmpty(target.Summary.DisplayTitle, target.Summary.Game.DisplayTitle, target.Summary.Game.Name)
+		} else {
+			state, err = service.get(record)
+		}
+	} else if canonicalSegment(saveRecordSystemSlug(record), "") == "saturn" {
+		target, targetErr := a.saturnEntryCheatTarget(record, saturnEntry)
+		if targetErr != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: targetErr.Error(), StatusCode: http.StatusUnprocessableEntity})
+			return
+		}
+		state, err = service.getPayload(record, target.Summary, target.Payload, true)
+		displayTitle = firstNonEmpty(target.Summary.DisplayTitle, target.Summary.Game.DisplayTitle, target.Summary.Game.Name)
+	} else {
+		state, err = service.get(record)
+	}
 	if err != nil {
 		writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
 		return
 	}
 	summary := canonicalSummaryForRecord(record)
+	displayTitle = firstNonEmpty(displayTitle, summary.DisplayTitle, summary.Game.DisplayTitle, summary.Game.Name, "Unknown Game")
 	writeJSON(w, http.StatusOK, saveCheatsGetResponse{
 		Success:      true,
 		SaveID:       record.Summary.ID,
-		DisplayTitle: firstNonEmpty(summary.DisplayTitle, summary.Game.DisplayTitle, summary.Game.Name, "Unknown Game"),
+		DisplayTitle: displayTitle,
 		Cheats:       state,
 	})
 }
@@ -49,6 +77,9 @@ func (a *app) handleSaveCheatsApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.SaveID = strings.TrimSpace(req.SaveID)
+	req.LogicalKey = strings.TrimSpace(firstNonEmpty(req.LogicalKey, req.PSLogicalKey))
+	req.PSLogicalKey = req.LogicalKey
+	req.SaturnEntry = strings.TrimSpace(req.SaturnEntry)
 	req.EditorID = strings.TrimSpace(req.EditorID)
 	req.AdapterID = strings.TrimSpace(req.AdapterID)
 	if req.SaveID == "" || firstNonEmpty(req.AdapterID, req.EditorID) == "" {
@@ -63,6 +94,74 @@ func (a *app) handleSaveCheatsApply(w http.ResponseWriter, r *http.Request) {
 	service := a.cheatService()
 	if service == nil {
 		writeJSON(w, http.StatusServiceUnavailable, apiError{Error: "Service Unavailable", Message: "Cheat service is not initialized", StatusCode: http.StatusServiceUnavailable})
+		return
+	}
+	if req.LogicalKey != "" {
+		if _, _, _, isPSProjection := playStationProjectionInfoFromRecord(record); isPSProjection {
+			target, targetErr := a.playStationLogicalCheatTarget(record, req.LogicalKey)
+			if targetErr != nil {
+				writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: targetErr.Error(), StatusCode: http.StatusNotFound})
+				return
+			}
+			payload, changed, integritySteps, resolved, err := service.applyPayload(record, target.Summary, target.Payload, req, true)
+			if err != nil {
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+				return
+			}
+			metadata := mergeCheatMetadata(record, req, changed, integritySteps, resolved)
+			newRecord, err := a.promotePlayStationLogicalCheatPayload(record, req.LogicalKey, payload, metadata)
+			if err != nil {
+				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+				return
+			}
+			a.saveCreatedEvent(newRecord)
+			a.resolveConflictForSave(newRecord)
+			a.appendSyncLog(syncLogInput{
+				DeviceName: "Web UI",
+				Action:     "cheat_apply",
+				Game:       firstNonEmpty(target.Summary.DisplayTitle, syncLogGameLabelFromRecord(newRecord)),
+				SystemSlug: saveRecordSystemSlug(newRecord),
+				SaveID:     newRecord.Summary.ID,
+			})
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success":      true,
+				"sourceSaveId": record.Summary.ID,
+				"save":         newRecord.Summary,
+			})
+			return
+		}
+	}
+	if canonicalSegment(saveRecordSystemSlug(record), "") == "saturn" {
+		target, targetErr := a.saturnEntryCheatTarget(record, req.SaturnEntry)
+		if targetErr != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: targetErr.Error(), StatusCode: http.StatusUnprocessableEntity})
+			return
+		}
+		payload, changed, integritySteps, resolved, err := service.applyPayload(record, target.Summary, target.Payload, req, true)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+			return
+		}
+		metadata := mergeCheatMetadata(record, req, changed, integritySteps, resolved)
+		newRecord, err := a.promoteSaturnEntryCheatPayload(record, target.Entry.Summary.Filename, payload, metadata)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+			return
+		}
+		a.saveCreatedEvent(newRecord)
+		a.resolveConflictForSave(newRecord)
+		a.appendSyncLog(syncLogInput{
+			DeviceName: "Web UI",
+			Action:     "cheat_apply",
+			Game:       firstNonEmpty(target.Summary.DisplayTitle, syncLogGameLabelFromRecord(newRecord)),
+			SystemSlug: saveRecordSystemSlug(newRecord),
+			SaveID:     newRecord.Summary.ID,
+		})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success":      true,
+			"sourceSaveId": record.Summary.ID,
+			"save":         a.summaryForRecord(newRecord),
+		})
 		return
 	}
 	payload, changed, integritySteps, resolved, err := service.apply(record, req)
@@ -148,6 +247,8 @@ func mergeCheatMetadata(source saveRecord, req saveCheatApplyRequest, changed ma
 		"adapterId":      adapterID,
 		"packId":         packID,
 		"packSource":     packSource,
+		"logicalKey":     strings.TrimSpace(firstNonEmpty(req.LogicalKey, req.PSLogicalKey)),
+		"saturnEntry":    strings.TrimSpace(req.SaturnEntry),
 		"slotId":         strings.TrimSpace(req.SlotID),
 		"presetIds":      req.PresetIDs,
 		"changed":        changed,

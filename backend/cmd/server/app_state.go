@@ -246,6 +246,7 @@ func (a *app) summaryForRecord(record saveRecord) saveSummary {
 	if cheats := a.cheatService(); cheats != nil {
 		summary.Cheats = cheats.capabilityForRecord(record)
 	}
+	summary = a.enrichSaturnSummary(record, summary)
 	return summary
 }
 

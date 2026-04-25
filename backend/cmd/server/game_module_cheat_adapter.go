@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// gameModuleCheatAdapter bridges a runtime-loaded WASM module into the normal
+// cheatAdapter interface. This keeps My Saves, Details, and the cheat APIs using
+// the same code path for built-in and community modules.
 type gameModuleCheatAdapter struct {
 	service *gameModuleService
 	record  gameModuleRecord
@@ -17,13 +20,15 @@ func (a gameModuleCheatAdapter) SystemSlug() string            { return a.record
 func (a gameModuleCheatAdapter) RequiredParserID() string      { return a.record.Manifest.ParserID }
 func (a gameModuleCheatAdapter) MinimumParserLevel() string    { return saveParserLevelStructural }
 func (a gameModuleCheatAdapter) SupportsRuntimeProfiles() bool { return true }
-func (a gameModuleCheatAdapter) SupportsLogicalSaves() bool    { return false }
+func (a gameModuleCheatAdapter) SupportsLogicalSaves() bool    { return true }
 func (a gameModuleCheatAdapter) SupportsLiveUpload() bool      { return true }
 func (a gameModuleCheatAdapter) MatchKeys() []string {
 	return []string{"moduleId", "parserId", "systemSlug", "titleAliases", "payloadSize", "format"}
 }
 func (a gameModuleCheatAdapter) IntegrityHooks() []cheatPayloadTransform { return nil }
 
+// Supports accepts either parser-backed inspection evidence or conservative
+// title aliases from the module manifest.
 func (a gameModuleCheatAdapter) Supports(summary saveSummary, inspection *saveInspection) bool {
 	if a.record.Status != gameModuleStatusActive {
 		return false
@@ -89,17 +94,21 @@ func (a gameModuleCheatAdapter) PreparePack(pack cheatPack) (cheatPack, error) {
 	return normalizeCheatPack(pack, true)
 }
 
+// Read sends the canonical payload to the module. Logical save hints such as
+// psLogicalKey and Saturn entry names are passed as metadata, not guessed here.
 func (a gameModuleCheatAdapter) Read(ctx cheatAdapterContext, pack cheatPack, payload []byte) (saveCheatEditorState, error) {
 	if a.service == nil {
 		return saveCheatEditorState{}, fmt.Errorf("module service is not initialized")
 	}
 	var state saveCheatEditorState
 	err := a.service.callWASM(a.record, "readCheats", gameModuleCheatRequest{
-		Payload:    payload,
-		Pack:       pack,
-		Summary:    ctx.Summary,
-		Inspection: ctx.Inspection,
-		Metadata:   metadataMap(ctx.Summary.Metadata),
+		Payload:     payload,
+		Pack:        pack,
+		LogicalKey:  strings.TrimSpace(ctx.Summary.LogicalKey),
+		SaturnEntry: saturnEntryNameFromSummary(ctx.Summary),
+		Summary:     ctx.Summary,
+		Inspection:  ctx.Inspection,
+		Metadata:    metadataMap(ctx.Summary.Metadata),
 	}, &state)
 	if err != nil {
 		return saveCheatEditorState{}, err
@@ -107,19 +116,23 @@ func (a gameModuleCheatAdapter) Read(ctx cheatAdapterContext, pack cheatPack, pa
 	return state, nil
 }
 
+// Apply returns a patched payload only; version creation and projection rebuilds
+// stay owned by the core cheat service.
 func (a gameModuleCheatAdapter) Apply(ctx cheatAdapterContext, pack cheatPack, payload []byte, slotID string, updates map[string]any) ([]byte, map[string]any, error) {
 	if a.service == nil {
 		return nil, nil, fmt.Errorf("module service is not initialized")
 	}
 	var response gameModuleCheatApplyResponse
 	err := a.service.callWASM(a.record, "applyCheats", gameModuleCheatRequest{
-		Payload:    payload,
-		Pack:       pack,
-		SlotID:     strings.TrimSpace(slotID),
-		Updates:    updates,
-		Summary:    ctx.Summary,
-		Inspection: ctx.Inspection,
-		Metadata:   metadataMap(ctx.Summary.Metadata),
+		Payload:     payload,
+		Pack:        pack,
+		LogicalKey:  strings.TrimSpace(ctx.Summary.LogicalKey),
+		SaturnEntry: saturnEntryNameFromSummary(ctx.Summary),
+		SlotID:      strings.TrimSpace(slotID),
+		Updates:     updates,
+		Summary:     ctx.Summary,
+		Inspection:  ctx.Inspection,
+		Metadata:    metadataMap(ctx.Summary.Metadata),
 	}, &response)
 	if err != nil {
 		return nil, nil, err

@@ -272,6 +272,7 @@ func buildPlayStationLogicalHistory(ctx playStationLogicalContext) playStationLo
 			ID:              revision.ID,
 			Game:            gameInfo,
 			DisplayTitle:    ctx.Logical.DisplayTitle,
+			LogicalKey:      ctx.Logical.Key,
 			SystemSlug:      ctx.Logical.SystemSlug,
 			RegionCode:      regionCode,
 			RegionFlag:      regionFlagFromCode(regionCode),
@@ -543,7 +544,13 @@ func (a *app) playStationLogicalListSummaries(systemID int) []saveSummary {
 		if systemID != 0 && (sys == nil || sys.ID != systemID) {
 			continue
 		}
-		out = append(out, buildPlayStationLogicalListSummary(ctx))
+		summary := buildPlayStationLogicalListSummary(ctx)
+		if record, ok := a.findSaveRecordByID(ctx.Projection.SaveRecordID); ok {
+			if latest, latestOK := ctx.Logical.latestRevision(); latestOK {
+				summary = a.enrichPlayStationLogicalSummary(record, ctx, summary, latest)
+			}
+		}
+		out = append(out, summary)
 	}
 	return out
 }

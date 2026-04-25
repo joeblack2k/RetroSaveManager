@@ -82,15 +82,21 @@ export function SaveDetailPage(): JSX.Element {
   const currentSizeBytes = logicalEntry?.sizeBytes || latest?.fileSize || 0;
   const saveInsight = useMemo(() => buildSaveInsight(latest), [latest]);
   const hasCheats = Boolean(latest?.cheats?.supported && (latest.cheats.availableCount || 0) > 0);
-  const cheatSaveId = latest && hasCheats && !showPlayStationSelector ? latest.id : "";
+  const cheatRequest =
+    latest && hasCheats && !showPlayStationSelector
+      ? {
+          saveId: effectiveLogicalKey ? saveId : latest.id,
+          psLogicalKey: effectiveLogicalKey || undefined
+        }
+      : null;
   const cheatLoader = useCallback(async () => {
-    if (!cheatSaveId) {
+    if (!cheatRequest) {
       return null;
     }
-    const response = await getSaveCheats(cheatSaveId);
+    const response = await getSaveCheats(cheatRequest.saveId, cheatRequest.psLogicalKey);
     return response.cheats?.supported ? response.cheats : null;
-  }, [cheatSaveId]);
-  const { loading: cheatLoading, error: cheatError, data: cheatData } = useAsyncData<SaveCheatEditorState | null>(cheatLoader, [cheatSaveId]);
+  }, [cheatRequest?.saveId, cheatRequest?.psLogicalKey]);
+  const { loading: cheatLoading, error: cheatError, data: cheatData } = useAsyncData<SaveCheatEditorState | null>(cheatLoader, [cheatRequest?.saveId, cheatRequest?.psLogicalKey]);
   const parserBadge = saveInsight?.parserLevel || (latest?.inspection ? "Verified" : "Protected");
   const currentDownloadRequest = latest
     ? {
@@ -195,8 +201,8 @@ export function SaveDetailPage(): JSX.Element {
                 insight={saveInsight}
                 systemName={systemName}
                 cheatData={cheatData}
-                cheatLoading={Boolean(cheatSaveId) && cheatLoading}
-                cheatError={Boolean(cheatSaveId) ? cheatError : null}
+                cheatLoading={Boolean(cheatRequest) && cheatLoading}
+                cheatError={Boolean(cheatRequest) ? cheatError : null}
               />
               {logicalEntry ? <LogicalSavePanel entry={logicalEntry} latest={latest} /> : null}
               <TechnicalDetailsPanel latest={latest} insight={saveInsight} languageCodes={languageCodes} />

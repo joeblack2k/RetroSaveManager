@@ -290,7 +290,7 @@ describe("MyGamesPage TreeGrid", () => {
     fireEvent.click(screen.getByRole("button", { name: /edit cheats for super mario 64/i }));
 
     expect(await screen.findByRole("heading", { name: "Cheat Editor" })).toBeInTheDocument();
-    expect(retrosaveApi.getSaveCheats).toHaveBeenCalledWith("sm64-save-1");
+    expect(retrosaveApi.getSaveCheats).toHaveBeenCalledWith("sm64-save-1", undefined);
 
     fireEvent.click(screen.getByRole("button", { name: /unlock all caps/i }));
     fireEvent.click(screen.getByRole("button", { name: /apply cheats/i }));
@@ -298,6 +298,7 @@ describe("MyGamesPage TreeGrid", () => {
     await waitFor(() => {
       expect(retrosaveApi.applySaveCheats).toHaveBeenCalledWith({
         saveId: "sm64-save-1",
+        psLogicalKey: undefined,
         editorId: "sm64-eeprom",
         slotId: "A",
         updates: { haveWingCap: true }

@@ -363,7 +363,7 @@ export function MyGamesPage(): JSX.Element {
     setCheatPendingUpdates({});
 
     try {
-      const response = await getSaveCheats(row.primarySaveID);
+      const response = await getSaveCheats(row.primarySaveID, row.psLogicalKey);
       setCheatDisplayTitle(response.displayTitle?.trim() || row.gameName);
       setCheatData(response.cheats);
       setCheatSelectedSlot(defaultCheatSlotId(response.cheats));
@@ -422,6 +422,7 @@ export function MyGamesPage(): JSX.Element {
     try {
       await applySaveCheats({
         saveId: cheatRow.primarySaveID,
+        psLogicalKey: cheatRow.psLogicalKey,
         editorId: cheatData.editorId,
         slotId: selectedSlot,
         updates: cheatPendingUpdates

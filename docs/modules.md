@@ -88,6 +88,16 @@ Required fields:
 - `payload.exactSizes`: accepted payload sizes in bytes.
 - `payload.formats`: accepted save formats/extensions.
 
+For PlayStation 2 memory cards, modules do not receive the full 8 MiB `.ps2` card.
+When the web UI or API supplies `psLogicalKey`, RetroSaveManager extracts the selected logical save directory and sends that small zip payload to `parse`, `readCheats`, and `applyCheats`.
+Use `systemSlug: ps2`, `payload.formats: [zip]`, and exact sizes for the logical zip payloads you support.
+`applyCheats` must return a patched zip with the same logical directory structure; the backend converts that zip back into the PS2 logical save history and rebuilds the runtime memory-card projections.
+
+For Sega Saturn backup RAM, modules do not receive the full backup-RAM image.
+When the API supplies `saturnEntry`, or when a Saturn image contains exactly one active entry, RetroSaveManager extracts that archive entry and sends only its payload bytes to the module.
+Use `systemSlug: saturn`, `payload.formats: [saturn-entry]`, and exact entry payload sizes.
+`applyCheats` must return patched entry bytes that fit in the existing Saturn entry block chain; the backend writes those bytes back into the backup-RAM image and preserves the source container shape, including YabaSanshiro 4 MiB raw and 8 MiB byte-expanded images.
+
 Optional fields:
 
 - `titleAliases`: additional strict title matches.
@@ -202,6 +212,8 @@ YAML is declarative only. No scripts, raw hex expressions, or trainer-code execu
 ## Cheat Commands
 
 `readCheats` receives the payload, resolved pack, save summary, and current inspection. It returns a normal `SaveCheatEditorState` response with values, slot values, sections, selector, and presets.
+For logical saves the request also includes `logicalKey`, and `summary.logicalKey` is populated.
+For Saturn entry saves the request includes `saturnEntry`, and `summary.metadata.saturnEntry` contains the entry filename, comment, volume, and source container format.
 
 `applyCheats` receives structured updates and must return:
 
@@ -216,6 +228,8 @@ YAML is declarative only. No scripts, raw hex expressions, or trainer-code execu
 ```
 
 Applying cheats always creates a new current save version and preserves rollback history.
+For PS2 logical saves this means a new logical revision is appended, then the current `.ps2` projection is rebuilt for sync helpers.
+For Saturn entry saves this means a new full backup-RAM version is created from the patched entry, then normal Saturn runtime download projection continues to work.
 
 ## Security Model
 

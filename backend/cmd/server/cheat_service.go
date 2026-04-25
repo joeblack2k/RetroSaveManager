@@ -300,6 +300,20 @@ func (s *cheatService) capabilityForRecord(record saveRecord) *cheatCapability {
 	}
 }
 
+func (s *cheatService) capabilityForPayload(record saveRecord, summary saveSummary, payload []byte, logical bool) *cheatCapability {
+	resolved, err := s.resolvePayload(record, summary, payload, logical)
+	if err != nil || resolved == nil {
+		return nil
+	}
+	return &cheatCapability{
+		Supported:      true,
+		AvailableCount: cheatAvailableCount(resolved.Managed.Pack),
+		EditorID:       resolved.Logic.EditorID,
+		AdapterID:      resolved.Adapter.ID(),
+		PackID:         resolved.Managed.Manifest.PackID,
+	}
+}
+
 func cheatAvailableCount(pack cheatPack) int {
 	count := len(pack.Presets)
 	for _, section := range pack.Sections {
@@ -310,14 +324,18 @@ func cheatAvailableCount(pack cheatPack) int {
 
 func (s *cheatService) resolve(record saveRecord) (*resolvedCheatPack, error) {
 	summary := canonicalSummaryForRecord(record)
-	inspection := summary.Inspection
-	adapter := s.resolveAdapter(summary)
-	if adapter == nil {
-		return nil, nil
-	}
 	payload, err := os.ReadFile(record.payloadPath)
 	if err != nil {
 		return nil, err
+	}
+	return s.resolvePayload(record, summary, payload, false)
+}
+
+func (s *cheatService) resolvePayload(record saveRecord, summary saveSummary, payload []byte, logical bool) (*resolvedCheatPack, error) {
+	inspection := summary.Inspection
+	adapter := s.resolveAdapter(summary, logical)
+	if adapter == nil {
+		return nil, nil
 	}
 	managedPacks, err := s.listManagedPacks()
 	if err != nil {
@@ -345,7 +363,7 @@ func (s *cheatService) resolve(record saveRecord) (*resolvedCheatPack, error) {
 				logicPack = combined
 			}
 		}
-		if !packMatchesPayload(logicPack, record.Summary.Format, payload) {
+		if !packMatchesPayload(logicPack, summary.Format, payload) {
 			continue
 		}
 		prepared, prepErr := adapter.PreparePack(logicPack)
@@ -370,8 +388,11 @@ func (s *cheatService) resolve(record saveRecord) (*resolvedCheatPack, error) {
 	return nil, nil
 }
 
-func (s *cheatService) resolveAdapter(summary saveSummary) cheatAdapter {
+func (s *cheatService) resolveAdapter(summary saveSummary, logical bool) cheatAdapter {
 	for _, adapter := range s.allAdapterList() {
+		if logical && !adapter.SupportsLogicalSaves() {
+			continue
+		}
 		if adapter.Supports(summary, summary.Inspection) {
 			return adapter
 		}
@@ -569,6 +590,15 @@ func mergeCheatPacks(base cheatPack, override cheatPack) (cheatPack, error) {
 
 func (s *cheatService) get(record saveRecord) (saveCheatEditorState, error) {
 	resolved, err := s.resolve(record)
+	return s.getResolved(resolved, err)
+}
+
+func (s *cheatService) getPayload(record saveRecord, summary saveSummary, payload []byte, logical bool) (saveCheatEditorState, error) {
+	resolved, err := s.resolvePayload(record, summary, payload, logical)
+	return s.getResolved(resolved, err)
+}
+
+func (s *cheatService) getResolved(resolved *resolvedCheatPack, err error) (saveCheatEditorState, error) {
 	if err != nil {
 		return saveCheatEditorState{}, err
 	}
@@ -595,6 +625,15 @@ func (s *cheatService) get(record saveRecord) (saveCheatEditorState, error) {
 
 func (s *cheatService) apply(record saveRecord, req saveCheatApplyRequest) ([]byte, map[string]any, []string, *resolvedCheatPack, error) {
 	resolved, err := s.resolve(record)
+	return s.applyResolved(resolved, req, err)
+}
+
+func (s *cheatService) applyPayload(record saveRecord, summary saveSummary, payload []byte, req saveCheatApplyRequest, logical bool) ([]byte, map[string]any, []string, *resolvedCheatPack, error) {
+	resolved, err := s.resolvePayload(record, summary, payload, logical)
+	return s.applyResolved(resolved, req, err)
+}
+
+func (s *cheatService) applyResolved(resolved *resolvedCheatPack, req saveCheatApplyRequest, err error) ([]byte, map[string]any, []string, *resolvedCheatPack, error) {
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

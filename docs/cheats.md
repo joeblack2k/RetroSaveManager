@@ -163,6 +163,10 @@ Use `/app/settings` or `POST /api/modules/sync` to import `.rsmodule.zip` bundle
 Module-backed packs then appear in `/app/cheats` and in `My Saves` just like built-in packs.
 See `docs/modules.md` for the WASM ABI, manifest schema, upload endpoint, and safety rules.
 
+For PlayStation 2 games, workers should target extracted logical saves, not full memory cards.
+The backend accepts `psLogicalKey` on the cheat API, sends the selected PS2 save directory to modules as a zip payload, and rebuilds the `.ps2` projection after a successful apply.
+Do not write modules that expect the entire 8 MiB card unless the backend contract explicitly changes later.
+
 ## Bundled Fallback Packs
 
 The image still ships bundled fallback packs from:
@@ -215,6 +219,7 @@ Existing save editing endpoints remain unchanged:
 
 ```bash
 curl -s "$RSM_BASE_URL/save/cheats?saveId=save-123" | jq
+curl -s "$RSM_BASE_URL/save/cheats?saveId=ps2-card-save&psLogicalKey=ps2%3A%3ABASLUS-21050%3A%3Aburnout%203%3A%3AUS" | jq
 curl -s -X POST "$RSM_BASE_URL/save/cheats/apply" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -226,6 +231,13 @@ curl -s -X POST "$RSM_BASE_URL/save/cheats/apply" \
     }
   }' | jq
 ```
+
+For PS2 logical saves, include `psLogicalKey` in both the GET query and POST body.
+The backend passes the extracted logical zip to the matching module and writes the patched result back as a new logical revision.
+
+For Saturn backup RAM saves, include `saturnEntry` when an image has multiple archive entries.
+If there is exactly one Saturn entry, the backend selects it automatically.
+Saturn modules receive only the extracted entry bytes with `format=saturn-entry`; the backend writes patched bytes back into the original backup-RAM image and preserves large YabaSanshiro 4 MiB / 8 MiB container shapes.
 
 Applying a cheat always creates a new save version and makes that version the current sync save.
 Old history remains available for rollback.

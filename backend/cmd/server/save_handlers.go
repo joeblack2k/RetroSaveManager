@@ -799,6 +799,7 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: err.Error(), StatusCode: http.StatusNotFound})
 				return
 			}
+			history = a.enrichPlayStationLogicalHistory(record, history)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"success":      true,
 				"game":         history.Game,
