@@ -63,13 +63,19 @@ const technicalSemanticKeys = new Set([
   "extension",
   "format",
   "identicalCopies",
+  "layout",
+  "bramBlockIndex",
+  "mameGameNumber",
   "mediaType",
+  "mvsSlotIndex",
+  "nghNumber",
   "nonFFBytes",
   "nonZeroBytes",
   "rawSaveKind",
   "romLinked",
   "romSha1Present",
   "semanticDecoderState",
+  "saveKind",
   "signatureCount",
   "signatures",
   "sourcePath",
@@ -80,7 +86,8 @@ const technicalSemanticKeys = new Set([
   "validCopies",
   "validPrimarySlots",
   "variant",
-  "verificationLevels"
+  "verificationLevels",
+  "wordSwapped"
 ]);
 
 const technicalKeyPattern = /(checksum|crc|magic|offset|bytes|length|payload|source|sha|hash|copy|valid|verified|signature|container|extension|format|media|rom|parser|raw|nonzero|nonff)/i;

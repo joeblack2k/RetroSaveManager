@@ -982,6 +982,17 @@ code {
   font-size: 0.92rem;
 }
 
+.save-detail-gameplay-card--verified {
+  border-color: #4c5d78;
+  background:
+    linear-gradient(135deg, rgba(117, 151, 206, 0.13), transparent 58%),
+    #121722;
+}
+
+.save-detail-gameplay-card--verified span {
+  color: #a9bad8;
+}
+
 .save-detail-note-line {
   display: grid;
   gap: 0.25rem;

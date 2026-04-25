@@ -7,6 +7,7 @@ import type { SaveHistoryResponse, SaveSummary } from "../../../services/types";
 
 vi.mock("../../../services/retrosaveApi", () => ({
   getSaveHistory: vi.fn(),
+  getSaveCheats: vi.fn(),
   rollbackSave: vi.fn()
 }));
 
@@ -111,6 +112,80 @@ describe("SaveDetailPage", () => {
     expect(screen.queryByRole("columnheader", { name: "SHA256" })).not.toBeInTheDocument();
   });
 
+  it("shows cheat-backed values when a safe editor can read the save", async () => {
+    vi.mocked(retrosaveApi.getSaveCheats).mockResolvedValue({
+      success: true,
+      saveId: "save-1",
+      displayTitle: "Metal Slug 5",
+      cheats: {
+        supported: true,
+        gameId: "neogeo/mslug5",
+        systemSlug: "neogeo",
+        editorId: "neogeo-mslug5",
+        adapterId: "neogeo-mslug5",
+        packId: "neogeo--mslug5",
+        title: "Metal Slug 5",
+        availableCount: 1,
+        values: { freePlay: false },
+        sections: [
+          {
+            id: "cabinet",
+            title: "Cabinet",
+            fields: [
+              {
+                id: "freePlay",
+                ref: "freePlay",
+                label: "Free Play",
+                type: "boolean"
+              }
+            ]
+          }
+        ],
+        presets: []
+      }
+    });
+
+    renderDetail({
+      success: true,
+      game: null,
+      displayTitle: "Metal Slug 5",
+      systemSlug: "neogeo",
+      versions: [
+        makeSave({
+          displayTitle: "Metal Slug 5",
+          systemSlug: "neogeo",
+          cheats: { supported: true, availableCount: 1, editorId: "neogeo-mslug5" },
+          game: {
+            id: 3,
+            name: "Metal Slug 5",
+            displayTitle: "Metal Slug 5",
+            regionCode: "UNKNOWN",
+            regionFlag: "unknown",
+            languageCodes: [],
+            boxart: null,
+            boxartThumb: null,
+            hasParser: true,
+            system: { id: 3, name: "Neo Geo", slug: "neogeo", manufacturer: "SNK" }
+          },
+          inspection: {
+            parserLevel: "container",
+            parserId: "neogeo-raw-save",
+            semanticFields: {
+              layout: "compound",
+              nonPaddingBytes: 2184
+            }
+          }
+        })
+      ]
+    });
+
+    expect(await screen.findByRole("heading", { name: "Metal Slug 5" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Cheat-backed save values" })).toBeInTheDocument();
+    expect(screen.getByText("Free Play")).toBeInTheDocument();
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "No gameplay facts yet" })).not.toBeInTheDocument();
+  });
+
   it("keeps raw media details calm when no gameplay parser exists yet", async () => {
     renderDetail({
       success: true,
@@ -148,9 +223,10 @@ describe("SaveDetailPage", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Wario Land 4" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "No gameplay facts yet" })).toBeInTheDocument();
-    expect(screen.getByText("Waiting for parser")).toBeInTheDocument();
-    expect(screen.getByText(/Add a parser-backed Game Support Module/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Raw cartridge save verified" })).toBeInTheDocument();
+    expect(screen.getAllByText("Raw save kind").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Game Boy Advance backup memory").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: "No gameplay facts yet" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "SHA256" })).not.toBeInTheDocument();
   });
 });

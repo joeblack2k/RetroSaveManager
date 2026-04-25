@@ -3,8 +3,8 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { SectionCard } from "../../components/SectionCard";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { getSaveHistory, rollbackSave } from "../../services/retrosaveApi";
-import type { MemoryCardEntry, SaveDownloadProfile, SaveSummary } from "../../services/types";
+import { getSaveCheats, getSaveHistory, rollbackSave } from "../../services/retrosaveApi";
+import type { MemoryCardEntry, SaveCheatEditorState, SaveCheatField, SaveDownloadProfile, SaveSummary } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
 import { buildSaveInsight, type SaveInsightModel } from "../../utils/saveInsights";
 import { buildSaveDetailsHref, buildSaveDownloadHref } from "../../utils/saveRows";
@@ -82,6 +82,15 @@ export function SaveDetailPage(): JSX.Element {
   const currentSizeBytes = logicalEntry?.sizeBytes || latest?.fileSize || 0;
   const saveInsight = useMemo(() => buildSaveInsight(latest), [latest]);
   const hasCheats = Boolean(latest?.cheats?.supported && (latest.cheats.availableCount || 0) > 0);
+  const cheatSaveId = latest && hasCheats && !showPlayStationSelector ? latest.id : "";
+  const cheatLoader = useCallback(async () => {
+    if (!cheatSaveId) {
+      return null;
+    }
+    const response = await getSaveCheats(cheatSaveId);
+    return response.cheats?.supported ? response.cheats : null;
+  }, [cheatSaveId]);
+  const { loading: cheatLoading, error: cheatError, data: cheatData } = useAsyncData<SaveCheatEditorState | null>(cheatLoader, [cheatSaveId]);
   const parserBadge = saveInsight?.parserLevel || (latest?.inspection ? "Verified" : "Protected");
   const currentDownloadRequest = latest
     ? {
@@ -182,7 +191,13 @@ export function SaveDetailPage(): JSX.Element {
             <PlayStationSavePicker entries={playStationEntries} saveId={saveId} latest={latest} openDownloadModal={openDownloadModal} />
           ) : (
             <>
-              <DecodedSavePanel insight={saveInsight} systemName={systemName} />
+              <DecodedSavePanel
+                insight={saveInsight}
+                systemName={systemName}
+                cheatData={cheatData}
+                cheatLoading={Boolean(cheatSaveId) && cheatLoading}
+                cheatError={Boolean(cheatSaveId) ? cheatError : null}
+              />
               {logicalEntry ? <LogicalSavePanel entry={logicalEntry} latest={latest} /> : null}
               <TechnicalDetailsPanel latest={latest} insight={saveInsight} languageCodes={languageCodes} />
               <VersionHistoryTable
@@ -254,14 +269,94 @@ export function SaveDetailPage(): JSX.Element {
   );
 }
 
-function DecodedSavePanel({ insight, systemName }: { insight: SaveInsightModel | null; systemName: string }): JSX.Element {
-  const gameplayRows = insight?.rows.filter((row) => row.kind === "gameplay") ?? [];
-  if (gameplayRows.length === 0) {
+function DecodedSavePanel({
+  insight,
+  systemName,
+  cheatData,
+  cheatLoading,
+  cheatError
+}: {
+  insight: SaveInsightModel | null;
+  systemName: string;
+  cheatData: SaveCheatEditorState | null;
+  cheatLoading: boolean;
+  cheatError: string | null;
+}): JSX.Element {
+  const parserGameplayRows = insight?.rows.filter((row) => row.kind === "gameplay") ?? [];
+  const cheatRows = buildCheatFactRows(cheatData);
+  const gameplayRows = mergeDetailRows(parserGameplayRows, cheatRows).slice(0, 18);
+  if (gameplayRows.length > 0) {
+    const cheatOnly = parserGameplayRows.length === 0 && cheatRows.length > 0;
+    return (
+      <section className="save-detail-panel" aria-labelledby="save-detail-decoder-title">
+        <div className="save-detail-panel__header">
+          <div>
+            <p className="save-detail-eyebrow">{cheatOnly ? "Editable save values" : "Decoded gameplay"}</p>
+            <h3 id="save-detail-decoder-title">{cheatOnly ? "Cheat-backed save values" : insight?.title || "Gameplay facts"}</h3>
+            <p>{cheatOnly ? "Current values read through the same safe parser-backed editor used by cheats." : insight?.subtitle || "Parser-backed facts from the current save."}</p>
+          </div>
+          <span className="save-detail-tag save-detail-tag--good">{cheatOnly ? cheatData?.editorId || "cheat parser" : insight?.parserId || "parser active"}</span>
+        </div>
+        <div className="save-detail-gameplay-grid">
+          {gameplayRows.map((row) => (
+            <div className="save-detail-gameplay-card" key={row.label}>
+              <span>{row.label}</span>
+              <strong>{row.value}</strong>
+            </div>
+          ))}
+        </div>
+        {cheatError ? <p className="error-state">Could not read cheat-backed values: {cheatError}</p> : null}
+        {insight?.warnings.length ? (
+          <div className="save-detail-note-line">
+            {insight.warnings.slice(0, 2).map((warning) => (
+              <span key={warning}>{warning}</span>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
+  const verifiedRows = insight?.rows.filter((row) => row.kind !== "gameplay").slice(0, 8) ?? [];
+  if (verifiedRows.length > 0 || insight) {
+    return (
+      <section className="save-detail-panel" aria-labelledby="save-detail-decoder-title">
+        <div className="save-detail-panel__header">
+          <div>
+            <p className="save-detail-eyebrow">Verified save facts</p>
+            <h3 id="save-detail-decoder-title">{insight?.title || "Save verified"}</h3>
+            <p>{cheatLoading ? "Checking parser-backed cheat values..." : insight?.subtitle || "Verified backend metadata from the current save."}</p>
+          </div>
+          <span className="save-detail-tag">{insight?.parserId || "verified"}</span>
+        </div>
+        {verifiedRows.length > 0 ? (
+          <div className="save-detail-gameplay-grid">
+            {verifiedRows.map((row) => (
+              <div className="save-detail-gameplay-card save-detail-gameplay-card--verified" key={row.label}>
+                <span>{row.label}</span>
+                <strong>{row.value}</strong>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {cheatError ? <p className="error-state">Could not read cheat-backed values: {cheatError}</p> : null}
+        {insight?.warnings.length ? (
+          <div className="save-detail-note-line">
+            {insight.warnings.slice(0, 2).map((warning) => (
+              <span key={warning}>{warning}</span>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (!cheatLoading) {
     return (
       <section className="save-detail-panel save-detail-decoder-empty" aria-labelledby="save-detail-decoder-title">
         <div>
-          <p className="save-detail-eyebrow">Gameplay decoder</p>
-          <h3 id="save-detail-decoder-title">No gameplay facts yet</h3>
+          <p className="save-detail-eyebrow">Save protected</p>
+          <h3 id="save-detail-decoder-title">No decoder attached yet</h3>
           <p>
             This save is still protected and versioned. Add a parser-backed Game Support Module for {systemName} to show lives, world, stage, inventory, and other fun details here automatically.
           </p>
@@ -272,32 +367,135 @@ function DecodedSavePanel({ insight, systemName }: { insight: SaveInsightModel |
   }
 
   return (
-    <section className="save-detail-panel" aria-labelledby="save-detail-decoder-title">
-      <div className="save-detail-panel__header">
-        <div>
-          <p className="save-detail-eyebrow">Decoded gameplay</p>
-          <h3 id="save-detail-decoder-title">{insight?.title || "Gameplay facts"}</h3>
-          <p>{insight?.subtitle || "Parser-backed facts from the current save."}</p>
-        </div>
-        <span className="save-detail-tag save-detail-tag--good">{insight?.parserId || "parser active"}</span>
+    <section className="save-detail-panel save-detail-decoder-empty" aria-labelledby="save-detail-decoder-title">
+      <div>
+        <p className="save-detail-eyebrow">Gameplay decoder</p>
+        <h3 id="save-detail-decoder-title">Reading save values...</h3>
+        <p>Checking parser-backed cheat values for this save.</p>
       </div>
-      <div className="save-detail-gameplay-grid">
-        {gameplayRows.map((row) => (
-          <div className="save-detail-gameplay-card" key={row.label}>
-            <span>{row.label}</span>
-            <strong>{row.value}</strong>
-          </div>
-        ))}
-      </div>
-      {insight?.warnings.length ? (
-        <div className="save-detail-note-line">
-          {insight.warnings.slice(0, 2).map((warning) => (
-            <span key={warning}>{warning}</span>
-          ))}
-        </div>
-      ) : null}
+      <span className="save-detail-tag">Loading</span>
     </section>
   );
+}
+
+function buildCheatFactRows(cheats: SaveCheatEditorState | null): DetailMetric[] {
+  if (!cheats?.supported) {
+    return [];
+  }
+  const { values, slotLabel } = selectCheatValues(cheats);
+  const rows: DetailMetric[] = [];
+  if (slotLabel) {
+    rows.push({ label: "Save file", value: slotLabel });
+  }
+
+  const fields = (cheats.sections ?? []).flatMap((section) => section.fields ?? []);
+  const seenKeys = new Set<string>();
+  for (const field of fields) {
+    const key = field.ref || field.id;
+    if (!key || seenKeys.has(key) || !Object.prototype.hasOwnProperty.call(values, key)) {
+      continue;
+    }
+    const formatted = formatCheatValue(field, values[key]);
+    if (!formatted) {
+      continue;
+    }
+    seenKeys.add(key);
+    rows.push({ label: field.label || humanizeDetailLabel(key), value: formatted });
+    if (rows.length >= 18) {
+      return rows;
+    }
+  }
+
+  for (const [key, value] of Object.entries(values)) {
+    if (seenKeys.has(key) || rows.length >= 18) {
+      continue;
+    }
+    const formatted = formatBasicDetailValue(value);
+    if (!formatted) {
+      continue;
+    }
+    rows.push({ label: humanizeDetailLabel(key), value: formatted });
+  }
+
+  return rows;
+}
+
+function selectCheatValues(cheats: SaveCheatEditorState): { values: Record<string, unknown>; slotLabel: string } {
+  if (cheats.values && Object.keys(cheats.values).length > 0) {
+    return { values: cheats.values, slotLabel: "" };
+  }
+  const slotValues = cheats.slotValues ?? {};
+  const selectorOptions = cheats.selector?.options ?? [];
+  for (const option of selectorOptions) {
+    const values = slotValues[option.id];
+    if (values && Object.keys(values).length > 0) {
+      return { values, slotLabel: option.label || option.id };
+    }
+  }
+  const firstSlot = Object.keys(slotValues)[0];
+  if (firstSlot) {
+    return { values: slotValues[firstSlot] ?? {}, slotLabel: firstSlot };
+  }
+  return { values: {}, slotLabel: "" };
+}
+
+function mergeDetailRows(primary: DetailMetric[], secondary: DetailMetric[]): DetailMetric[] {
+  const rows: DetailMetric[] = [];
+  const seen = new Set<string>();
+  for (const row of [...primary, ...secondary]) {
+    const key = row.label.trim().toLowerCase();
+    if (!row.value || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    rows.push(row);
+  }
+  return rows;
+}
+
+function formatCheatValue(field: SaveCheatField, value: unknown): string {
+  if (field.type === "boolean" && typeof value === "boolean") {
+    return value ? "Enabled" : "Disabled";
+  }
+  if (field.type === "enum" && typeof value === "string") {
+    return field.options?.find((option) => option.id === value)?.label || humanizeDetailLabel(value);
+  }
+  if (field.type === "bitmask" && Array.isArray(value)) {
+    const labels = value
+      .map((item) => String(item))
+      .map((item) => field.bits?.find((bit) => bit.id === item)?.label || item)
+      .filter(Boolean);
+    return labels.join(", ");
+  }
+  return formatBasicDetailValue(value);
+}
+
+function formatBasicDetailValue(value: unknown): string {
+  if (value === undefined || value === null || value === "") {
+    return "";
+  }
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? String(value) : "";
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => formatBasicDetailValue(item)).filter(Boolean).join(", ");
+  }
+  return "";
+}
+
+function humanizeDetailLabel(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/^./, (char) => char.toUpperCase());
 }
 
 function TechnicalDetailsPanel({ latest, insight, languageCodes }: { latest: SaveSummary | null; insight: SaveInsightModel | null; languageCodes: string[] }): JSX.Element | null {
