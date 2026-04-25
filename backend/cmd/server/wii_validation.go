@@ -12,9 +12,12 @@ import (
 
 const (
 	wiiDataBinParserID           = "wii-data-bin"
+	wiiSMG2GameDataParserID      = "smg2-gamedata-bin"
 	wiiDataBinBackupHeaderOffset = 0xF0C0
 	wiiDataBinFileHeaderOffset   = 0xF140
 	wiiDataBinFileHeaderMagic    = 0x03ADF17E
+	wiiSMG2GameDataVersion       = 3
+	wiiSMG2GameDataSize          = 0x30A0
 
 	wiiTrustLevelMediaVerified     = "media-verified"
 	wiiTrustLevelROMVerified       = "rom-verified"
@@ -38,6 +41,21 @@ type wiiDataBinDetails struct {
 	FileName           string
 	FileSize           int
 	CertificatePresent bool
+}
+
+type wiiSMG2GameDataDetails struct {
+	EntryCount      int
+	UserFileCount   int
+	ConfigFileCount int
+	SysconfPresent  bool
+	Checksum        uint32
+}
+
+type wiiSMG2RawEntry struct {
+	Name   string
+	Kind   string
+	Slot   int
+	Offset int
 }
 
 var wiiTitleCatalog = map[string]wiiTitleCatalogEntry{
@@ -71,6 +89,9 @@ func validateWiiSave(input saveCreateInput, detection saveSystemDetectionResult)
 
 	details, err := parseWiiDataBin(input.Payload)
 	if err != nil {
+		if rawDetails, rawErr := parseSMG2RawGameData(input.Payload); rawErr == nil {
+			return validateSMG2RawGameData(input, detection, ext, rawDetails)
+		}
 		return consoleValidationResult{Rejected: true, RejectReason: err.Error()}
 	}
 
@@ -168,6 +189,59 @@ func validateWiiSave(input saveCreateInput, detection saveSystemDetectionResult)
 	return consoleValidationResult{Inspection: inspection}
 }
 
+func validateSMG2RawGameData(input saveCreateInput, detection saveSystemDetectionResult, ext string, details wiiSMG2GameDataDetails) consoleValidationResult {
+	evidence := []string{
+		"validated raw decrypted Super Mario Galaxy 2 GameData.bin",
+		fmt.Sprintf("payloadSize=%d", len(input.Payload)),
+		fmt.Sprintf("entryCount=%d", details.EntryCount),
+		fmt.Sprintf("userFiles=%d", details.UserFileCount),
+		"checksum valid",
+	}
+	if detection.Evidence.Declared {
+		evidence = append(evidence, "declared system evidence")
+	}
+	if detection.Evidence.HelperTrusted {
+		evidence = append(evidence, "trusted helper system")
+	}
+	if detection.Evidence.StoredTrusted {
+		evidence = append(evidence, "trusted stored system")
+	}
+
+	checksumValid := true
+	inspection := &saveInspection{
+		ParserLevel:        saveParserLevelStructural,
+		ParserID:           wiiSMG2GameDataParserID,
+		ValidatedSystem:    "wii",
+		ValidatedGameID:    "wii/super-mario-galaxy-2",
+		ValidatedGameTitle: "Super Mario Galaxy 2",
+		TrustLevel:         wiiTrustLevelStructureVerified,
+		Evidence:           evidence,
+		Warnings: []string{
+			"Raw decrypted GameData.bin is accepted for read-only parser verification; write support is not exposed for decrypted gameplay fields",
+		},
+		PayloadSizeBytes:  len(input.Payload),
+		SlotCount:         details.UserFileCount,
+		ActiveSlotIndexes: sequentialIndexes(details.UserFileCount),
+		ChecksumValid:     &checksumValid,
+		SemanticFields: map[string]any{
+			"containerKind":      "smg2-raw-gamedata",
+			"extension":          ext,
+			"version":            wiiSMG2GameDataVersion,
+			"entryCount":         details.EntryCount,
+			"userFileCount":      details.UserFileCount,
+			"configFileCount":    details.ConfigFileCount,
+			"sysconfPresent":     details.SysconfPresent,
+			"checksum":           fmt.Sprintf("0x%08X", details.Checksum),
+			"encrypted":          false,
+			"semanticVerified":   false,
+			"cheatEditing":       "not available for raw GameData.bin; module parser exposes read-only semantic fields",
+			"readOnlyGameData":   true,
+			"semanticParserHint": "smg2-data-bin-wasm",
+		},
+	}
+	return consoleValidationResult{Inspection: inspection}
+}
+
 func parseWiiDataBin(payload []byte) (wiiDataBinDetails, error) {
 	if len(payload) < wiiDataBinFileHeaderOffset+0x80 {
 		return wiiDataBinDetails{}, fmt.Errorf("wii data.bin payload is too small")
@@ -209,6 +283,143 @@ func parseWiiDataBin(payload []byte) (wiiDataBinDetails, error) {
 func isLikelyWiiDataBin(payload []byte) bool {
 	_, err := parseWiiDataBin(payload)
 	return err == nil
+}
+
+func parseSMG2RawGameData(payload []byte) (wiiSMG2GameDataDetails, error) {
+	if len(payload) != wiiSMG2GameDataSize {
+		return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin payload size is invalid")
+	}
+	if binary.BigEndian.Uint32(payload[4:8]) != wiiSMG2GameDataVersion {
+		return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin version is invalid")
+	}
+	entryCount := int(binary.BigEndian.Uint32(payload[8:12]))
+	if entryCount <= 0 || entryCount > 14 {
+		return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin entry count is invalid")
+	}
+	fileSize := int(binary.BigEndian.Uint32(payload[12:16]))
+	if fileSize != len(payload) {
+		return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin file size is invalid")
+	}
+	storedChecksum := binary.BigEndian.Uint32(payload[0:4])
+	if computed := wiiGalaxyChecksum(payload[4:]); computed != storedChecksum {
+		return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin checksum is invalid")
+	}
+
+	indexEnd := 0x10 + entryCount*0x10
+	if indexEnd >= len(payload) {
+		return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin index is invalid")
+	}
+	entries := make([]wiiSMG2RawEntry, 0, entryCount)
+	seenUserSlots := map[int]struct{}{}
+	seenConfigSlots := map[int]struct{}{}
+	lastOffset := indexEnd
+	userCount := 0
+	configCount := 0
+	sysconfPresent := false
+	for idx := 0; idx < entryCount; idx++ {
+		entry := payload[0x10+idx*0x10 : 0x20+idx*0x10]
+		name := fixedASCIIName(entry[:12])
+		if name == "" {
+			return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin entry name is invalid")
+		}
+		offset := int(binary.BigEndian.Uint32(entry[12:16]))
+		if offset < indexEnd || offset >= len(payload) || offset < lastOffset {
+			return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin entry offset is invalid")
+		}
+		lastOffset = offset
+		if slot, ok := smg2EntrySlot(name, "user"); ok {
+			if _, exists := seenUserSlots[slot]; exists {
+				return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin duplicate user slot")
+			}
+			seenUserSlots[slot] = struct{}{}
+			userCount++
+			entries = append(entries, wiiSMG2RawEntry{Name: name, Kind: "user", Slot: slot, Offset: offset})
+			continue
+		}
+		if slot, ok := smg2EntrySlot(name, "config"); ok {
+			if _, exists := seenConfigSlots[slot]; exists {
+				return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin duplicate config slot")
+			}
+			seenConfigSlots[slot] = struct{}{}
+			configCount++
+			entries = append(entries, wiiSMG2RawEntry{Name: name, Kind: "config", Slot: slot, Offset: offset})
+			continue
+		}
+		if name != "sysconf" {
+			return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin entry name is unsupported")
+		}
+		if sysconfPresent {
+			return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin duplicate sysconf entry")
+		}
+		sysconfPresent = true
+		entries = append(entries, wiiSMG2RawEntry{Name: name, Kind: "sysconf", Offset: offset})
+	}
+	for idx, entry := range entries {
+		end := len(payload)
+		if idx+1 < len(entries) {
+			end = entries[idx+1].Offset
+		}
+		minSize := 0
+		switch entry.Kind {
+		case "user":
+			minSize = 0xF80
+		case "config":
+			minSize = 0x60
+		case "sysconf":
+			minSize = 0x80
+		default:
+			return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin entry name is unsupported")
+		}
+		if entry.Offset+minSize > end {
+			return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin %s entry is truncated", entry.Name)
+		}
+		if payload[entry.Offset] != 2 || binary.BigEndian.Uint16(payload[entry.Offset+2:entry.Offset+4]) != 0 {
+			return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin %s entry header is invalid", entry.Name)
+		}
+	}
+	if userCount == 0 {
+		return wiiSMG2GameDataDetails{}, fmt.Errorf("wii raw GameData.bin has no user save entries")
+	}
+	return wiiSMG2GameDataDetails{
+		EntryCount:      entryCount,
+		UserFileCount:   userCount,
+		ConfigFileCount: configCount,
+		SysconfPresent:  sysconfPresent,
+		Checksum:        storedChecksum,
+	}, nil
+}
+
+func smg2EntrySlot(name string, prefix string) (int, bool) {
+	if len(name) != len(prefix)+1 || !strings.HasPrefix(name, prefix) {
+		return 0, false
+	}
+	slot := int(name[len(prefix)] - '0')
+	if slot < 1 || slot > 6 {
+		return 0, false
+	}
+	return slot, true
+}
+
+func wiiGalaxyChecksum(payload []byte) uint32 {
+	var sum uint16
+	var invSum uint16
+	for idx := 0; idx+1 < len(payload); idx += 2 {
+		term := binary.BigEndian.Uint16(payload[idx : idx+2])
+		sum += term
+		invSum += ^term
+	}
+	return uint32(sum)<<16 | uint32(invSum)
+}
+
+func fixedASCIIName(raw []byte) string {
+	end := 0
+	for end < len(raw) && raw[end] != 0 {
+		if raw[end] < 0x20 || raw[end] > 0x7E {
+			return ""
+		}
+		end++
+	}
+	return strings.TrimSpace(string(raw[:end]))
 }
 
 func extractWiiEmbeddedFileName(header []byte) string {
