@@ -31,25 +31,32 @@ type securityDeviceStateFile struct {
 }
 
 type securityStateDevice struct {
-	ID                  int       `json:"id"`
-	DeviceType          string    `json:"deviceType"`
-	Fingerprint         string    `json:"fingerprint"`
-	Alias               *string   `json:"alias"`
-	DisplayName         string    `json:"displayName"`
-	Hostname            string    `json:"hostname,omitempty"`
-	HelperName          string    `json:"helperName,omitempty"`
-	HelperVersion       string    `json:"helperVersion,omitempty"`
-	Platform            string    `json:"platform,omitempty"`
-	SyncPaths           []string  `json:"syncPaths,omitempty"`
-	ReportedSystemSlugs []string  `json:"reportedSystemSlugs,omitempty"`
-	LastSeenIP          string    `json:"lastSeenIp,omitempty"`
-	LastSeenUserAgent   string    `json:"lastSeenUserAgent,omitempty"`
-	LastSeenAt          time.Time `json:"lastSeenAt"`
-	SyncAll             *bool     `json:"syncAll,omitempty"`
-	AllowedSystemSlugs  []string  `json:"allowedSystemSlugs,omitempty"`
-	BoundAppPasswordID  *string   `json:"boundAppPasswordId,omitempty"`
-	LastSyncedAt        time.Time `json:"lastSyncedAt"`
-	CreatedAt           time.Time `json:"createdAt"`
+	ID                  int                  `json:"id"`
+	DeviceType          string               `json:"deviceType"`
+	Fingerprint         string               `json:"fingerprint"`
+	Alias               *string              `json:"alias"`
+	DisplayName         string               `json:"displayName"`
+	Hostname            string               `json:"hostname,omitempty"`
+	HelperName          string               `json:"helperName,omitempty"`
+	HelperVersion       string               `json:"helperVersion,omitempty"`
+	Platform            string               `json:"platform,omitempty"`
+	SyncPaths           []string             `json:"syncPaths,omitempty"`
+	ReportedSystemSlugs []string             `json:"reportedSystemSlugs,omitempty"`
+	ConfigRevision      string               `json:"configRevision,omitempty"`
+	ConfigReportedAt    *time.Time           `json:"configReportedAt,omitempty"`
+	ConfigGlobal        *deviceConfigGlobal  `json:"configGlobal,omitempty"`
+	ConfigSources       []deviceConfigSource `json:"configSources,omitempty"`
+	ConfigCapabilities  map[string]any       `json:"configCapabilities,omitempty"`
+	Service             *deviceServiceState  `json:"service,omitempty"`
+	Sensors             *deviceSensorState   `json:"sensors,omitempty"`
+	LastSeenIP          string               `json:"lastSeenIp,omitempty"`
+	LastSeenUserAgent   string               `json:"lastSeenUserAgent,omitempty"`
+	LastSeenAt          time.Time            `json:"lastSeenAt"`
+	SyncAll             *bool                `json:"syncAll,omitempty"`
+	AllowedSystemSlugs  []string             `json:"allowedSystemSlugs,omitempty"`
+	BoundAppPasswordID  *string              `json:"boundAppPasswordId,omitempty"`
+	LastSyncedAt        time.Time            `json:"lastSyncedAt"`
+	CreatedAt           time.Time            `json:"createdAt"`
 }
 
 type securityStateAppPassword struct {
@@ -260,6 +267,13 @@ func (a *app) loadSecurityDeviceState() error {
 			Platform:            strings.TrimSpace(persisted.Platform),
 			SyncPaths:           normalizeHelperPaths(persisted.SyncPaths),
 			ReportedSystemSlugs: normalizeAllowedSystemSlugs(persisted.ReportedSystemSlugs),
+			ConfigRevision:      strings.TrimSpace(persisted.ConfigRevision),
+			ConfigReportedAt:    copyTimePtr(persisted.ConfigReportedAt),
+			ConfigGlobal:        normalizeDeviceConfigGlobal(persisted.ConfigGlobal),
+			ConfigSources:       normalizeDeviceConfigSources(persisted.ConfigSources),
+			ConfigCapabilities:  cloneConfigCapabilities(persisted.ConfigCapabilities),
+			Service:             cloneDeviceServiceState(persisted.Service),
+			Sensors:             cloneDeviceSensorState(persisted.Sensors),
 			LastSeenIP:          strings.TrimSpace(persisted.LastSeenIP),
 			LastSeenUserAgent:   strings.TrimSpace(persisted.LastSeenUserAgent),
 			LastSeenAt:          persisted.LastSeenAt,
@@ -370,6 +384,13 @@ func (a *app) securityDeviceStateSnapshotLocked() securityDeviceStateFile {
 			Platform:            strings.TrimSpace(d.Platform),
 			SyncPaths:           append([]string(nil), normalizeHelperPaths(d.SyncPaths)...),
 			ReportedSystemSlugs: append([]string(nil), normalizeAllowedSystemSlugs(d.ReportedSystemSlugs)...),
+			ConfigRevision:      strings.TrimSpace(d.ConfigRevision),
+			ConfigReportedAt:    copyTimePtr(d.ConfigReportedAt),
+			ConfigGlobal:        normalizeDeviceConfigGlobal(d.ConfigGlobal),
+			ConfigSources:       append([]deviceConfigSource(nil), normalizeDeviceConfigSources(d.ConfigSources)...),
+			ConfigCapabilities:  cloneConfigCapabilities(d.ConfigCapabilities),
+			Service:             cloneDeviceServiceState(d.Service),
+			Sensors:             cloneDeviceSensorState(d.Sensors),
 			LastSeenIP:          strings.TrimSpace(d.LastSeenIP),
 			LastSeenUserAgent:   strings.TrimSpace(d.LastSeenUserAgent),
 			LastSeenAt:          d.LastSeenAt,
@@ -439,6 +460,13 @@ func (a *app) publicDeviceLocked(input device) device {
 	out.Platform = strings.TrimSpace(out.Platform)
 	out.SyncPaths = normalizeHelperPaths(out.SyncPaths)
 	out.ReportedSystemSlugs = normalizeAllowedSystemSlugs(out.ReportedSystemSlugs)
+	out.ConfigRevision = strings.TrimSpace(out.ConfigRevision)
+	out.ConfigGlobal = normalizeDeviceConfigGlobal(out.ConfigGlobal)
+	out.ConfigSources = normalizeDeviceConfigSources(out.ConfigSources)
+	out.ConfigCapabilities = cloneConfigCapabilities(out.ConfigCapabilities)
+	out.Service = computeDeviceServiceStatus(cloneDeviceServiceState(out.Service), time.Now().UTC())
+	out.Sensors = cloneDeviceSensorState(out.Sensors)
+	out.ConfigReportedAt = copyTimePtr(out.ConfigReportedAt)
 	out.LastSeenIP = strings.TrimSpace(out.LastSeenIP)
 	out.LastSeenUserAgent = strings.TrimSpace(out.LastSeenUserAgent)
 	if out.LastSeenAt.IsZero() && !out.LastSyncedAt.IsZero() {
@@ -452,6 +480,12 @@ func (a *app) publicDeviceLocked(input device) device {
 			out.BoundAppPasswordName = password.Name
 			out.BoundAppPasswordLastFour = password.LastFour
 		}
+	}
+	if len(out.ConfigSources) > 0 {
+		policy := effectiveDevicePolicy(out)
+		out.EffectivePolicy = &policy
+	} else {
+		out.EffectivePolicy = nil
 	}
 	return out
 }
@@ -670,24 +704,4 @@ func (a *app) upsertDeviceLocked(deviceType, fingerprint string) device {
 
 func (a *app) saveDeviceLocked(input device) {
 	a.devices[input.ID] = a.publicDeviceLocked(input)
-}
-
-func systemAllowedForDevice(deviceInput device, systemSlug string) bool {
-	normalizedSystem := canonicalSegment(systemSlug, "unknown-system")
-	if !isSupportedSystemSlug(normalizedSystem) {
-		return false
-	}
-	if deviceInput.SyncAll {
-		return true
-	}
-	allowed := normalizeAllowedSystemSlugs(deviceInput.AllowedSystemSlugs)
-	if len(allowed) == 0 {
-		return false
-	}
-	for _, slug := range allowed {
-		if slug == normalizedSystem {
-			return true
-		}
-	}
-	return false
 }

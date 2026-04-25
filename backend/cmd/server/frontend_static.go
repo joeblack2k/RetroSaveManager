@@ -112,6 +112,7 @@ func isReservedAPIPath(path string) bool {
 		"/rom",
 		"/conflicts",
 		"/devices",
+		"/helpers",
 		"/logs",
 		"/events",
 		"/games",

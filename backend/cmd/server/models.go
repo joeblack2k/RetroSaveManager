@@ -3,27 +3,140 @@ package main
 import "time"
 
 type device struct {
-	ID                       int       `json:"id"`
-	DeviceType               string    `json:"deviceType"`
-	Fingerprint              string    `json:"fingerprint"`
-	Alias                    *string   `json:"alias"`
-	DisplayName              string    `json:"displayName"`
-	Hostname                 string    `json:"hostname,omitempty"`
-	HelperName               string    `json:"helperName,omitempty"`
-	HelperVersion            string    `json:"helperVersion,omitempty"`
-	Platform                 string    `json:"platform,omitempty"`
-	SyncPaths                []string  `json:"syncPaths,omitempty"`
-	ReportedSystemSlugs      []string  `json:"reportedSystemSlugs,omitempty"`
-	LastSeenIP               string    `json:"lastSeenIp,omitempty"`
-	LastSeenUserAgent        string    `json:"lastSeenUserAgent,omitempty"`
-	LastSeenAt               time.Time `json:"lastSeenAt"`
-	SyncAll                  bool      `json:"syncAll"`
-	AllowedSystemSlugs       []string  `json:"allowedSystemSlugs,omitempty"`
-	BoundAppPasswordID       *string   `json:"boundAppPasswordId,omitempty"`
-	BoundAppPasswordName     string    `json:"boundAppPasswordName,omitempty"`
-	BoundAppPasswordLastFour string    `json:"boundAppPasswordLastFour,omitempty"`
-	LastSyncedAt             time.Time `json:"lastSyncedAt"`
-	CreatedAt                time.Time `json:"createdAt"`
+	ID                       int                    `json:"id"`
+	DeviceType               string                 `json:"deviceType"`
+	Fingerprint              string                 `json:"fingerprint"`
+	Alias                    *string                `json:"alias"`
+	DisplayName              string                 `json:"displayName"`
+	Hostname                 string                 `json:"hostname,omitempty"`
+	HelperName               string                 `json:"helperName,omitempty"`
+	HelperVersion            string                 `json:"helperVersion,omitempty"`
+	Platform                 string                 `json:"platform,omitempty"`
+	SyncPaths                []string               `json:"syncPaths,omitempty"`
+	ReportedSystemSlugs      []string               `json:"reportedSystemSlugs,omitempty"`
+	ConfigRevision           string                 `json:"configRevision,omitempty"`
+	ConfigReportedAt         *time.Time             `json:"configReportedAt,omitempty"`
+	ConfigGlobal             *deviceConfigGlobal    `json:"configGlobal,omitempty"`
+	ConfigSources            []deviceConfigSource   `json:"configSources,omitempty"`
+	ConfigCapabilities       map[string]any         `json:"configCapabilities,omitempty"`
+	Service                  *deviceServiceState    `json:"service,omitempty"`
+	Sensors                  *deviceSensorState     `json:"sensors,omitempty"`
+	EffectivePolicy          *deviceEffectivePolicy `json:"effectivePolicy,omitempty"`
+	LastSeenIP               string                 `json:"lastSeenIp,omitempty"`
+	LastSeenUserAgent        string                 `json:"lastSeenUserAgent,omitempty"`
+	LastSeenAt               time.Time              `json:"lastSeenAt"`
+	SyncAll                  bool                   `json:"syncAll"`
+	AllowedSystemSlugs       []string               `json:"allowedSystemSlugs,omitempty"`
+	BoundAppPasswordID       *string                `json:"boundAppPasswordId,omitempty"`
+	BoundAppPasswordName     string                 `json:"boundAppPasswordName,omitempty"`
+	BoundAppPasswordLastFour string                 `json:"boundAppPasswordLastFour,omitempty"`
+	LastSyncedAt             time.Time              `json:"lastSyncedAt"`
+	CreatedAt                time.Time              `json:"createdAt"`
+}
+
+type deviceConfigGlobal struct {
+	URL                   string `json:"url,omitempty"`
+	Port                  int    `json:"port,omitempty"`
+	BaseURL               string `json:"baseUrl,omitempty"`
+	Email                 string `json:"email,omitempty"`
+	AppPasswordConfigured bool   `json:"appPasswordConfigured"`
+	Root                  string `json:"root,omitempty"`
+	StateDir              string `json:"stateDir,omitempty"`
+	Watch                 bool   `json:"watch"`
+	WatchInterval         int    `json:"watchInterval,omitempty"`
+	ForceUpload           bool   `json:"forceUpload"`
+	DryRun                bool   `json:"dryRun"`
+	RoutePrefix           string `json:"routePrefix,omitempty"`
+}
+
+type deviceConfigSource struct {
+	ID                      string   `json:"id"`
+	Label                   string   `json:"label,omitempty"`
+	Kind                    string   `json:"kind,omitempty"`
+	Profile                 string   `json:"profile,omitempty"`
+	SavePath                string   `json:"savePath,omitempty"`
+	SavePaths               []string `json:"savePaths,omitempty"`
+	ROMPath                 string   `json:"romPath,omitempty"`
+	ROMPaths                []string `json:"romPaths,omitempty"`
+	Recursive               bool     `json:"recursive"`
+	Systems                 []string `json:"systems,omitempty"`
+	UnsupportedSystemSlugs  []string `json:"unsupportedSystemSlugs,omitempty"`
+	CreateMissingSystemDirs bool     `json:"createMissingSystemDirs"`
+	Managed                 bool     `json:"managed"`
+	Origin                  string   `json:"origin,omitempty"`
+}
+
+type deviceServiceState struct {
+	Mode                string     `json:"mode,omitempty"`
+	Status              string     `json:"status,omitempty"`
+	Loop                string     `json:"loop,omitempty"`
+	ControlChannel      string     `json:"controlChannel,omitempty"`
+	HeartbeatInterval   int        `json:"heartbeatInterval,omitempty"`
+	ReconcileInterval   int        `json:"reconcileInterval,omitempty"`
+	PID                 int        `json:"pid,omitempty"`
+	StartedAt           *time.Time `json:"startedAt,omitempty"`
+	UptimeSeconds       int64      `json:"uptimeSeconds,omitempty"`
+	BinaryPath          string     `json:"binaryPath,omitempty"`
+	LastSyncStartedAt   *time.Time `json:"lastSyncStartedAt,omitempty"`
+	LastSyncFinishedAt  *time.Time `json:"lastSyncFinishedAt,omitempty"`
+	LastSyncOk          *bool      `json:"lastSyncOk,omitempty"`
+	LastError           string     `json:"lastError,omitempty"`
+	LastEvent           string     `json:"lastEvent,omitempty"`
+	SyncCycles          int        `json:"syncCycles,omitempty"`
+	LastHeartbeatAt     *time.Time `json:"lastHeartbeatAt,omitempty"`
+	Online              bool       `json:"online"`
+	Freshness           string     `json:"freshness,omitempty"`
+	StaleAfterSeconds   int        `json:"staleAfterSeconds,omitempty"`
+	OfflineAfterSeconds int        `json:"offlineAfterSeconds,omitempty"`
+	OfflineAt           *time.Time `json:"offlineAt,omitempty"`
+}
+
+type deviceSensorState struct {
+	Online            bool                 `json:"online"`
+	Authenticated     bool                 `json:"authenticated"`
+	ConfigHash        string               `json:"configHash,omitempty"`
+	ConfigReadable    bool                 `json:"configReadable"`
+	ConfigError       string               `json:"configError,omitempty"`
+	SourceCount       int                  `json:"sourceCount,omitempty"`
+	SavePathCount     int                  `json:"savePathCount,omitempty"`
+	ROMPathCount      int                  `json:"romPathCount,omitempty"`
+	ConfiguredSystems []string             `json:"configuredSystems,omitempty"`
+	SupportedSystems  []string             `json:"supportedSystems,omitempty"`
+	SyncLockPresent   bool                 `json:"syncLockPresent"`
+	LastSync          *deviceLastSyncStats `json:"lastSync,omitempty"`
+}
+
+type deviceLastSyncStats struct {
+	Scanned    int `json:"scanned"`
+	Uploaded   int `json:"uploaded"`
+	Downloaded int `json:"downloaded"`
+	InSync     int `json:"inSync"`
+	Conflicts  int `json:"conflicts"`
+	Skipped    int `json:"skipped"`
+	Errors     int `json:"errors"`
+}
+
+type devicePolicyBlock struct {
+	System      string `json:"system"`
+	Reason      string `json:"reason"`
+	SourceID    string `json:"sourceId,omitempty"`
+	SourceLabel string `json:"sourceLabel,omitempty"`
+}
+
+type deviceSourceEffectivePolicy struct {
+	SourceID           string              `json:"sourceId,omitempty"`
+	SourceLabel        string              `json:"sourceLabel,omitempty"`
+	Kind               string              `json:"kind,omitempty"`
+	Profile            string              `json:"profile,omitempty"`
+	AllowedSystemSlugs []string            `json:"allowedSystemSlugs,omitempty"`
+	Blocked            []devicePolicyBlock `json:"blocked,omitempty"`
+}
+
+type deviceEffectivePolicy struct {
+	Mode               string                        `json:"mode"`
+	AllowedSystemSlugs []string                      `json:"allowedSystemSlugs,omitempty"`
+	Blocked            []devicePolicyBlock           `json:"blocked,omitempty"`
+	Sources            []deviceSourceEffectivePolicy `json:"sources,omitempty"`
 }
 
 type system struct {

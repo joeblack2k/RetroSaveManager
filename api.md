@@ -53,6 +53,8 @@ curl -s "$RSM_BASE_URL/api/v1/overview"
 - `GET /api/devices`
 - `GET /api/devices/{id}`
 - `PATCH /api/devices/{id}`
+- `POST /api/devices/{id}/command`
+- `POST /api/devices/config/report`
 - `DELETE /api/devices/{id}`
 
 ### Saves
@@ -86,8 +88,10 @@ curl -s "$RSM_BASE_URL/api/v1/overview"
 - `GET /api/conflicts/{id}`
 - `POST /api/conflicts/{id}/resolve`
 
-### Helper enrollment
+### Helper config and enrollment
 
+- `POST /api/helpers/config/sync`
+- `POST /api/helpers/heartbeat`
 - `GET /api/helpers/auto-enroll`
 - `POST /api/helpers/auto-enroll`
 
@@ -200,6 +204,35 @@ Each log row includes:
 curl -s "$RSM_API/logs?hours=72&page=1&limit=50" | jq
 ```
 
+
+## Helper Config Sync
+
+Helpers should report parsed `config.ini` snapshots to the backend before each sync/watch cycle. This lets the backend return the effective source policy that helpers apply in memory for the current run.
+
+```bash
+curl -s -X POST "$RSM_API/helpers/config/sync" \
+  -H 'Content-Type: application/json' \
+  -H 'X-RSM-App-Password: ABC-123' \
+  -d @helper-config-sync.json | jq
+```
+
+The response includes `accepted: true`, `policy.sources[]`, and when available `policy.global`. Global policy can include `url`, `port`, `baseUrl`, `email`, `root`, `stateDir`, `watch`, `watchInterval`, `forceUpload`, `dryRun`, and `routePrefix`. Each source policy contains the backend-approved `systems` list plus source runtime fields such as `kind`, `profile`, `savePaths`, `romPaths`, `recursive`, and `createMissingSystemDirs`.
+
+### Helper heartbeat
+
+Always-on helpers should report service health and sensors:
+
+```bash
+curl -s -X POST "$RSM_API/helpers/heartbeat" \
+  -H 'Content-Type: application/json' \
+  -H 'X-RSM-App-Password: ABC-123' \
+  -d @helper-heartbeat.json | jq
+```
+
+The heartbeat payload contains `helper`, `service`, `sensors`, `config`, and `capabilities`. The backend stores daemon status, freshness, config hash, folder counts, last sync counters, and the reported structured config snapshot.
+
+The simpler `POST /api/devices/config/report` route remains available for scripts and compatibility, but helpers should prefer `/api/helpers/config/sync`.
+
 ## Devices
 
 ### List devices
@@ -219,11 +252,17 @@ Device records expose helper-facing metadata when available, including:
 - `platform`
 - `syncPaths`
 - `reportedSystemSlugs`
+- `configGlobal`
+- `service`
+- `sensors`
 - `lastSeenIp`
 - `lastSeenUserAgent`
 - `lastSeenAt`
 - `lastSyncedAt`
 - `allowedSystemSlugs`
+- `configSources`
+- `configCapabilities`
+- `effectivePolicy`
 - bound app-password metadata
 
 ### Get one device
@@ -239,6 +278,8 @@ Supported patch fields:
 - `alias`
 - `syncAll`
 - `allowedSystemSlugs`
+- `configGlobal`
+- `configSources`
 
 ```bash
 curl -s -X PATCH "$RSM_API/devices/1" \
@@ -246,9 +287,74 @@ curl -s -X PATCH "$RSM_API/devices/1" \
   -d '{
     "alias": "Living Room MiSTer",
     "syncAll": false,
-    "allowedSystemSlugs": ["snes", "n64", "psx"]
+    "allowedSystemSlugs": ["snes", "n64", "psx"],
+    "configSources": [
+      {
+        "id": "backend-snes-snes9x",
+        "label": "Super Nintendo Snes9x",
+        "kind": "custom",
+        "profile": "snes9x",
+        "savePaths": ["/media/snes9x/saves"],
+        "romPaths": ["/media/snes9x/roms"],
+        "recursive": true,
+        "systems": ["snes"],
+        "createMissingSystemDirs": false,
+        "managed": true,
+        "origin": "backend"
+      }
+    ]
   }' | jq
 ```
+
+When `configSources` changes, the backend publishes `config.changed` on `GET /events`. Service helpers should reload/apply the new policy and write it back to `config.ini`.
+
+### Send a helper command
+
+```bash
+curl -s -X POST "$RSM_API/devices/1/command" \
+  -H 'Content-Type: application/json' \
+  -d '{"command":"sync","reason":"user_requested"}' | jq
+```
+
+Supported commands:
+
+- `sync` publishes `sync.requested`
+- `scan` publishes `scan.requested`
+- `deep_scan` publishes `deep_scan.requested`
+
+Helpers receive these events over `GET /events`.
+
+
+### Report helper config
+
+Helpers can report their parsed local config so the backend can calculate the effective per-device sync policy. Send structured JSON; do not send raw INI text.
+
+```bash
+curl -s -X POST "$RSM_API/devices/config/report" \
+  -H 'Content-Type: application/json' \
+  -H 'X-RSM-Device-Type: mister' \
+  -H 'X-RSM-Fingerprint: example-device-id' \
+  -H 'X-RSM-App-Password: ABC-123' \
+  -d '{
+    "configRevision": "sha256:example",
+    "sources": [
+      {
+        "id": "mister_default",
+        "label": "MiSTer Default",
+        "kind": "mister-fpga",
+        "profile": "mister",
+        "savePath": "/media/fat/saves",
+        "romPath": "/media/fat/games",
+        "recursive": true,
+        "systems": ["nes", "snes", "n64", "psx"],
+        "managed": false,
+        "origin": "manual"
+      }
+    ]
+  }' | jq
+```
+
+The response includes `effectivePolicy.allowedSystemSlugs` and `effectivePolicy.blocked`. Backend policy always wins over helper config.
 
 ### Delete one device
 

@@ -304,6 +304,14 @@ export type Device = {
   platform?: string;
   syncPaths?: string[];
   reportedSystemSlugs?: string[];
+  configRevision?: string;
+  configReportedAt?: string;
+  configGlobal?: DeviceConfigGlobal;
+  configSources?: DeviceConfigSource[];
+  configCapabilities?: Record<string, unknown>;
+  service?: DeviceServiceState;
+  sensors?: DeviceSensorState;
+  effectivePolicy?: DeviceEffectivePolicy;
   lastSeenIp?: string;
   lastSeenUserAgent?: string;
   lastSeenAt: string;
@@ -314,6 +322,111 @@ export type Device = {
   boundAppPasswordLastFour?: string;
   lastSyncedAt: string;
   createdAt: string;
+};
+
+export type DeviceServiceState = {
+  mode?: string;
+  status?: string;
+  loop?: string;
+  controlChannel?: string;
+  heartbeatInterval?: number;
+  reconcileInterval?: number;
+  pid?: number;
+  startedAt?: string;
+  uptimeSeconds?: number;
+  binaryPath?: string;
+  lastSyncStartedAt?: string;
+  lastSyncFinishedAt?: string;
+  lastSyncOk?: boolean;
+  lastError?: string;
+  lastEvent?: string;
+  syncCycles?: number;
+  lastHeartbeatAt?: string;
+  online?: boolean;
+  freshness?: "online" | "degraded" | "stale" | "offline" | string;
+  staleAfterSeconds?: number;
+  offlineAfterSeconds?: number;
+  offlineAt?: string;
+};
+
+export type DeviceLastSyncStats = {
+  scanned: number;
+  uploaded: number;
+  downloaded: number;
+  inSync: number;
+  conflicts: number;
+  skipped: number;
+  errors: number;
+};
+
+export type DeviceSensorState = {
+  online?: boolean;
+  authenticated?: boolean;
+  configHash?: string;
+  configReadable?: boolean;
+  configError?: string;
+  sourceCount?: number;
+  savePathCount?: number;
+  romPathCount?: number;
+  configuredSystems?: string[];
+  supportedSystems?: string[];
+  syncLockPresent?: boolean;
+  lastSync?: DeviceLastSyncStats;
+};
+
+export type DeviceConfigGlobal = {
+  url?: string;
+  port?: number;
+  baseUrl?: string;
+  email?: string;
+  appPasswordConfigured?: boolean;
+  root?: string;
+  stateDir?: string;
+  watch?: boolean;
+  watchInterval?: number;
+  forceUpload?: boolean;
+  dryRun?: boolean;
+  routePrefix?: string;
+};
+
+export type DeviceConfigSource = {
+  id: string;
+  label?: string;
+  kind?: string;
+  profile?: string;
+  savePath?: string;
+  savePaths?: string[];
+  romPath?: string;
+  romPaths?: string[];
+  recursive?: boolean;
+  systems?: string[];
+  unsupportedSystemSlugs?: string[];
+  createMissingSystemDirs?: boolean;
+  managed?: boolean;
+  origin?: string;
+};
+
+export type DevicePolicyBlock = {
+  system: string;
+  reason: string;
+  sourceId?: string;
+  sourceLabel?: string;
+};
+
+export type DeviceSourceEffectivePolicy = {
+  sourceId?: string;
+  sourceLabel?: string;
+  kind?: string;
+  profile?: string;
+  allowedSystemSlugs?: string[];
+  blocked?: DevicePolicyBlock[];
+};
+
+export type DeviceEffectivePolicy = {
+  mode: string;
+  allowedSystemSlugs?: string[];
+  blocked?: DevicePolicyBlock[];
+  sources?: DeviceSourceEffectivePolicy[];
 };
 
 export type SyncLogEntry = {

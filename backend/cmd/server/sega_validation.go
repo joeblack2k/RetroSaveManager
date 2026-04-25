@@ -45,7 +45,7 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateNintendoRawSave(input, detection, systemSlug)
 	case "neogeo":
 		return validateNeoGeoSave(input, detection)
-	case "genesis", "master-system", "game-gear":
+	case "genesis", "master-system", "game-gear", "sega-cd", "sega-32x":
 		return validateStrictSegaRawSave(input, detection, systemSlug)
 	default:
 		return consoleValidationResult{}

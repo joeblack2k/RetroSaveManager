@@ -9,6 +9,8 @@ import type {
   CatalogItem,
   Conflict,
   Device,
+  DeviceConfigGlobal,
+  DeviceConfigSource,
   LibraryEntry,
   ReferralInfo,
   RoadmapItem,
@@ -280,12 +282,30 @@ export async function getDevice(id: number): Promise<Device> {
 
 export function updateDevice(
   id: number,
-  payload: { alias?: string; syncAll?: boolean; allowedSystemSlugs?: string[] }
+  payload: {
+    alias?: string;
+    syncAll?: boolean;
+    allowedSystemSlugs?: string[];
+    configSources?: DeviceConfigSource[];
+    configGlobal?: DeviceConfigGlobal;
+  }
 ): Promise<{ success: boolean; device: Device }> {
   return apiFetchJSON(`/devices/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
+  });
+}
+
+export function commandDevice(
+  id: number,
+  command: "sync" | "scan" | "deep_scan",
+  reason?: string
+): Promise<{ success: boolean; event: string; action: string; broadcast: boolean }> {
+  return apiFetchJSON(`/devices/${id}/command`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ command, reason })
   });
 }
 

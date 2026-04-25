@@ -131,9 +131,13 @@ func mountCompatRoutes(r chi.Router, app *app) {
 	r.Get("/parser/wasm", app.handleParserWASM)
 
 	r.Get("/devices", app.handleDevicesList)
+	r.Post("/devices/config/report", app.handleDevicesConfigReport)
 	r.Get("/devices/{id}", app.handleDevicesGet)
 	r.Patch("/devices/{id}", app.handleDevicesPatch)
+	r.Post("/devices/{id}/command", app.handleDeviceCommand)
 	r.Delete("/devices/{id}", app.handleDevicesDelete)
+	r.Post("/helpers/config/sync", app.handleHelpersConfigSync)
+	r.Post("/helpers/heartbeat", app.handleHelpersHeartbeat)
 	r.Get("/logs", app.handleSyncLogs)
 
 	r.Get("/events", app.handleEvents)

@@ -65,6 +65,45 @@ func TestNormalizeSaveInputAcceptsTrustedGenesisRawSaveWithInspection(t *testing
 	}
 }
 
+func TestNormalizeSaveInputAcceptsHelperSegaCDAnd32XRawSaves(t *testing.T) {
+	cases := []struct {
+		system string
+		name   string
+		kind   string
+	}{
+		{system: "sega-cd", name: "Lunar.srm", kind: "Sega CD / Mega-CD backup RAM"},
+		{system: "sega-32x", name: "Virtua Racing Deluxe.sav", kind: "Sega 32X cartridge SRAM"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.system, func(t *testing.T) {
+			a := &app{}
+			result := a.normalizeSaveInputDetailed(saveCreateInput{
+				Filename:            tc.name,
+				Payload:             buildNonBlankPayload(8192, 0x07),
+				Game:                game{Name: tc.name},
+				Format:              "sram",
+				ROMSHA1:             tc.system + "-rom-sha1",
+				SlotName:            "default",
+				SystemSlug:          tc.system,
+				TrustedHelperSystem: true,
+			})
+			if result.Rejected {
+				t.Fatalf("expected %s raw save to be accepted, got reject=%q", tc.system, result.RejectReason)
+			}
+			if result.Input.SystemSlug != tc.system {
+				t.Fatalf("expected system slug %q, got %q", tc.system, result.Input.SystemSlug)
+			}
+			if result.Input.Inspection == nil {
+				t.Fatal("expected Sega inspection metadata")
+			}
+			if got := result.Input.Inspection.SemanticFields["rawSaveKind"]; got != tc.kind {
+				t.Fatalf("expected raw save kind %q, got %+v", tc.kind, result.Input.Inspection.SemanticFields)
+			}
+		})
+	}
+}
+
 func TestNormalizeSaveInputValidatesSonic3SRAMSemantics(t *testing.T) {
 	a := &app{}
 	result := a.normalizeSaveInputDetailed(saveCreateInput{

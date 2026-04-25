@@ -4,12 +4,42 @@ import { ErrorState, LoadingState } from "../../components/LoadState";
 import { SectionCard } from "../../components/SectionCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { getDevice, listSaveSystems, updateDevice } from "../../services/retrosaveApi";
-import type { SaveSystem } from "../../services/types";
+import type { DeviceConfigSource, DevicePolicyBlock, SaveSystem } from "../../services/types";
 
 type SystemGroup = {
   manufacturer: string;
   systems: SaveSystem[];
 };
+
+const SOURCE_KIND_OPTIONS = [
+  { value: "custom", label: "Custom" },
+  { value: "retroarch", label: "RetroArch" },
+  { value: "mister-fpga", label: "MiSTer FPGA" },
+  { value: "steamdeck", label: "Steam Deck" },
+  { value: "windows", label: "Windows" },
+  { value: "openemu", label: "OpenEmu" },
+  { value: "analogue-pocket", label: "Analogue Pocket" }
+];
+
+const PROFILE_OPTIONS = [
+  { value: "retroarch", label: "RetroArch" },
+  { value: "mister", label: "MiSTer" },
+  { value: "snes9x", label: "Snes9x" },
+  { value: "bsnes", label: "bsnes" },
+  { value: "mesen2", label: "Mesen 2" },
+  { value: "fceux", label: "FCEUX" },
+  { value: "nestopia-ue", label: "Nestopia UE" },
+  { value: "mgba", label: "mGBA" },
+  { value: "vba-m", label: "VBA-M" },
+  { value: "project64", label: "Project64" },
+  { value: "mupen-family", label: "Mupen/RMG" },
+  { value: "everdrive", label: "EverDrive" },
+  { value: "genesis-plus-gx", label: "Genesis Plus GX" },
+  { value: "picodrive", label: "PicoDrive" },
+  { value: "flycast", label: "Flycast" },
+  { value: "redream", label: "Redream" },
+  { value: "generic", label: "Generic" }
+];
 
 export function DeviceManagePage(): JSX.Element {
   const params = useParams<{ deviceId: string }>();
@@ -28,6 +58,14 @@ export function DeviceManagePage(): JSX.Element {
   const [alias, setAlias] = useState("");
   const [syncAll, setSyncAll] = useState(true);
   const [allowedSystems, setAllowedSystems] = useState<string[]>([]);
+  const [editableSources, setEditableSources] = useState<DeviceConfigSource[]>([]);
+  const [sourcesDirty, setSourcesDirty] = useState(false);
+  const [draftSystemSlug, setDraftSystemSlug] = useState("");
+  const [draftKind, setDraftKind] = useState("custom");
+  const [draftProfile, setDraftProfile] = useState("retroarch");
+  const [draftSavePath, setDraftSavePath] = useState("");
+  const [draftRomPath, setDraftRomPath] = useState("");
+  const [draftLabel, setDraftLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -39,6 +77,30 @@ export function DeviceManagePage(): JSX.Element {
     setAlias(data.device.alias ?? "");
     setSyncAll(data.device.syncAll);
     setAllowedSystems((data.device.allowedSystemSlugs ?? []).slice().sort());
+    setEditableSources((data.device.configSources ?? []).map(cloneSource));
+    setSourcesDirty(false);
+    const firstSystem = data.systems.find((system) => system.slug)?.slug ?? "";
+    setDraftSystemSlug(firstSystem);
+  }, [data]);
+
+  const sourceScopedAllowed = useMemo(() => {
+    const allowed = new Set<string>();
+    for (const source of data?.device.effectivePolicy?.sources ?? []) {
+      for (const slug of source.allowedSystemSlugs ?? []) {
+        allowed.add(slug);
+      }
+    }
+    return allowed;
+  }, [data]);
+
+  const blockedReasons = useMemo(() => {
+    const blocked = new Map<string, DevicePolicyBlock>();
+    for (const item of data?.device.effectivePolicy?.blocked ?? []) {
+      if (!blocked.has(item.system)) {
+        blocked.set(item.system, item);
+      }
+    }
+    return blocked;
   }, [data]);
 
   const groups = useMemo<SystemGroup[]>(() => {
@@ -72,12 +134,68 @@ export function DeviceManagePage(): JSX.Element {
   }, [data]);
 
   function toggleAllowedSystem(slug: string): void {
+    if (isSystemDisabled(slug)) {
+      return;
+    }
     setAllowedSystems((previous) => {
       if (previous.includes(slug)) {
         return previous.filter((value) => value !== slug);
       }
       return [...previous, slug].sort();
     });
+  }
+
+  function isSystemDisabled(slug: string): boolean {
+    const hasConfigSources = (data?.device.configSources?.length ?? 0) > 0;
+    if (!hasConfigSources) {
+      return false;
+    }
+    return !sourceScopedAllowed.has(slug);
+  }
+
+  function systemDisabledReason(slug: string): string {
+    if (!isSystemDisabled(slug)) {
+      return "";
+    }
+    return blockedReasons.get(slug)?.reason ?? "not reported by helper config";
+  }
+
+  function addBackendSource(): void {
+    const systemSlug = draftSystemSlug.trim();
+    const savePath = draftSavePath.trim();
+    if (!systemSlug || !savePath) {
+      setSaveError("Choose a console and enter a save folder before adding a source.");
+      return;
+    }
+    const system = data?.systems.find((item) => item.slug === systemSlug);
+    const label = draftLabel.trim() || `${system?.name ?? systemSlug} ${profileLabel(draftProfile)}`;
+    const baseId = `backend-${systemSlug}-${draftProfile}`;
+    const existingIds = new Set(editableSources.map((source) => source.id));
+    const id = uniqueSourceId(baseId, existingIds);
+    const source: DeviceConfigSource = {
+      id,
+      label,
+      kind: draftKind,
+      profile: draftProfile,
+      savePaths: [savePath],
+      romPaths: draftRomPath.trim() ? [draftRomPath.trim()] : [],
+      recursive: true,
+      systems: [systemSlug],
+      createMissingSystemDirs: false,
+      managed: true,
+      origin: "backend"
+    };
+    setEditableSources((previous) => [...previous, source]);
+    setSourcesDirty(true);
+    setSaveError(null);
+    setDraftLabel("");
+    setDraftSavePath("");
+    setDraftRomPath("");
+  }
+
+  function removeSource(id: string): void {
+    setEditableSources((previous) => previous.filter((source) => source.id !== id));
+    setSourcesDirty(true);
   }
 
   async function onSave(): Promise<void> {
@@ -91,7 +209,8 @@ export function DeviceManagePage(): JSX.Element {
       await updateDevice(deviceId, {
         alias,
         syncAll,
-        allowedSystemSlugs: syncAll ? [] : allowedSystems
+        allowedSystemSlugs: syncAll ? [] : allowedSystems,
+        ...(sourcesDirty ? { configSources: editableSources } : {})
       });
       setSaveMessage("Device settings saved");
       reload();
@@ -103,7 +222,7 @@ export function DeviceManagePage(): JSX.Element {
   }
 
   return (
-    <SectionCard title="Manage Device" subtitle="Rename the helper and choose which consoles it may sync.">
+    <SectionCard title="Manage Device" subtitle="Rename the helper, choose allowed consoles, and add backend-managed sync sources.">
       {loading ? <LoadingState label="Loading device..." /> : null}
       {error ? <ErrorState message={error} /> : null}
       {saveError ? <ErrorState message={saveError} /> : null}
@@ -126,8 +245,97 @@ export function DeviceManagePage(): JSX.Element {
 
           <label className="sync-toggle-row">
             <input type="checkbox" checked={syncAll} onChange={(event) => setSyncAll(event.target.checked)} />
-            <span>Console sync: all supported systems</span>
+            <span>
+              Console sync:{" "}
+              {(data.device.configSources?.length ?? 0) > 0 ? "all systems allowed by helper config" : "all supported systems"}
+            </span>
           </label>
+
+          {(data.device.configSources?.length ?? 0) > 0 ? (
+            <p className="device-policy-note">
+              Backend policy is scoped by the helper config. Consoles that this source cannot safely sync are disabled here and rejected by upload/download.
+            </p>
+          ) : null}
+
+          <section className="device-source-editor">
+            <div className="device-source-editor__header">
+              <div>
+                <h3>Add console source</h3>
+                <p>Add folders the always-on helper should include in its next backend-managed config policy.</p>
+              </div>
+              {sourcesDirty ? <span>Unsaved changes</span> : null}
+            </div>
+
+            <div className="device-source-form">
+              <label className="field">
+                <span>Console</span>
+                <select value={draftSystemSlug} onChange={(event) => setDraftSystemSlug(event.target.value)}>
+                  {data.systems
+                    .filter((system) => Boolean(system.slug))
+                    .map((system) => (
+                      <option key={system.slug} value={system.slug}>
+                        {system.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Runtime kind</span>
+                <select value={draftKind} onChange={(event) => setDraftKind(event.target.value)}>
+                  {SOURCE_KIND_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Profile</span>
+                <select value={draftProfile} onChange={(event) => setDraftProfile(event.target.value)}>
+                  {PROFILE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Label</span>
+                <input value={draftLabel} onChange={(event) => setDraftLabel(event.target.value)} placeholder="Optional display name" />
+              </label>
+              <label className="field device-source-form__wide">
+                <span>Save folder</span>
+                <input value={draftSavePath} onChange={(event) => setDraftSavePath(event.target.value)} placeholder="/media/snes9x/saves" />
+              </label>
+              <label className="field device-source-form__wide">
+                <span>ROM folder</span>
+                <input value={draftRomPath} onChange={(event) => setDraftRomPath(event.target.value)} placeholder="/media/snes9x/roms (optional)" />
+              </label>
+            </div>
+            <button className="btn btn-ghost" type="button" onClick={addBackendSource}>
+              Add console
+            </button>
+
+            <div className="device-source-list">
+              {editableSources.length === 0 ? <p>No helper config sources reported yet.</p> : null}
+              {editableSources.map((source) => (
+                <article key={source.id} className="device-source-row">
+                  <div>
+                    <strong>{source.label || source.id}</strong>
+                    <p>
+                      {[source.kind, source.profile, source.origin].filter(Boolean).join(" / ") || "Unknown source"}
+                    </p>
+                    <small>
+                      {(source.systems ?? []).join(", ") || "No systems"} · {formatSourcePaths(source.savePaths ?? (source.savePath ? [source.savePath] : []))}
+                    </small>
+                  </div>
+                  <button className="btn btn-ghost btn-danger" type="button" onClick={() => removeSource(source.id)}>
+                    Remove
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
 
           {!syncAll ? (
             <div className="stack compact">
@@ -140,14 +348,20 @@ export function DeviceManagePage(): JSX.Element {
                   <div className="device-group__list">
                     {group.systems.map((system) => {
                       const slug = system.slug ?? "";
+                      const disabled = isSystemDisabled(slug);
+                      const reason = systemDisabledReason(slug);
                       return (
                         <label key={slug} className="sync-option-row">
                           <input
                             type="checkbox"
                             checked={allowedSystems.includes(slug)}
+                            disabled={disabled}
                             onChange={() => toggleAllowedSystem(slug)}
                           />
-                          <span>{system.name}</span>
+                          <span>
+                            {system.name}
+                            {disabled ? <small>Blocked: {reason}</small> : null}
+                          </span>
                         </label>
                       );
                     })}
@@ -169,4 +383,38 @@ export function DeviceManagePage(): JSX.Element {
       ) : null}
     </SectionCard>
   );
+}
+
+function cloneSource(source: DeviceConfigSource): DeviceConfigSource {
+  return {
+    ...source,
+    savePaths: source.savePaths ? [...source.savePaths] : undefined,
+    romPaths: source.romPaths ? [...source.romPaths] : undefined,
+    systems: source.systems ? [...source.systems] : undefined,
+    unsupportedSystemSlugs: source.unsupportedSystemSlugs ? [...source.unsupportedSystemSlugs] : undefined
+  };
+}
+
+function uniqueSourceId(baseId: string, existingIds: Set<string>): string {
+  let id = baseId;
+  let suffix = 2;
+  while (existingIds.has(id)) {
+    id = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+  return id;
+}
+
+function profileLabel(profile: string): string {
+  return PROFILE_OPTIONS.find((option) => option.value === profile)?.label ?? profile;
+}
+
+function formatSourcePaths(paths: string[]): string {
+  if (paths.length === 0) {
+    return "no save path";
+  }
+  if (paths.length === 1) {
+    return paths[0];
+  }
+  return `${paths[0]} + ${paths.length - 1} more`;
 }

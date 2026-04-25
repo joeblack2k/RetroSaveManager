@@ -958,9 +958,59 @@ code {
   font-size: 1rem;
 }
 
+.device-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .device-card__title-block p {
   margin: 0.24rem 0 0;
   color: var(--text-muted);
+}
+
+.device-status-badge,
+.device-status-text {
+  border: 1px solid #536079;
+  background: #202838;
+  color: #dbe5ff;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.device-status-badge--online,
+.device-status-text--online {
+  border-color: #2f7d55;
+  background: #10251d;
+  color: #9ff0bf;
+}
+
+.device-status-badge--degraded,
+.device-status-text--degraded {
+  border-color: #a47a24;
+  background: #2d2410;
+  color: #ffd480;
+}
+
+.device-status-badge--stale,
+.device-status-text--stale,
+.device-status-badge--seen {
+  border-color: #69738b;
+  background: #252b37;
+  color: #d4d9e6;
+}
+
+.device-status-badge--offline,
+.device-status-text--offline {
+  border-color: #81434a;
+  background: #2a1519;
+  color: #ffb3b3;
 }
 
 .device-card__grid {
@@ -1025,6 +1075,12 @@ code {
   font-size: 0.8rem;
 }
 
+.device-chip--blocked {
+  border-color: #9b3d3d;
+  background: #3a1d22;
+  color: #ffb3b3;
+}
+
 .device-path-list {
   list-style: none;
   margin: 0;
@@ -1034,6 +1090,72 @@ code {
 }
 
 .device-path-list li {
+  margin: 0;
+}
+
+.device-config-sources {
+  border: 1px solid #394050;
+  background: #151922;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.device-config-sources__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.device-config-sources__header h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #dbe5ff;
+}
+
+.device-config-sources__header span,
+.device-config-sources__revision,
+.device-config-source p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.device-config-sources__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.65rem;
+}
+
+.device-config-source {
+  border: 1px solid #2d3444;
+  background: #11151d;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.device-config-source dl {
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.device-config-source dl div {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.device-config-source dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.device-config-source dd {
   margin: 0;
 }
 
@@ -1364,6 +1486,106 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.sync-option-row small {
+  display: block;
+  color: #ffb3b3;
+  font-size: 0.72rem;
+  margin-top: 0.12rem;
+}
+
+.sync-option-row:has(input:disabled) {
+  opacity: 0.62;
+}
+
+.device-policy-note {
+  border: 1px solid #47536a;
+  background: #171d28;
+  color: var(--text-muted);
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+}
+
+.device-source-editor {
+  border: 1px solid #394050;
+  background: #151922;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.device-source-editor__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.device-source-editor__header h3 {
+  margin: 0;
+  color: #dbe5ff;
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.device-source-editor__header p,
+.device-source-list p,
+.device-source-row p,
+.device-source-row small {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.device-source-editor__header span {
+  border: 1px solid #a47a24;
+  background: #2d2410;
+  color: #ffd480;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.device-source-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.65rem;
+}
+
+.device-source-form__wide {
+  grid-column: span 2;
+}
+
+.device-source-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.device-source-row {
+  border: 1px solid #2d3444;
+  background: #11151d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem;
+}
+
+.device-source-row div {
+  display: grid;
+  gap: 0.18rem;
+}
+
+@media (max-width: 720px) {
+  .device-source-form__wide {
+    grid-column: auto;
+  }
+
+  .device-source-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .fade-in-up {

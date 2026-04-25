@@ -28,9 +28,13 @@ func mountAgentRoutes(r chi.Router, app *app) {
 	r.Get("/systems", app.handleAgentSystems)
 
 	r.Get("/devices", app.handleDevicesList)
+	r.Post("/devices/config/report", app.handleDevicesConfigReport)
 	r.Get("/devices/{id}", app.handleDevicesGet)
 	r.Patch("/devices/{id}", app.handleDevicesPatch)
+	r.Post("/devices/{id}/command", app.handleDeviceCommand)
 	r.Delete("/devices/{id}", app.handleDevicesDelete)
+	r.Post("/helpers/config/sync", app.handleHelpersConfigSync)
+	r.Post("/helpers/heartbeat", app.handleHelpersHeartbeat)
 	r.Get("/logs", app.handleSyncLogs)
 
 	r.Get("/save/latest", app.handleSaveLatest)
@@ -90,26 +94,30 @@ func (a *app) handleAgentAPIIndex(w http.ResponseWriter, r *http.Request) {
 			"compatBases":   []string{"/", "/v1"},
 		},
 		"endpoints": map[string]any{
-			"overview":         basePath + "/overview",
-			"syncStatus":       basePath + "/sync/status",
-			"systems":          basePath + "/systems",
-			"devices":          basePath + "/devices",
-			"logs":             basePath + "/logs",
-			"saves":            basePath + "/saves",
-			"saveLatest":       basePath + "/save/latest",
-			"roms":             basePath + "/roms",
-			"romLookup":        basePath + "/roms/lookup",
-			"conflicts":        basePath + "/conflicts",
-			"autoEnroll":       basePath + "/helpers/auto-enroll",
-			"cheatPacks":       basePath + "/cheats/packs",
-			"cheatLibrary":     basePath + "/cheats/library",
-			"cheatLibrarySync": basePath + "/cheats/library/sync",
-			"cheatAdapters":    basePath + "/cheats/adapters",
-			"events":           basePath + "/events",
-			"bulkDownload":     basePath + "/saves/download-many",
-			"saveRescan":       basePath + "/saves/rescan",
-			"compatRootBase":   "/",
-			"compatAliasBase":  "/v1",
+			"overview":           basePath + "/overview",
+			"syncStatus":         basePath + "/sync/status",
+			"systems":            basePath + "/systems",
+			"devices":            basePath + "/devices",
+			"deviceCommand":      basePath + "/devices/{id}/command",
+			"deviceConfigReport": basePath + "/devices/config/report",
+			"helperConfigSync":   basePath + "/helpers/config/sync",
+			"helperHeartbeat":    basePath + "/helpers/heartbeat",
+			"logs":               basePath + "/logs",
+			"saves":              basePath + "/saves",
+			"saveLatest":         basePath + "/save/latest",
+			"roms":               basePath + "/roms",
+			"romLookup":          basePath + "/roms/lookup",
+			"conflicts":          basePath + "/conflicts",
+			"autoEnroll":         basePath + "/helpers/auto-enroll",
+			"cheatPacks":         basePath + "/cheats/packs",
+			"cheatLibrary":       basePath + "/cheats/library",
+			"cheatLibrarySync":   basePath + "/cheats/library/sync",
+			"cheatAdapters":      basePath + "/cheats/adapters",
+			"events":             basePath + "/events",
+			"bulkDownload":       basePath + "/saves/download-many",
+			"saveRescan":         basePath + "/saves/rescan",
+			"compatRootBase":     "/",
+			"compatAliasBase":    "/v1",
 		},
 	})
 }
@@ -610,18 +618,9 @@ func (a *app) agentSystemItems(summaries []saveSummary, devices []device) []map[
 		}
 	}
 	for _, d := range devices {
-		if d.SyncAll {
-			for slug, agg := range aggs {
-				if slug == "" || slug == "unknown-system" {
-					continue
-				}
+		for _, slug := range effectiveDevicePolicy(d).AllowedSystemSlugs {
+			if agg, ok := aggs[slug]; ok {
 				agg.allowedDevices[d.ID] = struct{}{}
-			}
-		} else {
-			for _, slug := range normalizeAllowedSystemSlugs(d.AllowedSystemSlugs) {
-				if agg, ok := aggs[slug]; ok {
-					agg.allowedDevices[d.ID] = struct{}{}
-				}
 			}
 		}
 		for _, slug := range normalizeAllowedSystemSlugs(d.ReportedSystemSlugs) {
@@ -883,7 +882,7 @@ func agentDeviceEnvelope(d device, staleAfter time.Duration, now time.Time) map[
 		"lastSeenAgeSeconds":   maxInt(lastSeenAgeSeconds, 0),
 		"lastSyncedAgeSeconds": maxInt(lastSyncedAgeSeconds, 0),
 		"appPasswordBound":     d.BoundAppPasswordID != nil && strings.TrimSpace(*d.BoundAppPasswordID) != "",
-		"allowedSystemCount":   len(normalizeAllowedSystemSlugs(d.AllowedSystemSlugs)),
+		"allowedSystemCount":   len(effectiveDevicePolicy(d).AllowedSystemSlugs),
 		"reportedSystemCount":  len(normalizeAllowedSystemSlugs(d.ReportedSystemSlugs)),
 		"syncPathCount":        len(normalizeHelperPaths(d.SyncPaths)),
 		"lastSeenAt":           zeroTimeToNil(d.LastSeenAt),

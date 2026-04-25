@@ -194,6 +194,10 @@ func rawSaveKind(systemSlug, ext string) string {
 		return "Master System cartridge SRAM"
 	case "game-gear":
 		return "Game Gear cartridge SRAM"
+	case "sega-cd":
+		return "Sega CD / Mega-CD backup RAM"
+	case "sega-32x":
+		return "Sega 32X cartridge SRAM"
 	default:
 		return "Raw cartridge save media"
 	}

@@ -1,5 +1,33 @@
 # Release Notes
 
+## v0.1.9 - 2026-04-25
+
+### Included
+
+- Helper service mode backend support:
+  - added `POST /helpers/heartbeat` for daemon health, sensors, config snapshots, and last-sync counters
+  - added `POST /devices/{id}/command` to publish `sync.requested`, `scan.requested`, and `deep_scan.requested` over the existing SSE stream
+  - device records now expose service freshness, config hashes, folder counts, and helper sync stats
+- Backend-managed helper configuration:
+  - Devices can now store backend-managed `configSources` and `configGlobal` policy
+  - backend-managed sources survive future helper config syncs and are returned in `policy.sources[]`
+  - config edits publish `config.changed` so always-on helpers can reload and write back `config.ini`
+- Devices UI upgrade:
+  - Devices now shows daemon status, heartbeat timing, reconcile interval, last event, last error, sensors, and quick commands
+  - Manage Device can add console/runtime/profile folders before a helper has discovered saves for that console
+- Helper contract documentation:
+  - added `backend.md` as the canonical helper backend/service/config contract
+  - updated `api.md` with heartbeat, command, config source, and global policy fields
+- Sega scope alignment:
+  - added supported system slugs and strict raw-save validation coverage for `sega-cd` and `sega-32x`
+
+### Validation Summary
+
+- Full backend test suite passed locally
+- Full frontend test suite passed locally
+- Frontend production build passed locally
+- Security gate passed locally
+
 ## v0.1.8 - 2026-04-24
 
 ### Included
