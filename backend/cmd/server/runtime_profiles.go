@@ -84,6 +84,51 @@ var runtimeProfileDefinitions = []runtimeProfileDefinition{
 	{ID: "gamegear/retroarch-gearsystem", SystemSlug: "game-gear", Label: "RetroArch (Gearsystem)", TargetExtension: ".sav", Note: "Raw Game Gear SRAM"},
 	{ID: "gamegear/retroarch-genesis-plus-gx", SystemSlug: "game-gear", Label: "RetroArch (Genesis Plus GX)", TargetExtension: ".sav", Note: "Raw Game Gear SRAM"},
 
+	{ID: "sega-cd/genesis-plus-gx", SystemSlug: "sega-cd", Label: "Genesis Plus GX", TargetExtension: ".brm", Note: "Raw Sega CD backup RAM"},
+	{ID: "sega-cd/picodrive", SystemSlug: "sega-cd", Label: "PicoDrive", TargetExtension: ".srm", Note: "Raw Sega CD backup RAM"},
+	{ID: "sega-cd/retroarch-genesis-plus-gx", SystemSlug: "sega-cd", Label: "RetroArch (Genesis Plus GX)", TargetExtension: ".brm", Note: "Raw Sega CD backup RAM"},
+	{ID: "sega-cd/retroarch-picodrive", SystemSlug: "sega-cd", Label: "RetroArch (PicoDrive)", TargetExtension: ".srm", Note: "Raw Sega CD backup RAM"},
+
+	{ID: "sega-32x/picodrive", SystemSlug: "sega-32x", Label: "PicoDrive", TargetExtension: ".srm", Note: "Raw Sega 32X SRAM"},
+	{ID: "sega-32x/retroarch-picodrive", SystemSlug: "sega-32x", Label: "RetroArch (PicoDrive)", TargetExtension: ".srm", Note: "Raw Sega 32X SRAM"},
+	{ID: "sega-32x/genesis-plus-gx", SystemSlug: "sega-32x", Label: "Genesis Plus GX", TargetExtension: ".srm", Note: "Raw Sega 32X SRAM"},
+	{ID: "sega-32x/retroarch-genesis-plus-gx", SystemSlug: "sega-32x", Label: "RetroArch (Genesis Plus GX)", TargetExtension: ".srm", Note: "Raw Sega 32X SRAM"},
+
+	{ID: "pc-engine/mister", SystemSlug: "pc-engine", Label: "MiSTer", TargetExtension: ".sav", Note: "Raw PC Engine / TurboGrafx-16 backup RAM"},
+	{ID: "pc-engine/mednafen", SystemSlug: "pc-engine", Label: "Mednafen", TargetExtension: ".sav", Note: "Raw PC Engine / TurboGrafx-16 backup RAM"},
+	{ID: "pc-engine/retroarch-beetle-pce", SystemSlug: "pc-engine", Label: "RetroArch (Beetle PCE)", TargetExtension: ".srm", Note: "Raw PC Engine / TurboGrafx-16 backup RAM"},
+	{ID: "pc-engine/ares", SystemSlug: "pc-engine", Label: "ares", TargetExtension: ".brm", Note: "Raw PC Engine / TurboGrafx-16 backup RAM"},
+	{ID: "pc-engine/mesen2", SystemSlug: "pc-engine", Label: "Mesen 2", TargetExtension: ".sav", Note: "Raw PC Engine / TurboGrafx-16 backup RAM"},
+
+	{ID: "atari-lynx/handy", SystemSlug: "atari-lynx", Label: "Handy", TargetExtension: ".eeprom", Note: "Raw Atari Lynx EEPROM"},
+	{ID: "atari-lynx/mednafen", SystemSlug: "atari-lynx", Label: "Mednafen", TargetExtension: ".sav", Note: "Raw Atari Lynx EEPROM"},
+	{ID: "atari-lynx/retroarch-handy", SystemSlug: "atari-lynx", Label: "RetroArch (Handy)", TargetExtension: ".srm", Note: "Raw Atari Lynx EEPROM"},
+	{ID: "atari-lynx/ares", SystemSlug: "atari-lynx", Label: "ares", TargetExtension: ".eeprom", Note: "Raw Atari Lynx EEPROM"},
+
+	{ID: "wonderswan/mednafen", SystemSlug: "wonderswan", Label: "Mednafen", TargetExtension: ".sav", Note: "Raw WonderSwan backup memory"},
+	{ID: "wonderswan/ares", SystemSlug: "wonderswan", Label: "ares", TargetExtension: ".sav", Note: "Raw WonderSwan backup memory"},
+	{ID: "wonderswan/retroarch-beetle-wswan", SystemSlug: "wonderswan", Label: "RetroArch (Beetle WonderSwan)", TargetExtension: ".srm", Note: "Raw WonderSwan backup memory"},
+
+	{ID: "sg-1000/emulicious", SystemSlug: "sg-1000", Label: "Emulicious", TargetExtension: ".sav", Note: "Raw SG-1000 backup memory"},
+	{ID: "sg-1000/gearsystem", SystemSlug: "sg-1000", Label: "Gearsystem", TargetExtension: ".sav", Note: "Raw SG-1000 backup memory"},
+	{ID: "sg-1000/genesis-plus-gx", SystemSlug: "sg-1000", Label: "Genesis Plus GX", TargetExtension: ".sav", Note: "Raw SG-1000 backup memory"},
+	{ID: "sg-1000/retroarch-gearsystem", SystemSlug: "sg-1000", Label: "RetroArch (Gearsystem)", TargetExtension: ".sav", Note: "Raw SG-1000 backup memory"},
+	{ID: "sg-1000/retroarch-genesis-plus-gx", SystemSlug: "sg-1000", Label: "RetroArch (Genesis Plus GX)", TargetExtension: ".sav", Note: "Raw SG-1000 backup memory"},
+
+	{ID: "colecovision/blue-msx", SystemSlug: "colecovision", Label: "blueMSX", TargetExtension: ".sav", Note: "Raw ColecoVision NVRAM/EEPROM"},
+	{ID: "colecovision/gearcoleco", SystemSlug: "colecovision", Label: "Gearcoleco", TargetExtension: ".sav", Note: "Raw ColecoVision NVRAM/EEPROM"},
+	{ID: "colecovision/retroarch-gearcoleco", SystemSlug: "colecovision", Label: "RetroArch (Gearcoleco)", TargetExtension: ".srm", Note: "Raw ColecoVision NVRAM/EEPROM"},
+	{ID: "colecovision/mame", SystemSlug: "colecovision", Label: "MAME", TargetExtension: ".nvram", Note: "Raw ColecoVision NVRAM/EEPROM"},
+
+	{ID: "atari-jaguar/bigpemu", SystemSlug: "atari-jaguar", Label: "BigPEmu", TargetExtension: ".eeprom", Note: "Raw Atari Jaguar EEPROM/NVRAM"},
+	{ID: "atari-jaguar/virtual-jaguar", SystemSlug: "atari-jaguar", Label: "Virtual Jaguar", TargetExtension: ".eeprom", Note: "Raw Atari Jaguar EEPROM/NVRAM"},
+	{ID: "atari-jaguar/retroarch-virtual-jaguar", SystemSlug: "atari-jaguar", Label: "RetroArch (Virtual Jaguar)", TargetExtension: ".srm", Note: "Raw Atari Jaguar EEPROM/NVRAM"},
+
+	{ID: "3do/opera", SystemSlug: "3do", Label: "Opera", TargetExtension: ".srm", Note: "Raw 3DO NVRAM"},
+	{ID: "3do/retroarch-opera", SystemSlug: "3do", Label: "RetroArch (Opera)", TargetExtension: ".srm", Note: "Raw 3DO NVRAM"},
+	{ID: "3do/phoenix", SystemSlug: "3do", Label: "Phoenix", TargetExtension: ".nvram", Note: "Raw 3DO NVRAM"},
+	{ID: "3do/4do", SystemSlug: "3do", Label: "4DO", TargetExtension: ".nvram", Note: "Raw 3DO NVRAM"},
+
 	{ID: "dreamcast/mister", SystemSlug: "dreamcast", Label: "MiSTer", TargetExtension: ".bin", Note: "Dreamcast VMU image"},
 	{ID: "dreamcast/flycast", SystemSlug: "dreamcast", Label: "Flycast", Note: "Dreamcast validated container"},
 	{ID: "dreamcast/redream", SystemSlug: "dreamcast", Label: "Redream", Note: "Dreamcast validated container"},
@@ -119,7 +164,7 @@ func requestedRuntimeProfileFromForm(formValue func(string) string, systemSlug s
 
 func isProjectionCapableSystem(systemSlug string) bool {
 	switch canonicalSegment(systemSlug, "") {
-	case "psx", "ps2", "n64", "saturn", "snes", "nes", "gba", "master-system", "genesis", "game-gear", "dreamcast":
+	case "psx", "ps2", "n64", "saturn", "snes", "nes", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
 		return true
 	default:
 		return false
@@ -225,7 +270,7 @@ func normalizeProjectionUpload(input saveCreateInput, requestedProfile string) (
 	switch systemSlug {
 	case "n64":
 		return normalizeN64ProjectionUpload(input, profile)
-	case "saturn", "snes", "nes", "gba", "master-system", "genesis", "game-gear", "dreamcast":
+	case "saturn", "snes", "nes", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
 		return applyProjectionUploadMetadata(input, profile), nil
 	default:
 		return input, fmt.Errorf("runtimeProfile is not supported for %s saves", systemSlug)
@@ -388,7 +433,7 @@ func projectPayloadForRuntime(a *app, record saveRecord, payload []byte, request
 		return a.projectPlayStationProjectionPayload(record, profile)
 	case "dreamcast":
 		return projectDreamcastPayload(record.Summary, payload, profile)
-	case "snes", "nes", "gba", "master-system", "genesis", "game-gear":
+	case "snes", "nes", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do":
 		return projectIdentityRuntimePayload(record.Summary, payload, profile)
 	default:
 		return record.Summary.Filename, "application/octet-stream", payload, nil

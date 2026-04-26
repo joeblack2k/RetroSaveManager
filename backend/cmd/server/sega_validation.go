@@ -47,6 +47,8 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateNeoGeoSave(input, detection)
 	case "genesis", "master-system", "game-gear", "sega-cd", "sega-32x":
 		return validateStrictSegaRawSave(input, detection, systemSlug)
+	case "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do":
+		return validateLegacyRawSave(input, detection, systemSlug)
 	default:
 		return consoleValidationResult{}
 	}
@@ -175,7 +177,7 @@ func validateStrictSegaRawSave(input saveCreateInput, detection saveSystemDetect
 		SystemSlug:           systemSlug,
 		DisplayName:          systemSlug,
 		ParserID:             "sega-raw-sram",
-		AllowedExts:          map[string]struct{}{"sav": {}, "srm": {}, "ram": {}},
+		AllowedExts:          strictSegaRawExtensions(systemSlug),
 		AllowedSizes:         strictSegaRawSaveSizes,
 		RequireROMSHA1:       true,
 		RequireDeclared:      true,
@@ -195,6 +197,15 @@ func validateStrictSegaRawSave(input saveCreateInput, detection saveSystemDetect
 	return result
 }
 
+func strictSegaRawExtensions(systemSlug string) map[string]struct{} {
+	extensions := map[string]struct{}{"sav": {}, "srm": {}, "ram": {}}
+	if canonicalSegment(systemSlug, "") == "sega-cd" {
+		extensions["brm"] = struct{}{}
+		extensions["bkr"] = struct{}{}
+	}
+	return extensions
+}
+
 func isPlausibleStrictSegaRawSaveSize(size int) bool {
 	_, ok := strictSegaRawSaveSizes[size]
 	return ok
@@ -202,7 +213,7 @@ func isPlausibleStrictSegaRawSaveSize(size int) bool {
 
 func isStrictSegaRawExtension(ext string) bool {
 	switch strings.ToLower(strings.TrimSpace(ext)) {
-	case "sav", "srm", "ram":
+	case "sav", "srm", "ram", "brm", "bkr":
 		return true
 	default:
 		return false

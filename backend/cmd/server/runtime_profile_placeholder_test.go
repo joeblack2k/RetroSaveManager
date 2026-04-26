@@ -75,6 +75,22 @@ func TestNormalizeSaveInputRejectsRuntimeProfilePlaceholderTitlesAcrossProjectio
 			romSHA1:    "gg-placeholder-rom",
 			payload:    buildNonBlankPayload(8192, 0x51),
 		},
+		{
+			name:       "pc engine mister placeholder",
+			filename:   "profile-mister.brm",
+			systemSlug: "pc-engine",
+			profile:    "pc-engine/mister",
+			romSHA1:    "pce-placeholder-rom",
+			payload:    buildNonBlankPayload(2048, 0x61),
+		},
+		{
+			name:       "atari lynx handy placeholder",
+			filename:   "profile-handy.eeprom",
+			systemSlug: "atari-lynx",
+			profile:    "atari-lynx/handy",
+			romSHA1:    "lynx-placeholder-rom",
+			payload:    buildNonBlankPayload(512, 0x71),
+		},
 	}
 
 	for _, tc := range cases {

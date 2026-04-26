@@ -10,6 +10,8 @@ import (
 )
 
 var misterFPGAAllowedSystems = []string{
+	"atari-lynx",
+	"colecovision",
 	"game-gear",
 	"gameboy",
 	"gba",
@@ -18,11 +20,14 @@ var misterFPGAAllowedSystems = []string{
 	"n64",
 	"neogeo",
 	"nes",
+	"pc-engine",
 	"psx",
 	"saturn",
 	"sega-32x",
 	"sega-cd",
+	"sg-1000",
 	"snes",
+	"wonderswan",
 }
 
 func normalizeDeviceConfigGlobal(input *deviceConfigGlobal) *deviceConfigGlobal {

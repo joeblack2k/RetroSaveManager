@@ -198,6 +198,20 @@ func rawSaveKind(systemSlug, ext string) string {
 		return "Sega CD / Mega-CD backup RAM"
 	case "sega-32x":
 		return "Sega 32X cartridge SRAM"
+	case "pc-engine":
+		return "PC Engine / TurboGrafx-16 backup RAM"
+	case "atari-lynx":
+		return "Atari Lynx cartridge EEPROM"
+	case "wonderswan":
+		return "WonderSwan cartridge backup memory"
+	case "sg-1000":
+		return "SG-1000 cartridge backup memory"
+	case "colecovision":
+		return "ColecoVision cartridge NVRAM/EEPROM"
+	case "atari-jaguar":
+		return "Atari Jaguar cartridge EEPROM/NVRAM"
+	case "3do":
+		return "3DO NVRAM"
 	default:
 		return "Raw cartridge save media"
 	}

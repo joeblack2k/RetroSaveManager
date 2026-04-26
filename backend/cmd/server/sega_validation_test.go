@@ -72,6 +72,7 @@ func TestNormalizeSaveInputAcceptsHelperSegaCDAnd32XRawSaves(t *testing.T) {
 		kind   string
 	}{
 		{system: "sega-cd", name: "Lunar.srm", kind: "Sega CD / Mega-CD backup RAM"},
+		{system: "sega-cd", name: "Lunar.brm", kind: "Sega CD / Mega-CD backup RAM"},
 		{system: "sega-32x", name: "Virtua Racing Deluxe.sav", kind: "Sega 32X cartridge SRAM"},
 	}
 

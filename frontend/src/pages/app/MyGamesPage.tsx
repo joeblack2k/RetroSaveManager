@@ -1079,12 +1079,28 @@ function SystemGlyph({ systemSlug, fallbackLabel }: { systemSlug: string; fallba
     case "gameboy":
     case "gba":
     case "wii":
+    case "atari-lynx":
+    case "wonderswan":
       return (
         <svg className="treegrid-system-glyph" viewBox="0 0 24 24" aria-hidden="true">
           <rect x="4.5" y="6.5" width="15" height="11" rx="3" />
           <path d="M9 12h3M10.5 10.5v3" />
           <circle cx="15.5" cy="11" r="1" fill="currentColor" stroke="none" />
           <circle cx="17.5" cy="13" r="1" fill="currentColor" stroke="none" />
+        </svg>
+      );
+    case "dreamcast":
+    case "game-gear":
+    case "genesis":
+    case "master-system":
+    case "pc-engine":
+    case "sega-32x":
+    case "sega-cd":
+    case "sg-1000":
+      return (
+        <svg className="treegrid-system-glyph" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="5" y="7" width="14" height="10" rx="1" />
+          <path d="M7.5 10h9M7.5 13.5h6" />
         </svg>
       );
     default:

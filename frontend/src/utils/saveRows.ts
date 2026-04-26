@@ -114,9 +114,14 @@ export function buildSaveDownloadHref(request: SaveDownloadRequest, runtimeProfi
 export function systemBadgeForSlug(systemSlug: string): { label: string; title: string } {
   const normalized = normalizeConsoleKey(systemSlug);
   const map: Record<string, { label: string; title: string }> = {
+    "3do": { label: "3DO", title: "3DO Interactive Multiplayer" },
     arcade: { label: "AR", title: "Arcade" },
+    "atari-jaguar": { label: "JAG", title: "Atari Jaguar" },
+    "atari-lynx": { label: "LYNX", title: "Atari Lynx" },
+    colecovision: { label: "CV", title: "ColecoVision" },
     gba: { label: "GBA", title: "Game Boy Advance" },
     gameboy: { label: "GB", title: "Game Boy" },
+    "game-gear": { label: "GG", title: "Game Gear" },
     genesis: { label: "GEN", title: "Genesis" },
     "master-system": { label: "SMS", title: "Master System" },
     n64: { label: "N64", title: "Nintendo 64" },
@@ -127,7 +132,12 @@ export function systemBadgeForSlug(systemSlug: string): { label: string; title: 
     ps2: { label: "PS2", title: "PlayStation 2" },
     psp: { label: "PSP", title: "PlayStation Portable" },
     psvita: { label: "VITA", title: "PlayStation Vita" },
+    "pc-engine": { label: "PCE", title: "PC Engine / TurboGrafx-16" },
+    "sega-32x": { label: "32X", title: "Sega 32X" },
+    "sega-cd": { label: "SCD", title: "Sega CD / Mega-CD" },
+    "sg-1000": { label: "SG", title: "SG-1000" },
     snes: { label: "SNES", title: "Super Nintendo" },
+    wonderswan: { label: "WS", title: "WonderSwan" },
     wii: { label: "WII", title: "Nintendo Wii" },
     other: { label: "?", title: "Other" }
   };
