@@ -98,10 +98,16 @@ export function SettingsPage(): JSX.Element {
     }
   }
 
-  async function onSyncModules(): Promise<void> {
-    await runModuleAction("sync", async () => {
+  async function onSyncModules(refreshSaves: boolean): Promise<void> {
+    await runModuleAction(refreshSaves ? "sync-refresh" : "sync", async () => {
       const status = await syncGameModules();
-      return `Module sync finished: ${status.importedCount} imported, ${status.errorCount} validation errors.`;
+      if (!refreshSaves) {
+        return `Module sync finished: ${status.importedCount} imported, ${status.errorCount} validation errors.`;
+      }
+      const response = await rescanGameModules();
+      const scanned = typeof response.result.scanned === "number" ? response.result.scanned : undefined;
+      const scanText = scanned === undefined ? "saves refreshed" : `${scanned} save files refreshed`;
+      return `Module sync finished: ${status.importedCount} imported, ${status.errorCount} validation errors, ${scanText}.`;
     });
   }
 
@@ -113,8 +119,12 @@ export function SettingsPage(): JSX.Element {
     }
     await runModuleAction("upload", async () => {
       const record = await uploadGameModule(moduleFile);
+      const response = await rescanGameModules();
+      const scanned = typeof response.result.scanned === "number" ? response.result.scanned : undefined;
       setModuleFile(null);
-      return `Module ${record.manifest.moduleId} is now ${record.status}.`;
+      return scanned === undefined
+        ? `Module ${record.manifest.moduleId} is now ${record.status}. Saves refreshed.`
+        : `Module ${record.manifest.moduleId} is now ${record.status}. ${scanned} save files refreshed.`;
     });
   }
 
@@ -129,7 +139,11 @@ export function SettingsPage(): JSX.Element {
   async function onEnableModule(moduleId: string): Promise<void> {
     await runModuleAction(`enable:${moduleId}`, async () => {
       const record = await enableGameModule(moduleId);
-      return `Module ${record.manifest.moduleId} is enabled.`;
+      const response = await rescanGameModules();
+      const scanned = typeof response.result.scanned === "number" ? response.result.scanned : undefined;
+      return scanned === undefined
+        ? `Module ${record.manifest.moduleId} is enabled. Saves refreshed.`
+        : `Module ${record.manifest.moduleId} is enabled. ${scanned} save files refreshed.`;
     });
   }
 
@@ -165,7 +179,8 @@ export function SettingsPage(): JSX.Element {
             message={moduleMessage}
             error={moduleError}
             onFileChange={onModuleFileChange}
-            onSync={() => void onSyncModules()}
+            onSync={() => void onSyncModules(false)}
+            onSyncAndRefresh={() => void onSyncModules(true)}
             onUpload={(event) => void onUploadModule(event)}
             onRescan={() => void onRescanModules()}
             onEnable={(moduleId) => void onEnableModule(moduleId)}
@@ -199,6 +214,7 @@ type GameSupportModulesPanelProps = {
   error: string | null;
   onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onSync: () => void;
+  onSyncAndRefresh: () => void;
   onUpload: (event: FormEvent) => void;
   onRescan: () => void;
   onEnable: (moduleId: string) => void;
@@ -214,6 +230,7 @@ function GameSupportModulesPanel({
   error,
   onFileChange,
   onSync,
+  onSyncAndRefresh,
   onUpload,
   onRescan,
   onEnable,
@@ -222,10 +239,22 @@ function GameSupportModulesPanel({
 }: GameSupportModulesPanelProps): JSX.Element {
   const counts = useMemo(() => {
     const active = modules.modules.filter((item) => item.status === "active").length;
-    const disabled = modules.modules.filter((item) => item.status === "disabled").length;
     const failed = modules.modules.filter((item) => item.status === "error" || (item.errors?.length ?? 0) > 0).length;
-    return { active, disabled, failed };
+    const cheatPacks = modules.modules.reduce((sum, item) => sum + (item.cheatPackIds?.length ?? item.manifest.cheatPacks?.length ?? 0), 0);
+    return { active, failed, cheatPacks };
   }, [modules.modules]);
+
+  const sortedModules = useMemo(
+    () =>
+      [...modules.modules].sort((left, right) => {
+        const systemOrder = left.manifest.systemSlug.localeCompare(right.manifest.systemSlug);
+        if (systemOrder !== 0) {
+          return systemOrder;
+        }
+        return left.manifest.title.localeCompare(right.manifest.title);
+      }),
+    [modules.modules]
+  );
 
   const validationErrors = [
     ...(modules.library.errors ?? []).map((item) => ({ path: item.path, message: item.message })),
@@ -237,11 +266,14 @@ function GameSupportModulesPanel({
       <header className="settings-hero">
         <div>
           <h3>Game Support Modules</h3>
-          <p>Import parser-backed gameplay details and cheats from the GitHub module library.</p>
+          <p>One refresh pulls worker-made parser and cheat modules from GitHub, then updates My Saves and Details.</p>
         </div>
         <div className="settings-hero__actions">
-          <button className="btn btn-primary" type="button" onClick={onSync} disabled={busyKey !== null}>
-            {busyKey === "sync" ? "Syncing..." : "Sync from GitHub"}
+          <button className="btn btn-primary" type="button" onClick={onSyncAndRefresh} disabled={busyKey !== null}>
+            {busyKey === "sync-refresh" ? "Refreshing..." : "Sync & refresh"}
+          </button>
+          <button className="btn btn-ghost" type="button" onClick={onSync} disabled={busyKey !== null}>
+            {busyKey === "sync" ? "Syncing..." : "Sync only"}
           </button>
           <button className="btn btn-ghost" type="button" onClick={onRescan} disabled={busyKey !== null}>
             {busyKey === "rescan" ? "Refreshing..." : "Refresh saves"}
@@ -249,10 +281,24 @@ function GameSupportModulesPanel({
         </div>
       </header>
 
+      <ol className="settings-flow" aria-label="Worker module workflow">
+        <li>
+          <strong>Workers publish</strong>
+          <span>They add reviewed <code>.rsmodule.zip</code> bundles to the GitHub module library.</span>
+        </li>
+        <li>
+          <strong>You refresh</strong>
+          <span><code>Sync & refresh</code> imports modules and rescans saves in one safe action.</span>
+        </li>
+        <li>
+          <strong>The app updates</strong>
+          <span>My Saves gets cheat icons, and Details shows new gameplay facts when a parser matches.</span>
+        </li>
+      </ol>
+
       <div className="settings-summary-grid" aria-label="Module summary">
-        <SummaryTile label="Modules" value={String(modules.modules.length)} />
         <SummaryTile label="Enabled" value={String(counts.active)} tone="good" />
-        <SummaryTile label="Disabled" value={String(counts.disabled)} />
+        <SummaryTile label="Cheat packs" value={String(counts.cheatPacks)} />
         <SummaryTile label="Failed" value={String(counts.failed)} tone={counts.failed > 0 ? "bad" : undefined} />
         <SummaryTile label="Last sync" value={modules.library.lastSyncedAt ? formatDate(modules.library.lastSyncedAt) : "Never"} />
       </div>
@@ -274,18 +320,32 @@ function GameSupportModulesPanel({
         </section>
       ) : null}
 
-      {modules.modules.length > 0 ? (
-        <div className="settings-module-list">
-          {modules.modules.map((item) => (
-            <ModuleCard
-              key={item.manifest.moduleId}
-              item={item}
-              busyKey={busyKey}
-              onEnable={onEnable}
-              onDisable={onDisable}
-              onDelete={onDelete}
-            />
-          ))}
+      {sortedModules.length > 0 ? (
+        <div className="settings-module-table-wrap">
+          <table className="settings-module-table">
+            <thead>
+              <tr>
+                <th>Game</th>
+                <th>Console</th>
+                <th>Status</th>
+                <th>Cheats</th>
+                <th>Updated</th>
+                <th>Manage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedModules.map((item) => (
+                <ModuleRow
+                  key={item.manifest.moduleId}
+                  item={item}
+                  busyKey={busyKey}
+                  onEnable={onEnable}
+                  onDisable={onDisable}
+                  onDelete={onDelete}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <p className="empty-state">No game support modules are installed yet.</p>
@@ -311,7 +371,7 @@ function GameSupportModulesPanel({
   );
 }
 
-function ModuleCard({
+function ModuleRow({
   item,
   busyKey,
   onEnable,
@@ -327,41 +387,41 @@ function ModuleCard({
   const moduleId = item.manifest.moduleId;
   const busy = busyKey !== null;
   return (
-    <article className="settings-module-card">
-      <div className="settings-module-card__title">
+    <tr className="settings-module-row">
+      <td>
         <div>
           <strong>{item.manifest.title}</strong>
-          <span>
-            {item.manifest.systemSlug} - {item.cheatPackIds?.length ?? item.manifest.cheatPacks?.length ?? 0} cheat packs
-          </span>
+          <span>{moduleId}</span>
         </div>
+      </td>
+      <td>{item.manifest.systemSlug}</td>
+      <td>
         <span className={`cheat-status-badge cheat-status-badge--${normalizeStatusToken(item.status)}`}>{item.status}</span>
-      </div>
-      <dl className="settings-module-card__meta">
-        <div>
-          <dt>Module</dt>
-          <dd>{moduleId}</dd>
-        </div>
-        <div>
-          <dt>Updated</dt>
-          <dd>{formatDate(item.updatedAt)}</dd>
-        </div>
-      </dl>
-      <div className="module-library-controls">
-        {item.status === "active" ? (
-          <button className="btn btn-ghost" type="button" onClick={() => onDisable(moduleId)} disabled={busy}>
-            {busyKey === `disable:${moduleId}` ? "Disabling..." : "Disable"}
-          </button>
-        ) : (
-          <button className="btn btn-ghost" type="button" onClick={() => onEnable(moduleId)} disabled={busy}>
-            {busyKey === `enable:${moduleId}` ? "Enabling..." : "Enable"}
-          </button>
-        )}
-        <button className="btn btn-ghost" type="button" onClick={() => onDelete(moduleId)} disabled={busy}>
-          {busyKey === `delete:${moduleId}` ? "Deleting..." : "Delete"}
-        </button>
-      </div>
-    </article>
+      </td>
+      <td>{item.cheatPackIds?.length ?? item.manifest.cheatPacks?.length ?? 0}</td>
+      <td>{formatDate(item.updatedAt)}</td>
+      <td>
+        <details className="settings-row-actions">
+          <summary>Manage</summary>
+          <div>
+            <span>{item.source === "github" ? "GitHub module" : "Uploaded module"}</span>
+            {item.sourcePath ? <small>{item.sourcePath}</small> : null}
+            {item.status === "active" ? (
+              <button className="btn btn-ghost" type="button" onClick={() => onDisable(moduleId)} disabled={busy}>
+                {busyKey === `disable:${moduleId}` ? "Disabling..." : "Disable"}
+              </button>
+            ) : (
+              <button className="btn btn-ghost" type="button" onClick={() => onEnable(moduleId)} disabled={busy}>
+                {busyKey === `enable:${moduleId}` ? "Enabling..." : "Enable"}
+              </button>
+            )}
+            <button className="btn btn-ghost" type="button" onClick={() => onDelete(moduleId)} disabled={busy}>
+              {busyKey === `delete:${moduleId}` ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </details>
+      </td>
+    </tr>
   );
 }
 

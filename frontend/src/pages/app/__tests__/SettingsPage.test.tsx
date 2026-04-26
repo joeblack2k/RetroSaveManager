@@ -101,7 +101,8 @@ describe("SettingsPage", () => {
     expect(await screen.findByRole("heading", { name: "Game Support Modules" })).toBeInTheDocument();
     expect(screen.getByText("Module Game")).toBeInTheDocument();
     expect(screen.getByText("gb-module-game")).toBeInTheDocument();
-    expect(screen.getByText("gameboy - 1 cheat packs")).toBeInTheDocument();
+    expect(screen.getByText("Workers publish")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sync & refresh" })).toBeInTheDocument();
     expect(screen.getByText("1 saved keys")).toBeInTheDocument();
     expect(screen.getByText("Advanced module upload")).toBeInTheDocument();
     expect(screen.queryByText("module-game-parser")).not.toBeInTheDocument();
@@ -111,12 +112,15 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await screen.findByRole("heading", { name: "Game Support Modules" });
-    fireEvent.click(screen.getByRole("button", { name: "Sync from GitHub" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sync & refresh" }));
 
     await waitFor(() => {
       expect(retrosaveApi.syncGameModules).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText("Module sync finished: 1 imported, 0 validation errors.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(retrosaveApi.rescanGameModules).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByText("Module sync finished: 1 imported, 0 validation errors, 4 save files refreshed.")).toBeInTheDocument();
     await waitFor(() => {
       expect(retrosaveApi.listGameModules).toHaveBeenCalledTimes(2);
     });
@@ -126,6 +130,7 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await screen.findByRole("heading", { name: "Game Support Modules" });
+    fireEvent.click(screen.getAllByText("Manage")[1]);
     fireEvent.click(screen.getByRole("button", { name: "Disable" }));
 
     await waitFor(() => {
