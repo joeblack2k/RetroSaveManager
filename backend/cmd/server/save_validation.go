@@ -28,6 +28,8 @@ type saveUploadPreviewItem struct {
 	Format           string            `json:"format,omitempty"`
 	MediaType        string            `json:"mediaType,omitempty"`
 	RuntimeProfile   string            `json:"runtimeProfile,omitempty"`
+	ROMSHA1          string            `json:"romSha1,omitempty"`
+	ROMMD5           string            `json:"romMd5,omitempty"`
 	SizeBytes        int               `json:"sizeBytes"`
 	SHA256           string            `json:"sha256"`
 	ParserLevel      string            `json:"parserLevel,omitempty"`
@@ -47,28 +49,35 @@ type saveUploadPreviewResponse struct {
 }
 
 type quarantineRecord struct {
-	ID           string    `json:"id"`
-	Filename     string    `json:"filename"`
-	SourcePath   string    `json:"sourcePath,omitempty"`
-	PayloadFile  string    `json:"payloadFile"`
-	SizeBytes    int       `json:"sizeBytes"`
-	SHA256       string    `json:"sha256"`
-	Reason       string    `json:"reason"`
-	SystemSlug   string    `json:"systemSlug,omitempty"`
-	DisplayTitle string    `json:"displayTitle,omitempty"`
-	ParserLevel  string    `json:"parserLevel,omitempty"`
-	TrustLevel   string    `json:"trustLevel,omitempty"`
-	UploadedAt   time.Time `json:"uploadedAt"`
-	UploadSource string    `json:"uploadSource,omitempty"`
+	ID             string    `json:"id"`
+	Filename       string    `json:"filename"`
+	SourcePath     string    `json:"sourcePath,omitempty"`
+	PayloadFile    string    `json:"payloadFile"`
+	SizeBytes      int       `json:"sizeBytes"`
+	SHA256         string    `json:"sha256"`
+	Reason         string    `json:"reason"`
+	SystemSlug     string    `json:"systemSlug,omitempty"`
+	Format         string    `json:"format,omitempty"`
+	MediaType      string    `json:"mediaType,omitempty"`
+	RuntimeProfile string    `json:"runtimeProfile,omitempty"`
+	ROMSHA1        string    `json:"romSha1,omitempty"`
+	ROMMD5         string    `json:"romMd5,omitempty"`
+	DisplayTitle   string    `json:"displayTitle,omitempty"`
+	ParserLevel    string    `json:"parserLevel,omitempty"`
+	TrustLevel     string    `json:"trustLevel,omitempty"`
+	UploadedAt     time.Time `json:"uploadedAt"`
+	UploadSource   string    `json:"uploadSource,omitempty"`
 }
 
 type validationStatus struct {
-	GeneratedAt     time.Time          `json:"generatedAt"`
-	Counts          map[string]int     `json:"counts"`
-	Systems         map[string]int     `json:"systems"`
-	QuarantineCount int                `json:"quarantineCount"`
-	Quarantine      []quarantineRecord `json:"quarantine"`
-	LastRescan      *saveRescanResult  `json:"lastRescan,omitempty"`
+	GeneratedAt     time.Time                  `json:"generatedAt"`
+	Counts          map[string]int             `json:"counts"`
+	Systems         map[string]int             `json:"systems"`
+	QuarantineCount int                        `json:"quarantineCount"`
+	Quarantine      []quarantineRecord         `json:"quarantine"`
+	CoverageSummary validationCoverageSummary  `json:"coverageSummary"`
+	Coverage        []validationCoverageRecord `json:"coverage"`
+	LastRescan      *saveRescanResult          `json:"lastRescan,omitempty"`
 }
 
 func (a *app) handleSavesPreview(w http.ResponseWriter, r *http.Request) {
@@ -221,6 +230,8 @@ func previewItemFromNormalized(filename, sourcePath string, payload []byte, runt
 		Format:         strings.TrimSpace(input.Format),
 		MediaType:      strings.TrimSpace(input.MediaType),
 		RuntimeProfile: firstNonEmpty(strings.TrimSpace(input.RuntimeProfile), runtimeProfile),
+		ROMSHA1:        strings.TrimSpace(input.ROMSHA1),
+		ROMMD5:         strings.TrimSpace(input.ROMMD5),
 		SizeBytes:      len(payload),
 		SHA256:         hex.EncodeToString(sum[:]),
 		Reason:         strings.TrimSpace(preview.RejectReason),
@@ -268,6 +279,8 @@ func rejectedPreviewItem(filename, sourcePath string, payload []byte, systemSlug
 		SystemSlug:     canonicalSegment(systemSlug, "unknown-system"),
 		Format:         strings.TrimSpace(format),
 		RuntimeProfile: strings.TrimSpace(runtimeProfile),
+		ROMSHA1:        "",
+		ROMMD5:         "",
 		SizeBytes:      len(payload),
 		SHA256:         hex.EncodeToString(sum[:]),
 		ParserLevel:    saveParserLevelNone,
@@ -299,19 +312,24 @@ func (a *app) quarantineRejectedUpload(filename, sourcePath string, payload []by
 	}
 	payloadFile := "payload" + ext
 	record := quarantineRecord{
-		ID:           filepath.Base(dir),
-		Filename:     safeName,
-		SourcePath:   strings.TrimSpace(strings.ReplaceAll(sourcePath, "\\", "/")),
-		PayloadFile:  payloadFile,
-		SizeBytes:    len(payload),
-		SHA256:       shaHex,
-		Reason:       firstNonEmpty(strings.TrimSpace(item.Reason), errUnsupportedSaveFormat.Error()),
-		SystemSlug:   strings.TrimSpace(item.SystemSlug),
-		DisplayTitle: strings.TrimSpace(item.DisplayTitle),
-		ParserLevel:  firstNonEmpty(strings.TrimSpace(item.ParserLevel), saveParserLevelNone),
-		TrustLevel:   firstNonEmpty(strings.TrimSpace(item.TrustLevel), validationTrustLevel(item.ParserLevel)),
-		UploadedAt:   now,
-		UploadSource: strings.TrimSpace(uploadSource),
+		ID:             filepath.Base(dir),
+		Filename:       safeName,
+		SourcePath:     strings.TrimSpace(strings.ReplaceAll(sourcePath, "\\", "/")),
+		PayloadFile:    payloadFile,
+		SizeBytes:      len(payload),
+		SHA256:         shaHex,
+		Reason:         firstNonEmpty(strings.TrimSpace(item.Reason), errUnsupportedSaveFormat.Error()),
+		SystemSlug:     strings.TrimSpace(item.SystemSlug),
+		Format:         strings.TrimSpace(item.Format),
+		MediaType:      strings.TrimSpace(item.MediaType),
+		RuntimeProfile: strings.TrimSpace(item.RuntimeProfile),
+		ROMSHA1:        strings.TrimSpace(item.ROMSHA1),
+		ROMMD5:         strings.TrimSpace(item.ROMMD5),
+		DisplayTitle:   strings.TrimSpace(item.DisplayTitle),
+		ParserLevel:    firstNonEmpty(strings.TrimSpace(item.ParserLevel), saveParserLevelNone),
+		TrustLevel:     firstNonEmpty(strings.TrimSpace(item.TrustLevel), validationTrustLevel(item.ParserLevel)),
+		UploadedAt:     now,
+		UploadSource:   strings.TrimSpace(uploadSource),
 	}
 	if err := writeFileAtomic(filepath.Join(dir, payloadFile), payload, 0o644); err != nil {
 		return
@@ -373,18 +391,25 @@ func (a *app) buildValidationStatus(lastRescan *saveRescanResult) (validationSta
 		"unknown":           0,
 	}
 	systems := map[string]int{}
+	coverage := make([]validationCoverageRecord, 0, len(records))
+	coverageSummary := validationCoverageSummary{Total: len(records)}
 	for _, record := range records {
 		slug := canonicalSegment(saveRecordSystemSlug(record), "unknown-system")
 		systems[slug]++
 		level := saveParserLevelNone
 		trust := ""
+		parserID := ""
+		gameplayFactCount := 0
 		if record.Summary.Inspection != nil {
 			level = strings.TrimSpace(record.Summary.Inspection.ParserLevel)
 			trust = strings.TrimSpace(record.Summary.Inspection.TrustLevel)
+			parserID = strings.TrimSpace(record.Summary.Inspection.ParserID)
+			gameplayFactCount = validationGameplayFactCount(record.Summary.Inspection.SemanticFields)
 		}
 		switch validationBucket(level, trust) {
 		case "semantic":
 			counts["semanticVerified"]++
+			coverageSummary.Semantic++
 		case "structure":
 			counts["structureVerified"]++
 		case "rom":
@@ -394,7 +419,49 @@ func (a *app) buildValidationStatus(lastRescan *saveRescanResult) (validationSta
 		default:
 			counts["unknown"]++
 		}
+		cheatsSupported := record.Summary.Cheats != nil && record.Summary.Cheats.Supported && record.Summary.Cheats.AvailableCount > 0
+		if cheatsSupported {
+			coverageSummary.Cheats++
+		}
+		if gameplayFactCount > 0 {
+			coverageSummary.GameplayFacts++
+		} else {
+			coverageSummary.Missing++
+		}
+		systemName := ""
+		if record.Summary.Game.System != nil {
+			systemName = record.Summary.Game.System.Name
+		}
+		cheatCount := 0
+		if record.Summary.Cheats != nil {
+			cheatCount = record.Summary.Cheats.AvailableCount
+		}
+		coverage = append(coverage, validationCoverageRecord{
+			SaveID:            record.Summary.ID,
+			DisplayTitle:      firstNonEmpty(record.Summary.DisplayTitle, record.Summary.Game.DisplayTitle, record.Summary.Game.Name, record.Summary.Filename),
+			SystemSlug:        slug,
+			SystemName:        systemName,
+			ParserLevel:       level,
+			ParserID:          parserID,
+			TrustLevel:        trust,
+			GameplayFactCount: gameplayFactCount,
+			HasGameplayFacts:  gameplayFactCount > 0,
+			CheatsSupported:   cheatsSupported,
+			CheatCount:        cheatCount,
+			UpdatedAt:         record.Summary.CreatedAt,
+		})
 	}
+	sort.Slice(coverage, func(i, j int) bool {
+		leftMissing := !coverage[i].HasGameplayFacts && !coverage[i].CheatsSupported
+		rightMissing := !coverage[j].HasGameplayFacts && !coverage[j].CheatsSupported
+		if leftMissing != rightMissing {
+			return leftMissing
+		}
+		if coverage[i].SystemSlug != coverage[j].SystemSlug {
+			return coverage[i].SystemSlug < coverage[j].SystemSlug
+		}
+		return strings.ToLower(coverage[i].DisplayTitle) < strings.ToLower(coverage[j].DisplayTitle)
+	})
 	quarantine, err := a.listQuarantineRecords()
 	if err != nil {
 		return validationStatus{}, err
@@ -405,6 +472,8 @@ func (a *app) buildValidationStatus(lastRescan *saveRescanResult) (validationSta
 		Systems:         systems,
 		QuarantineCount: len(quarantine),
 		Quarantine:      quarantine,
+		CoverageSummary: coverageSummary,
+		Coverage:        coverage,
 		LastRescan:      lastRescan,
 	}, nil
 }

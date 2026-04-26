@@ -2474,6 +2474,83 @@ code {
   gap: 0.5rem;
 }
 
+.device-manage-shell {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.device-manage-hero,
+.device-manage-panel {
+  border: 1px solid #30394c;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(180deg, #151b26, #10151e);
+  background-size: 8px 8px, auto;
+  padding: 0.75rem;
+}
+
+.device-manage-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.85rem;
+}
+
+.device-manage-hero h2 {
+  margin: 0.25rem 0;
+  color: #f6f9ff;
+  font-size: clamp(1.15rem, 2vw, 1.7rem);
+  line-height: 1;
+}
+
+.device-manage-hero p {
+  margin: 0;
+  color: #aebbd0;
+  font-size: 0.75rem;
+}
+
+.device-manage-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  border: 1px solid #30394c;
+  background: #0f141d;
+}
+
+.device-manage-summary > div {
+  padding: 0.6rem 0.7rem;
+  border-right: 1px solid #30394c;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.device-manage-summary > div:last-child {
+  border-right: 0;
+}
+
+.device-manage-summary span {
+  color: #8fa0bc;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.device-manage-summary strong {
+  color: #f2f7ff;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+}
+
+.device-manage-summary small {
+  color: #aab6ca;
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.device-manage-summary__warn strong {
+  color: #ffd38e;
+}
+
 .device-policy-preview {
   border: 1px solid #334056;
   background:
@@ -2523,6 +2600,13 @@ code {
   border: 1px solid #333d52;
   background: #121822;
   padding: 0.75rem;
+}
+
+.validation-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
 }
 
 .validation-toolbar div {
@@ -2621,6 +2705,109 @@ code {
   margin-left: 0.25rem;
 }
 
+.validation-coverage-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  border: 1px solid #30394c;
+  background: #0f141d;
+}
+
+.validation-coverage-metric {
+  padding: 0.55rem 0.65rem;
+  border-right: 1px solid #30394c;
+}
+
+.validation-coverage-metric:last-child {
+  border-right: 0;
+}
+
+.validation-coverage-metric span {
+  display: block;
+  color: #93a3bd;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.validation-coverage-metric strong {
+  color: #f4f8ff;
+  font-size: 1.05rem;
+}
+
+.validation-coverage-metric--warn strong {
+  color: #ffd38e;
+}
+
+.validation-coverage-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.validation-coverage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid #30394c;
+  background: #121822;
+  padding: 0.5rem 0.6rem;
+}
+
+.validation-coverage-row strong,
+.validation-coverage-row small {
+  display: block;
+}
+
+.validation-coverage-row strong {
+  color: #edf4ff;
+  font-size: 0.78rem;
+}
+
+.validation-coverage-row small {
+  color: #91a0b7;
+  font-size: 0.68rem;
+}
+
+.validation-pill {
+  border: 1px solid #6e5730;
+  background: #211b12;
+  color: #ffd38e;
+  padding: 0.2rem 0.42rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.validation-pill--good {
+  border-color: #657d44;
+  background: #17200f;
+  color: #d7ee9f;
+}
+
+.validation-row-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.validation-row-actions .btn {
+  min-height: 1.65rem;
+  padding: 0 0.45rem;
+  font-size: 0.62rem;
+}
+
+.validation-source-cell {
+  display: inline-block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .device-fleet-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2637,6 +2824,10 @@ code {
 
   .device-compact-row__actions {
     justify-content: flex-start;
+  }
+
+  .device-manage-hero {
+    grid-template-columns: 1fr;
   }
 
   .device-source-form__wide {

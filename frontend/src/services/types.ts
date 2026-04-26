@@ -577,11 +577,37 @@ export type QuarantineRecord = {
   sha256: string;
   reason: string;
   systemSlug?: string;
+  format?: string;
+  mediaType?: string;
+  runtimeProfile?: string;
   displayTitle?: string;
   parserLevel?: string;
   trustLevel?: string;
   uploadedAt: string;
   uploadSource?: string;
+};
+
+export type ValidationCoverageSummary = {
+  total: number;
+  gameplayFacts: number;
+  semantic: number;
+  cheats: number;
+  missing: number;
+};
+
+export type ValidationCoverageRecord = {
+  saveId: string;
+  displayTitle: string;
+  systemSlug: string;
+  systemName?: string;
+  parserLevel?: string;
+  parserId?: string;
+  trustLevel?: string;
+  gameplayFactCount: number;
+  hasGameplayFacts: boolean;
+  cheatsSupported: boolean;
+  cheatCount?: number;
+  updatedAt: string;
 };
 
 export type ValidationStatus = {
@@ -590,6 +616,8 @@ export type ValidationStatus = {
   systems: Record<string, number>;
   quarantineCount: number;
   quarantine: QuarantineRecord[];
+  coverageSummary?: ValidationCoverageSummary;
+  coverage?: ValidationCoverageRecord[];
   lastRescan?: {
     scanned?: number;
     updated?: number;
@@ -605,6 +633,18 @@ export type ValidationRescanResponse = {
   success: boolean;
   result: ValidationStatus["lastRescan"];
   validation: ValidationStatus;
+};
+
+export type QuarantineActionResponse = {
+  success: boolean;
+  deleted?: string;
+  imported?: boolean;
+  duplicate?: boolean;
+  duplicateDisposition?: string;
+  message?: string;
+  validation?: ValidationStatus;
+  save?: SaveSummary;
+  preview?: SaveUploadPreviewItem;
 };
 
 export type AppPassword = {

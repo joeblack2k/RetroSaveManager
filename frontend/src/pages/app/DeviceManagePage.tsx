@@ -4,12 +4,14 @@ import { ErrorState, LoadingState } from "../../components/LoadState";
 import { SectionCard } from "../../components/SectionCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { commandDevice, getDevice, listSaveSystems, updateDevice } from "../../services/retrosaveApi";
-import type { DeviceConfigSource, DevicePolicyBlock, SaveSystem } from "../../services/types";
+import type { Device, DeviceConfigSource, DevicePolicyBlock, SaveSystem } from "../../services/types";
 
 type SystemGroup = {
   manufacturer: string;
   systems: SaveSystem[];
 };
+
+type DeviceCommand = "sync" | "scan" | "deep_scan" | "config_changed";
 
 const SOURCE_KIND_OPTIONS = [
   { value: "custom", label: "Custom" },
@@ -344,7 +346,7 @@ export function DeviceManagePage(): JSX.Element {
     }
   }
 
-  async function onCommand(command: "sync" | "scan" | "deep_scan"): Promise<void> {
+  async function onCommand(command: DeviceCommand): Promise<void> {
     if (!data?.device) {
       return;
     }
@@ -362,28 +364,40 @@ export function DeviceManagePage(): JSX.Element {
   }
 
   return (
-    <SectionCard title="Manage Device" subtitle="Rename the helper, choose allowed consoles, and add backend-managed sync sources.">
+    <SectionCard title="Manage Device" subtitle="Control helper policy, folders, and sync commands from one clean loop.">
       {loading ? <LoadingState label="Loading device..." /> : null}
       {error ? <ErrorState message={error} /> : null}
       {saveError ? <ErrorState message={saveError} /> : null}
       {saveMessage ? <p className="success-state">{saveMessage}</p> : null}
 
       {data ? (
-        <div className="stack">
-          <p>
-            <strong>Device:</strong> {data.device.displayName} ({data.device.deviceType} · {data.device.fingerprint})
-          </p>
-          <div className="device-manage-actions">
-            <button className="btn btn-ghost" type="button" disabled={commandKey === "sync"} onClick={() => void onCommand("sync")}>
-              {commandKey === "sync" ? "Sending..." : "Sync now"}
-            </button>
-            <button className="btn btn-ghost" type="button" disabled={commandKey === "scan"} onClick={() => void onCommand("scan")}>
-              {commandKey === "scan" ? "Sending..." : "Scan folders"}
-            </button>
-            <button className="btn btn-ghost" type="button" disabled={commandKey === "deep_scan"} onClick={() => void onCommand("deep_scan")}>
-              {commandKey === "deep_scan" ? "Sending..." : "Deep scan"}
-            </button>
-          </div>
+        <div className="device-manage-shell">
+          <header className="device-manage-hero">
+            <div>
+              <Link className="save-detail-back" to="/app/devices">&lt; Devices</Link>
+              <p className="save-detail-eyebrow">Helper control loop</p>
+              <h2>{data.device.displayName}</h2>
+              <p>
+                {data.device.helperName || "Unknown helper"} {data.device.helperVersion ? `v${data.device.helperVersion}` : ""} · {data.device.hostname || "Unknown host"} · {data.device.lastSeenIp || "No IP"}
+              </p>
+            </div>
+            <div className="device-manage-actions">
+              <button className="btn btn-ghost" type="button" disabled={commandKey === "sync"} onClick={() => void onCommand("sync")}>
+                {commandKey === "sync" ? "Sending..." : "Sync now"}
+              </button>
+              <button className="btn btn-ghost" type="button" disabled={commandKey === "scan"} onClick={() => void onCommand("scan")}>
+                {commandKey === "scan" ? "Sending..." : "Scan folders"}
+              </button>
+              <button className="btn btn-ghost" type="button" disabled={commandKey === "deep_scan"} onClick={() => void onCommand("deep_scan")}>
+                {commandKey === "deep_scan" ? "Sending..." : "Deep scan"}
+              </button>
+              <button className="btn btn-ghost" type="button" disabled={commandKey === "config_changed"} onClick={() => void onCommand("config_changed")}>
+                {commandKey === "config_changed" ? "Sending..." : "Reload config"}
+              </button>
+            </div>
+          </header>
+
+          <DeviceManageSummary device={data.device} sources={editableSources} syncAll={syncAll} allowedSystems={allowedSystems} />
 
           <label className="field">
             <span>Alias</span>
@@ -408,7 +422,7 @@ export function DeviceManagePage(): JSX.Element {
             </p>
           ) : null}
 
-          <section className="device-source-editor">
+          <section className="device-source-editor device-manage-panel">
             <div className="device-source-editor__header">
               <div>
                 <h3>Add console source</h3>
@@ -540,7 +554,7 @@ export function DeviceManagePage(): JSX.Element {
 
           <div className="inline-actions">
             <button className="btn btn-primary" type="button" onClick={() => void onSave()} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
+              {saving ? "Saving..." : "Save policy"}
             </button>
             <Link className="btn btn-ghost" to="/app/devices">
               Back
@@ -549,6 +563,47 @@ export function DeviceManagePage(): JSX.Element {
         </div>
       ) : null}
     </SectionCard>
+  );
+}
+
+function DeviceManageSummary({
+  device,
+  sources,
+  syncAll,
+  allowedSystems
+}: {
+  device: Device;
+  sources: DeviceConfigSource[];
+  syncAll: boolean;
+  allowedSystems: string[];
+}): JSX.Element {
+  const effectiveSystems = device.effectivePolicy?.allowedSystemSlugs ?? (syncAll ? device.reportedSystemSlugs : allowedSystems);
+  const blockedCount = device.effectivePolicy?.blocked?.length ?? 0;
+  const serviceState = device.service?.freshness || device.service?.status || (device.lastSeenAt ? "seen" : "offline");
+  const savePathCount = device.sensors?.savePathCount ?? sources.reduce((count, source) => count + (source.savePaths?.length ?? (source.savePath ? 1 : 0)), 0);
+  return (
+    <div className="device-manage-summary" aria-label="Device policy summary">
+      <div>
+        <span>Service</span>
+        <strong>{serviceState}</strong>
+        <small>{device.service?.lastError || device.service?.lastEvent || "No recent error"}</small>
+      </div>
+      <div>
+        <span>Policy</span>
+        <strong>{syncAll ? "Auto" : "Manual"}</strong>
+        <small>{effectiveSystems?.length ? `${effectiveSystems.length} consoles allowed` : "No consoles allowed yet"}</small>
+      </div>
+      <div>
+        <span>Sources</span>
+        <strong>{sources.length}</strong>
+        <small>{savePathCount} save folders reported</small>
+      </div>
+      <div className={blockedCount > 0 ? "device-manage-summary__warn" : ""}>
+        <span>Guard</span>
+        <strong>{blockedCount}</strong>
+        <small>{blockedCount > 0 ? "blocked unsafe routes" : "no blocked routes"}</small>
+      </div>
+    </div>
   );
 }
 
@@ -609,7 +664,7 @@ function recommendedKindForProfile(profile: string): string {
   return "custom";
 }
 
-function commandLabel(command: "sync" | "scan" | "deep_scan"): string {
+function commandLabel(command: DeviceCommand): string {
   switch (command) {
     case "sync":
       return "Sync";
@@ -617,6 +672,8 @@ function commandLabel(command: "sync" | "scan" | "deep_scan"): string {
       return "Scan";
     case "deep_scan":
       return "Deep scan";
+    case "config_changed":
+      return "Reload config";
     default:
       return command;
   }

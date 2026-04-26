@@ -31,8 +31,10 @@ const gameplayFields: GameplayField[] = [
   { label: "Lives", keys: ["livesNote", "lifeNote", "livesUnavailableReason"] },
   { label: "Continues", keys: ["continues", "continueCount"] },
   { label: "Current map", keys: ["map", "currentMap", "mapName", "location", "currentLocation"] },
+  { label: "Area", keys: ["area", "currentArea", "room", "currentRoom"] },
   { label: "World", keys: ["world", "currentWorld", "worldName", "currentWorldName"] },
   { label: "Level", keys: ["level", "currentLevel", "stage", "currentStage"] },
+  { label: "Chapter", keys: ["chapter", "currentChapter", "mission", "currentMission"] },
   { label: "Zone", keys: ["zone", "currentZone"] },
   { label: "Act", keys: ["act", "currentAct"] },
   { label: "Progress", keys: ["progress", "completion", "completionPercent", "percentComplete"] },
@@ -40,8 +42,12 @@ const gameplayFields: GameplayField[] = [
   { label: "Super Emeralds", keys: ["superEmeralds", "superEmeraldCount"] },
   { label: "Stars", keys: ["stars", "starCount", "collectedStars"] },
   { label: "Coins", keys: ["coins", "coinCount"] },
+  { label: "Rupees", keys: ["rupees", "rupeeCount"] },
+  { label: "Bananas", keys: ["bananas", "bananaCount", "goldBananas", "goldenBananas"] },
   { label: "Hearts", keys: ["hearts", "heartContainers"] },
+  { label: "Health", keys: ["health", "currentHealth", "maxHealth"] },
   { label: "Keys", keys: ["keys", "keyCount"] },
+  { label: "Inventory", keys: ["inventory", "inventorySummary", "items", "itemSummary"] },
   { label: "Score", keys: ["score", "currentScore", "highScore"] },
   { label: "Music", keys: ["musicEnabled", "musicOn"] },
   { label: "Laps", keys: ["lapCount", "normalLapCount", "currentLap"] },
@@ -59,6 +65,7 @@ const technicalSemanticKeys = new Set([
   "dataBytesPerCopy",
   "editableFields",
   "embeddedFileName",
+  "fileCount",
   "entryCount",
   "extension",
   "format",
@@ -100,7 +107,7 @@ export function buildSaveInsight(save: Pick<SaveSummary, "inspection" | "fileSiz
     return null;
   }
 
-  const fields = asRecord(inspection.semanticFields);
+  const fields = flattenSemanticFields(asRecord(inspection.semanticFields));
   const rows: SaveInsightRow[] = [];
   const seenLabels = new Set<string>();
   const addRow = (label: string, value: unknown, kind: SaveInsightRow["kind"] = "technical"): void => {
@@ -330,6 +337,34 @@ function asRecord(value: SaveInspection["semanticFields"]): Record<string, unkno
     return {};
   }
   return value;
+}
+
+function flattenSemanticFields(source: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...source };
+  const promotedContainers = new Set(["gameplay", "facts", "stats", "details", "current", "currentSave", "activeSlot"]);
+  for (const [key, value] of Object.entries(source)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      continue;
+    }
+    const nested = value as Record<string, unknown>;
+    if (promotedContainers.has(key)) {
+      for (const [nestedKey, nestedValue] of Object.entries(nested)) {
+        if (out[nestedKey] === undefined) {
+          out[nestedKey] = nestedValue;
+        }
+      }
+      continue;
+    }
+    if (/^(slot|save|file)[\s_-]?[a-d0-9]+$/i.test(key)) {
+      for (const [nestedKey, nestedValue] of Object.entries(nested).slice(0, 8)) {
+        const flattenedKey = `${key} ${nestedKey}`;
+        if (out[flattenedKey] === undefined) {
+          out[flattenedKey] = nestedValue;
+        }
+      }
+    }
+  }
+  return out;
 }
 
 function stringArray(value: unknown): string[] {

@@ -16,6 +16,7 @@ import type {
   GameModuleRecord,
   GameModuleRescanResponse,
   LibraryEntry,
+  QuarantineActionResponse,
   ReferralInfo,
   RoadmapItem,
   RoadmapSuggestion,
@@ -390,6 +391,18 @@ export function rescanValidation(params?: { dryRun?: boolean; pruneUnsupported?:
   });
 }
 
+export function retryQuarantineItem(id: string): Promise<QuarantineActionResponse> {
+  return apiFetchJSON<QuarantineActionResponse>(`/api/validation/quarantine/${encodeURIComponent(id)}/retry`, {
+    method: "POST"
+  });
+}
+
+export function deleteQuarantineItem(id: string): Promise<QuarantineActionResponse> {
+  return apiFetchJSON<QuarantineActionResponse>(`/api/validation/quarantine/${encodeURIComponent(id)}`, {
+    method: "DELETE"
+  });
+}
+
 export async function getDevice(id: number): Promise<Device> {
   const response = await apiFetchJSON<{ device: Device }>(`/devices/${id}`);
   return response.device;
@@ -414,7 +427,7 @@ export function updateDevice(
 
 export function commandDevice(
   id: number,
-  command: "sync" | "scan" | "deep_scan",
+  command: "sync" | "scan" | "deep_scan" | "config_changed",
   reason?: string
 ): Promise<{ success: boolean; event: string; action: string; broadcast: boolean }> {
   return apiFetchJSON(`/devices/${id}/command`, {

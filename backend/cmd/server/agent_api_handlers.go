@@ -68,6 +68,8 @@ func mountAgentRoutes(r chi.Router, app *app) {
 
 	r.Get("/validation", app.handleValidationStatus)
 	r.Post("/validation/rescan", app.handleValidationRescan)
+	r.Post("/validation/quarantine/{id}/retry", app.handleValidationQuarantineRetry)
+	r.Delete("/validation/quarantine/{id}", app.handleValidationQuarantineDelete)
 
 	r.Get("/modules", app.handleModulesList)
 	r.Post("/modules/sync", app.handleModulesSync)

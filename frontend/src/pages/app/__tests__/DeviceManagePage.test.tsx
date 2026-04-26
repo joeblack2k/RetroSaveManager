@@ -51,13 +51,13 @@ describe("DeviceManagePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("Steam Deck")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Steam Deck" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "snes9x" } });
     fireEvent.change(screen.getByLabelText("Save folder"), { target: { value: "/media/snes9x/saves" } });
     fireEvent.change(screen.getByLabelText("ROM folder"), { target: { value: "/media/snes9x/roms" } });
     fireEvent.click(screen.getByRole("button", { name: "Add console" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save policy" }));
 
     await waitFor(() => {
       expect(updateDevice).toHaveBeenCalledWith(
