@@ -22,8 +22,11 @@ import type {
   SaveSystem,
   SaveHistoryResponse,
   SaveCheatResponse,
+  SaveUploadPreviewResponse,
   SaveSummary,
-  SyncLogPage
+  SyncLogPage,
+  ValidationRescanResponse,
+  ValidationStatus
 } from "./types";
 
 export function login(email: string, password: string): Promise<{ success: boolean; message: string }> {
@@ -82,6 +85,7 @@ export function uploadSaveFile(params: {
   slotName?: string;
   romSha1?: string;
   wiiTitleId?: string;
+  runtimeProfile?: string;
 }): Promise<{
   success: boolean;
   save?: { id: string; sha256: string; version?: number };
@@ -103,7 +107,41 @@ export function uploadSaveFile(params: {
   if (params.wiiTitleId) {
     form.append("wiiTitleId", params.wiiTitleId);
   }
+  if (params.runtimeProfile) {
+    form.append("runtimeProfile", params.runtimeProfile);
+  }
   return apiFetchJSON("/saves", {
+    method: "POST",
+    body: form
+  });
+}
+
+export function previewSaveFile(params: {
+  file: File;
+  system?: string;
+  slotName?: string;
+  romSha1?: string;
+  wiiTitleId?: string;
+  runtimeProfile?: string;
+}): Promise<SaveUploadPreviewResponse> {
+  const form = new FormData();
+  form.append("file", params.file);
+  if (params.system) {
+    form.append("system", params.system);
+  }
+  if (params.slotName) {
+    form.append("slotName", params.slotName);
+  }
+  if (params.romSha1) {
+    form.append("rom_sha1", params.romSha1);
+  }
+  if (params.wiiTitleId) {
+    form.append("wiiTitleId", params.wiiTitleId);
+  }
+  if (params.runtimeProfile) {
+    form.append("runtimeProfile", params.runtimeProfile);
+  }
+  return apiFetchJSON<SaveUploadPreviewResponse>("/api/saves/preview", {
     method: "POST",
     body: form
   });
@@ -334,6 +372,22 @@ export function listSyncLogs(params?: { hours?: number; page?: number; limit?: n
   search.set("page", String(params?.page ?? 1));
   search.set("limit", String(params?.limit ?? 50));
   return apiFetchJSON<SyncLogPage>(`/logs?${search.toString()}`);
+}
+
+export async function getValidationStatus(): Promise<ValidationStatus> {
+  const response = await apiFetchJSON<{ validation: ValidationStatus }>("/api/validation");
+  return response.validation;
+}
+
+export function rescanValidation(params?: { dryRun?: boolean; pruneUnsupported?: boolean }): Promise<ValidationRescanResponse> {
+  return apiFetchJSON<ValidationRescanResponse>("/api/validation/rescan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      dryRun: params?.dryRun ?? false,
+      pruneUnsupported: params?.pruneUnsupported ?? true
+    })
+  });
 }
 
 export async function getDevice(id: number): Promise<Device> {

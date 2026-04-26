@@ -9,10 +9,11 @@ import {
   getSaveCheats,
   getSaveHistory,
   listSaves,
+  previewSaveFile,
   rollbackSave,
   uploadSaveFile
 } from "../../services/retrosaveApi";
-import type { SaveCheatEditorState, SaveCheatField, SaveSummary } from "../../services/types";
+import type { SaveCheatEditorState, SaveCheatField, SaveSummary, SaveUploadPreviewItem } from "../../services/types";
 import { formatBytes, formatDate } from "../../utils/format";
 import {
   buildSaveDownloadHref,
@@ -77,6 +78,9 @@ export function MyGamesPage(): JSX.Element {
   const [uploadSlotName, setUploadSlotName] = useState("");
   const [uploadRomSha1, setUploadRomSha1] = useState("");
   const [uploadWiiTitleId, setUploadWiiTitleId] = useState("");
+  const [uploadRuntimeProfile, setUploadRuntimeProfile] = useState("");
+  const [uploadPreviewItems, setUploadPreviewItems] = useState<SaveUploadPreviewItem[] | null>(null);
+  const [uploadPreviewBusy, setUploadPreviewBusy] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<string | null>(null);
@@ -282,6 +286,9 @@ export function MyGamesPage(): JSX.Element {
     setUploadSlotName("");
     setUploadRomSha1("");
     setUploadWiiTitleId("");
+    setUploadRuntimeProfile("");
+    setUploadPreviewItems(null);
+    setUploadPreviewBusy(false);
     setUploadError(null);
     setUploadResult(null);
   }
@@ -289,15 +296,61 @@ export function MyGamesPage(): JSX.Element {
   function closeUploadModal(): void {
     setUploadOpen(false);
     setUploadFile(null);
+    setUploadRuntimeProfile("");
     setUploadBusy(false);
+    setUploadPreviewBusy(false);
+    setUploadPreviewItems(null);
     setUploadError(null);
     setUploadResult(null);
+  }
+
+  function resetUploadPreview(): void {
+    setUploadPreviewItems(null);
+    setUploadResult(null);
+    setUploadError(null);
+  }
+
+  async function handleUploadPreview(): Promise<void> {
+    if (!uploadFile) {
+      setUploadError("Choose a save file or zip archive first.");
+      return;
+    }
+
+    setUploadPreviewBusy(true);
+    setUploadError(null);
+    setUploadResult(null);
+    try {
+      const response = await previewSaveFile({
+        file: uploadFile,
+        system: uploadSystem || undefined,
+        slotName: uploadSlotName || undefined,
+        romSha1: uploadRomSha1 || undefined,
+        wiiTitleId: uploadWiiTitleId || undefined,
+        runtimeProfile: uploadRuntimeProfile || undefined
+      });
+      setUploadPreviewItems(response.items);
+      setUploadResult(`${response.acceptedCount} accepted · ${response.rejectedCount} rejected`);
+    } catch (err: unknown) {
+      setUploadPreviewItems(null);
+      setUploadError(err instanceof Error ? err.message : "Preview failed.");
+    } finally {
+      setUploadPreviewBusy(false);
+    }
   }
 
   async function handleUploadSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!uploadFile) {
       setUploadError("Choose a save file or zip archive first.");
+      return;
+    }
+    const acceptedCount = uploadPreviewItems?.filter((item) => item.accepted).length ?? 0;
+    if (!uploadPreviewItems) {
+      setUploadError("Run Preview first so you can see what will be imported or quarantined.");
+      return;
+    }
+    if (acceptedCount === 0) {
+      setUploadError("No validated saves are ready to import.");
       return;
     }
 
@@ -310,10 +363,12 @@ export function MyGamesPage(): JSX.Element {
         system: uploadSystem || undefined,
         slotName: uploadSlotName || undefined,
         romSha1: uploadRomSha1 || undefined,
-        wiiTitleId: uploadWiiTitleId || undefined
+        wiiTitleId: uploadWiiTitleId || undefined,
+        runtimeProfile: uploadRuntimeProfile || undefined
       });
       const count = response.successCount && response.successCount > 1 ? response.successCount : 1;
-      setUploadResult(`${count} ${pluralize(count, "save", "saves")} imported.`);
+      const rejected = response.errorCount && response.errorCount > 0 ? ` · ${response.errorCount} quarantined/rejected` : "";
+      setUploadResult(`${count} ${pluralize(count, "save", "saves")} imported${rejected}.`);
       await reload();
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Upload failed.");
@@ -621,7 +676,7 @@ export function MyGamesPage(): JSX.Element {
             <header className="treegrid-modal__header">
               <div>
                 <h2 id="treegrid-upload-title">Upload Save</h2>
-                <p>Upload a single save file or a zip archive. The backend validates and imports it for sync.</p>
+                <p>Preview first, then import only validated saves. Rejected files are quarantined for review.</p>
               </div>
               <button className="treegrid-modal__close" type="button" onClick={closeUploadModal} aria-label="Close upload">
                 Close
@@ -634,13 +689,23 @@ export function MyGamesPage(): JSX.Element {
                   <span>Save file or zip</span>
                   <input
                     type="file"
-                    accept=".zip,.bin,.sav,.srm,.sa1,.eep,.sra,.fla,.mpk,.cpk,.mcr,.mcd,.mc,.ps2,.vms,.dci,.bkr,.bcr,.bup"
-                    onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                    accept=".zip,.bin,.sav,.srm,.sa1,.ram,.rtc,.gme,.eep,.sra,.fla,.mpk,.cpk,.mcr,.mcd,.mc,.ps2,.vms,.dci,.bkr,.bcr,.bup,.brm,.eeprom,.nvram"
+                    onChange={(event) => {
+                      setUploadFile(event.target.files?.[0] ?? null);
+                      resetUploadPreview();
+                    }}
                   />
                 </label>
                 <label className="treegrid-upload-field">
                   <span>System</span>
-                  <select value={uploadSystem} onChange={(event) => setUploadSystem(event.target.value)}>
+                  <select
+                    value={uploadSystem}
+                    onChange={(event) => {
+                      setUploadSystem(event.target.value);
+                      setUploadRuntimeProfile("");
+                      resetUploadPreview();
+                    }}
+                  >
                     <option value="">Auto-detect when possible</option>
                     <option value="wii">Nintendo Wii</option>
                     <option value="n64">Nintendo 64</option>
@@ -648,26 +713,78 @@ export function MyGamesPage(): JSX.Element {
                     <option value="nes">Nintendo Entertainment System</option>
                     <option value="gba">Game Boy Advance</option>
                     <option value="gameboy">Game Boy</option>
+                    <option value="pc-engine">PC Engine / TurboGrafx-16</option>
+                    <option value="atari-lynx">Atari Lynx</option>
+                    <option value="wonderswan">WonderSwan</option>
                     <option value="genesis">Genesis / Mega Drive</option>
                     <option value="master-system">Master System</option>
                     <option value="game-gear">Game Gear</option>
+                    <option value="sega-cd">Sega CD / Mega-CD</option>
+                    <option value="sega-32x">Sega 32X</option>
+                    <option value="sg-1000">SG-1000</option>
                     <option value="dreamcast">Dreamcast</option>
                     <option value="saturn">Saturn</option>
+                    <option value="neogeo">Neo Geo</option>
+                    <option value="colecovision">ColecoVision</option>
+                    <option value="atari-jaguar">Atari Jaguar</option>
+                    <option value="3do">3DO</option>
                     <option value="psx">PlayStation</option>
                     <option value="ps2">PlayStation 2</option>
                   </select>
                 </label>
                 <label className="treegrid-upload-field">
+                  <span>Runtime profile</span>
+                  <select
+                    value={uploadRuntimeProfile}
+                    onChange={(event) => {
+                      setUploadRuntimeProfile(event.target.value);
+                      resetUploadPreview();
+                    }}
+                  >
+                    <option value="">Original / backend default</option>
+                    {runtimeProfileOptionsForSystem(uploadSystem).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="treegrid-upload-field">
                   <span>Slot name</span>
-                  <input type="text" value={uploadSlotName} onChange={(event) => setUploadSlotName(event.target.value)} placeholder="default" />
+                  <input
+                    type="text"
+                    value={uploadSlotName}
+                    onChange={(event) => {
+                      setUploadSlotName(event.target.value);
+                      resetUploadPreview();
+                    }}
+                    placeholder="default"
+                  />
                 </label>
                 <label className="treegrid-upload-field">
                   <span>ROM SHA1</span>
-                  <input type="text" value={uploadRomSha1} onChange={(event) => setUploadRomSha1(event.target.value)} placeholder="optional but recommended" />
+                  <input
+                    type="text"
+                    value={uploadRomSha1}
+                    onChange={(event) => {
+                      setUploadRomSha1(event.target.value);
+                      resetUploadPreview();
+                    }}
+                    placeholder="optional but recommended"
+                  />
                 </label>
                 <label className="treegrid-upload-field">
                   <span>Wii title code</span>
-                  <input type="text" value={uploadWiiTitleId} onChange={(event) => setUploadWiiTitleId(event.target.value.toUpperCase())} placeholder="SB4P" maxLength={4} />
+                  <input
+                    type="text"
+                    value={uploadWiiTitleId}
+                    onChange={(event) => {
+                      setUploadWiiTitleId(event.target.value.toUpperCase());
+                      resetUploadPreview();
+                    }}
+                    placeholder="SB4P"
+                    maxLength={4}
+                  />
                 </label>
               </div>
 
@@ -676,10 +793,14 @@ export function MyGamesPage(): JSX.Element {
               </p>
               {uploadError ? <p className="error-state">{uploadError}</p> : null}
               {uploadResult ? <p className="treegrid-modal__status">{uploadResult}</p> : null}
+              {uploadPreviewItems ? <UploadPreviewTable items={uploadPreviewItems} /> : null}
 
               <footer className="treegrid-upload-actions">
-                <button className="treegrid-select-button" type="submit" disabled={uploadBusy}>
-                  {uploadBusy ? "Uploading..." : "Import Save"}
+                <button className="treegrid-select-button treegrid-select-button--ghost" type="button" disabled={uploadPreviewBusy || uploadBusy} onClick={() => void handleUploadPreview()}>
+                  {uploadPreviewBusy ? "Previewing..." : "Preview"}
+                </button>
+                <button className="treegrid-select-button" type="submit" disabled={uploadBusy || uploadPreviewBusy || !uploadPreviewItems || uploadPreviewItems.every((item) => !item.accepted)}>
+                  {uploadBusy ? "Importing..." : "Import Accepted"}
                 </button>
               </footer>
             </form>
@@ -907,6 +1028,44 @@ export function MyGamesPage(): JSX.Element {
   );
 }
 
+function UploadPreviewTable({ items }: { items: SaveUploadPreviewItem[] }): JSX.Element {
+  return (
+    <div className="treegrid-upload-preview" aria-label="Upload validation preview">
+      <table className="treegrid-modal-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Save</th>
+            <th>System</th>
+            <th>Validation</th>
+            <th>Size</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={`${item.sourcePath || item.filename}:${item.sha256}`} className={item.accepted ? "treegrid-preview-row--accepted" : "treegrid-preview-row--rejected"}>
+              <td>
+                <span className={item.accepted ? "treegrid-preview-pill treegrid-preview-pill--ok" : "treegrid-preview-pill treegrid-preview-pill--bad"}>
+                  {item.accepted ? "Accepted" : "Rejected"}
+                </span>
+              </td>
+              <td>
+                <strong>{item.displayTitle || item.filename}</strong>
+                <small>{item.sourcePath || item.filename}</small>
+              </td>
+              <td>{item.systemName || item.systemSlug || "Unknown"}</td>
+              <td>{item.trustLevel || item.parserLevel || "media-verified"}</td>
+              <td>{formatBytes(item.sizeBytes)}</td>
+              <td>{item.reason || item.warnings?.[0] || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function renderCheatField(
   field: SaveCheatField,
   currentValue: unknown,
@@ -1042,6 +1201,91 @@ function defaultDirectionFor(sortKey: SaveSortKey): SaveSortDirection {
     default:
       return "desc";
   }
+}
+
+const RUNTIME_PROFILE_OPTIONS: Array<{ system: string; value: string; label: string }> = [
+  { system: "n64", value: "n64/mister", label: "MiSTer N64" },
+  { system: "n64", value: "n64/retroarch", label: "RetroArch N64" },
+  { system: "n64", value: "n64/project64", label: "Project64" },
+  { system: "n64", value: "n64/mupen-family", label: "Mupen/RMG" },
+  { system: "n64", value: "n64/everdrive", label: "EverDrive" },
+  { system: "snes", value: "snes/snes9x", label: "Snes9x" },
+  { system: "snes", value: "snes/bsnes", label: "bsnes" },
+  { system: "snes", value: "snes/retroarch-snes9x", label: "RetroArch Snes9x" },
+  { system: "snes", value: "snes/mesen2", label: "Mesen 2" },
+  { system: "snes", value: "snes/higan", label: "higan" },
+  { system: "nes", value: "nes/mesen2", label: "Mesen 2" },
+  { system: "nes", value: "nes/fceux", label: "FCEUX" },
+  { system: "nes", value: "nes/nestopia-ue", label: "Nestopia UE" },
+  { system: "nes", value: "nes/punes", label: "puNES" },
+  { system: "nes", value: "nes/retroarch-nestopia", label: "RetroArch Nestopia" },
+  { system: "nes", value: "nes/retroarch-fceumm", label: "RetroArch FCEUmm" },
+  { system: "gba", value: "gba/mgba", label: "mGBA" },
+  { system: "gba", value: "gba/vba-m", label: "VBA-M" },
+  { system: "gba", value: "gba/nocashgba", label: "No$GBA" },
+  { system: "gba", value: "gba/skyemu", label: "SkyEmu" },
+  { system: "gba", value: "gba/retroarch-mgba", label: "RetroArch mGBA" },
+  { system: "gba", value: "gba/retroarch-vbam", label: "RetroArch VBA-M" },
+  { system: "genesis", value: "genesis/genesis-plus-gx", label: "Genesis Plus GX" },
+  { system: "genesis", value: "genesis/picodrive", label: "PicoDrive" },
+  { system: "genesis", value: "genesis/blastem", label: "BlastEm" },
+  { system: "genesis", value: "genesis/retroarch-genesis-plus-gx", label: "RetroArch Genesis Plus GX" },
+  { system: "genesis", value: "genesis/retroarch-picodrive", label: "RetroArch PicoDrive" },
+  { system: "sega-cd", value: "sega-cd/genesis-plus-gx", label: "Genesis Plus GX" },
+  { system: "sega-cd", value: "sega-cd/picodrive", label: "PicoDrive" },
+  { system: "sega-cd", value: "sega-cd/retroarch-genesis-plus-gx", label: "RetroArch Genesis Plus GX" },
+  { system: "sega-cd", value: "sega-cd/retroarch-picodrive", label: "RetroArch PicoDrive" },
+  { system: "sega-32x", value: "sega-32x/picodrive", label: "PicoDrive" },
+  { system: "sega-32x", value: "sega-32x/genesis-plus-gx", label: "Genesis Plus GX" },
+  { system: "sega-32x", value: "sega-32x/retroarch-picodrive", label: "RetroArch PicoDrive" },
+  { system: "master-system", value: "sms/genesis-plus-gx", label: "Genesis Plus GX SMS" },
+  { system: "master-system", value: "sms/emulicious", label: "Emulicious" },
+  { system: "master-system", value: "sms/meka", label: "MEKA" },
+  { system: "master-system", value: "sms/retroarch-gearsystem", label: "RetroArch Gearsystem" },
+  { system: "game-gear", value: "gamegear/gearsystem", label: "Gearsystem" },
+  { system: "game-gear", value: "gamegear/emulicious", label: "Emulicious" },
+  { system: "game-gear", value: "gamegear/genesis-plus-gx", label: "Genesis Plus GX" },
+  { system: "game-gear", value: "gamegear/retroarch-gearsystem", label: "RetroArch Gearsystem" },
+  { system: "pc-engine", value: "pc-engine/mister", label: "MiSTer PC Engine" },
+  { system: "pc-engine", value: "pc-engine/mednafen", label: "Mednafen" },
+  { system: "pc-engine", value: "pc-engine/retroarch-beetle-pce", label: "RetroArch Beetle PCE" },
+  { system: "pc-engine", value: "pc-engine/mesen2", label: "Mesen 2" },
+  { system: "atari-lynx", value: "atari-lynx/handy", label: "Handy" },
+  { system: "atari-lynx", value: "atari-lynx/mednafen", label: "Mednafen" },
+  { system: "atari-lynx", value: "atari-lynx/retroarch-handy", label: "RetroArch Handy" },
+  { system: "wonderswan", value: "wonderswan/mednafen", label: "Mednafen" },
+  { system: "wonderswan", value: "wonderswan/ares", label: "ares" },
+  { system: "wonderswan", value: "wonderswan/retroarch-beetle-wswan", label: "RetroArch Beetle WonderSwan" },
+  { system: "sg-1000", value: "sg-1000/emulicious", label: "Emulicious" },
+  { system: "sg-1000", value: "sg-1000/gearsystem", label: "Gearsystem" },
+  { system: "sg-1000", value: "sg-1000/genesis-plus-gx", label: "Genesis Plus GX" },
+  { system: "colecovision", value: "colecovision/blue-msx", label: "blueMSX" },
+  { system: "colecovision", value: "colecovision/gearcoleco", label: "Gearcoleco" },
+  { system: "colecovision", value: "colecovision/mame", label: "MAME" },
+  { system: "atari-jaguar", value: "atari-jaguar/bigpemu", label: "BigPEmu" },
+  { system: "atari-jaguar", value: "atari-jaguar/virtual-jaguar", label: "Virtual Jaguar" },
+  { system: "atari-jaguar", value: "atari-jaguar/retroarch-virtual-jaguar", label: "RetroArch Virtual Jaguar" },
+  { system: "3do", value: "3do/opera", label: "Opera" },
+  { system: "3do", value: "3do/phoenix", label: "Phoenix" },
+  { system: "3do", value: "3do/4do", label: "4DO" },
+  { system: "dreamcast", value: "dreamcast/flycast", label: "Flycast" },
+  { system: "dreamcast", value: "dreamcast/redream", label: "Redream" },
+  { system: "dreamcast", value: "dreamcast/mister", label: "MiSTer Dreamcast" },
+  { system: "dreamcast", value: "dreamcast/retroarch-flycast", label: "RetroArch Flycast" },
+  { system: "saturn", value: "saturn/mister", label: "MiSTer Saturn" },
+  { system: "saturn", value: "saturn/mednafen", label: "Mednafen" },
+  { system: "saturn", value: "saturn/yabasanshiro", label: "YabaSanshiro" },
+  { system: "psx", value: "psx/mister", label: "MiSTer PSX" },
+  { system: "psx", value: "psx/retroarch", label: "RetroArch PSX" },
+  { system: "ps2", value: "ps2/pcsx2", label: "PCSX2" }
+];
+
+function runtimeProfileOptionsForSystem(systemSlug: string): Array<{ value: string; label: string }> {
+  const slug = systemSlug.trim();
+  if (!slug) {
+    return RUNTIME_PROFILE_OPTIONS.map(({ value, label }) => ({ value, label }));
+  }
+  return RUNTIME_PROFILE_OPTIONS.filter((option) => option.system === slug).map(({ value, label }) => ({ value, label }));
 }
 
 function FolderIcon(): JSX.Element {

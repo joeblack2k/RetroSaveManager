@@ -5,6 +5,7 @@ import { DeviceManagePage } from "../DeviceManagePage";
 import { updateDevice } from "../../../services/retrosaveApi";
 
 vi.mock("../../../services/retrosaveApi", () => ({
+  commandDevice: vi.fn(() => Promise.resolve({ success: true, event: "sync.requested", action: "sync", broadcast: true })),
   getDevice: vi.fn(() =>
     Promise.resolve({
       id: 42,

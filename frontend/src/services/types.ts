@@ -303,6 +303,36 @@ export type SaveDownloadProfile = {
   note?: string;
 };
 
+export type SaveUploadPreviewItem = {
+  filename: string;
+  sourcePath?: string;
+  accepted: boolean;
+  displayTitle?: string;
+  systemSlug?: string;
+  systemName?: string;
+  regionCode?: string;
+  regionFlag?: string;
+  format?: string;
+  mediaType?: string;
+  runtimeProfile?: string;
+  sizeBytes: number;
+  sha256: string;
+  parserLevel?: string;
+  trustLevel?: string;
+  evidence?: string[];
+  warnings?: string[];
+  reason?: string;
+  inspection?: SaveInspection | null;
+  downloadProfiles?: SaveDownloadProfile[];
+};
+
+export type SaveUploadPreviewResponse = {
+  success: boolean;
+  acceptedCount: number;
+  rejectedCount: number;
+  items: SaveUploadPreviewItem[];
+};
+
 export type SaveInspection = {
   parserLevel?: string;
   parserId?: string;
@@ -536,6 +566,45 @@ export type SyncLogPage = {
   total: number;
   totalPages: number;
   logs: SyncLogEntry[];
+};
+
+export type QuarantineRecord = {
+  id: string;
+  filename: string;
+  sourcePath?: string;
+  payloadFile: string;
+  sizeBytes: number;
+  sha256: string;
+  reason: string;
+  systemSlug?: string;
+  displayTitle?: string;
+  parserLevel?: string;
+  trustLevel?: string;
+  uploadedAt: string;
+  uploadSource?: string;
+};
+
+export type ValidationStatus = {
+  generatedAt: string;
+  counts: Record<string, number>;
+  systems: Record<string, number>;
+  quarantineCount: number;
+  quarantine: QuarantineRecord[];
+  lastRescan?: {
+    scanned?: number;
+    updated?: number;
+    rejected?: number;
+    removed?: number;
+    duplicateGroups?: number;
+    duplicateVersionsRemoved?: number;
+    [key: string]: unknown;
+  };
+};
+
+export type ValidationRescanResponse = {
+  success: boolean;
+  result: ValidationStatus["lastRescan"];
+  validation: ValidationStatus;
 };
 
 export type AppPassword = {

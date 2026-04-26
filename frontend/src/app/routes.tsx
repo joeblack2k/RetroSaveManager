@@ -20,6 +20,7 @@ import { MyGamesPage } from "../pages/app/MyGamesPage";
 import { LogsPage } from "../pages/app/LogsPage";
 import { SaveDetailPage } from "../pages/app/SaveDetailPage";
 import { SettingsPage } from "../pages/app/SettingsPage";
+import { ValidationPage } from "../pages/app/ValidationPage";
 import { hasFrontendAuthSession, isFrontendAuthRequired } from "../services/authSession";
 
 function NotFoundPage(): JSX.Element {
@@ -117,6 +118,7 @@ export const appRouter = createBrowserRouter([
       { index: true, element: <Navigate to="/app/my-games" replace /> },
       { path: "my-games", element: <MyGamesPage /> },
       { path: "cheats", element: <CheatsPage /> },
+      { path: "validation", element: <ValidationPage /> },
       { path: "logs", element: <LogsPage /> },
       { path: "games", element: <GamesPage /> },
       { path: "saves/:saveId", element: <SaveDetailPage /> },

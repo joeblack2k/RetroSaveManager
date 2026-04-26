@@ -268,7 +268,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			SlotName:            strings.TrimSpace(formValue("slotName")),
 			SystemSlug:          declaredSystem,
 			GameSlug:            canonicalSegment(gameInfo.Name, "unknown-game"),
-			TrustedHelperSystem: helperCtx.IsHelper && strings.TrimSpace(formValue("system")) != "",
+			TrustedHelperSystem: strings.TrimSpace(formValue("system")) != "",
 		}
 		if helperCtx.IsHelper && isProjectionCapableSystem(declaredSystem) && declaredSystem != "psx" && declaredSystem != "ps2" {
 			if runtimeProfile == "" {
@@ -277,6 +277,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			}
 			input, err = normalizeProjectionUpload(input, runtimeProfile)
 			if err != nil {
+				a.quarantineRejectedUpload(filename, "", payload, rejectedPreviewItem(filename, "", payload, declaredSystem, input.Format, runtimeProfile, err.Error()), deviceName)
 				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
 				return
 			}
@@ -291,6 +292,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			if rejectReason != "" {
 				logMessage = logMessage + ": " + rejectReason
 			}
+			a.quarantineRejectedUpload(filename, "", payload, previewItemFromNormalized(filename, "", payload, runtimeProfile, preview), deviceName)
 			a.appendSyncLog(syncLogInput{
 				DeviceName:   deviceName,
 				Action:       "upload",
@@ -486,6 +488,10 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				SystemSlug:   preview.Input.SystemSlug,
 			})
 			if errors.Is(err, errUnsupportedSaveFormat) {
+				item := previewItemFromNormalized(filename, "", payload, runtimeProfile, preview)
+				item.Accepted = false
+				item.Reason = firstNonEmpty(unsupportedSaveRejectReason(err), err.Error())
+				a.quarantineRejectedUpload(filename, "", payload, item, deviceName)
 				writeJSON(w, http.StatusUnprocessableEntity, apiError{
 					Error:      "Unprocessable Entity",
 					Message:    errUnsupportedSaveFormat.Error(),

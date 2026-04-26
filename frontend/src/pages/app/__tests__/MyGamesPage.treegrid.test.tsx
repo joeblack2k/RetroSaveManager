@@ -13,6 +13,7 @@ vi.mock("../../../services/retrosaveApi", () => ({
   rollbackSave: vi.fn(),
   getSaveCheats: vi.fn(),
   applySaveCheats: vi.fn(),
+  previewSaveFile: vi.fn(),
   uploadSaveFile: vi.fn()
 }));
 
@@ -198,6 +199,25 @@ describe("MyGamesPage TreeGrid", () => {
       successCount: 1,
       errorCount: 0
     });
+    vi.mocked(retrosaveApi.previewSaveFile).mockResolvedValue({
+      success: true,
+      acceptedCount: 1,
+      rejectedCount: 0,
+      items: [
+        {
+          filename: "Super Mario Galaxy 2.zip",
+          accepted: true,
+          displayTitle: "Super Mario Galaxy 2",
+          systemSlug: "wii",
+          systemName: "Nintendo Wii",
+          format: "bin",
+          sizeBytes: 2048,
+          sha256: "preview-sha",
+          parserLevel: "structural",
+          trustLevel: "structure-verified"
+        }
+      ]
+    });
   });
 
   afterEach(() => {
@@ -318,7 +338,21 @@ describe("MyGamesPage TreeGrid", () => {
     fireEvent.change(screen.getByLabelText(/^system$/i), { target: { value: "wii" } });
     fireEvent.change(screen.getByLabelText(/wii title code/i), { target: { value: "SB4P" } });
 
-    fireEvent.click(screen.getByRole("button", { name: /import save/i }));
+    fireEvent.click(screen.getByRole("button", { name: /preview/i }));
+
+    await waitFor(() => {
+      expect(retrosaveApi.previewSaveFile).toHaveBeenCalledWith({
+        file,
+        system: "wii",
+        slotName: undefined,
+        romSha1: undefined,
+        wiiTitleId: "SB4P",
+        runtimeProfile: undefined
+      });
+    });
+    expect(await screen.findByText("Super Mario Galaxy 2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /import accepted/i }));
 
     await waitFor(() => {
       expect(retrosaveApi.uploadSaveFile).toHaveBeenCalledWith({
@@ -326,7 +360,8 @@ describe("MyGamesPage TreeGrid", () => {
         system: "wii",
         slotName: undefined,
         romSha1: undefined,
-        wiiTitleId: "SB4P"
+        wiiTitleId: "SB4P",
+        runtimeProfile: undefined
       });
     });
     expect(await screen.findByText("1 save imported.")).toBeInTheDocument();

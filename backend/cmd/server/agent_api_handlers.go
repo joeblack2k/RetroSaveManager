@@ -40,6 +40,7 @@ func mountAgentRoutes(r chi.Router, app *app) {
 	r.Get("/save/latest", app.handleSaveLatest)
 	r.Get("/saves", app.handleAgentSavesList)
 	r.Post("/saves", app.handleSaves)
+	r.Post("/saves/preview", app.handleSavesPreview)
 	r.Delete("/saves", app.handleDeleteManySaves)
 	r.Post("/saves/rescan", app.handleAgentSaveRescan)
 	r.Get("/saves/download-many", app.handleDownloadManySaves)
@@ -64,6 +65,9 @@ func mountAgentRoutes(r chi.Router, app *app) {
 
 	r.Get("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoStatus)
 	r.Post("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoEnable)
+
+	r.Get("/validation", app.handleValidationStatus)
+	r.Post("/validation/rescan", app.handleValidationRescan)
 
 	r.Get("/modules", app.handleModulesList)
 	r.Post("/modules/sync", app.handleModulesSync)
@@ -112,10 +116,13 @@ func (a *app) handleAgentAPIIndex(w http.ResponseWriter, r *http.Request) {
 			"helperHeartbeat":    basePath + "/helpers/heartbeat",
 			"logs":               basePath + "/logs",
 			"saves":              basePath + "/saves",
+			"savesPreview":       basePath + "/saves/preview",
 			"saveLatest":         basePath + "/save/latest",
 			"roms":               basePath + "/roms",
 			"romLookup":          basePath + "/roms/lookup",
 			"conflicts":          basePath + "/conflicts",
+			"validation":         basePath + "/validation",
+			"validationRescan":   basePath + "/validation/rescan",
 			"autoEnroll":         basePath + "/helpers/auto-enroll",
 			"modules":            basePath + "/modules",
 			"modulesSync":        basePath + "/modules/sync",

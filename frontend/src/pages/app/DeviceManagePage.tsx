@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { SectionCard } from "../../components/SectionCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { getDevice, listSaveSystems, updateDevice } from "../../services/retrosaveApi";
+import { commandDevice, getDevice, listSaveSystems, updateDevice } from "../../services/retrosaveApi";
 import type { DeviceConfigSource, DevicePolicyBlock, SaveSystem } from "../../services/types";
 
 type SystemGroup = {
@@ -41,6 +41,115 @@ const PROFILE_OPTIONS = [
   { value: "generic", label: "Generic" }
 ];
 
+const SYSTEM_PROFILE_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
+  snes: [
+    { value: "snes9x", label: "Snes9x" },
+    { value: "bsnes", label: "bsnes" },
+    { value: "retroarch-snes9x", label: "RetroArch Snes9x" },
+    { value: "mesen2", label: "Mesen 2" },
+    { value: "higan", label: "higan" }
+  ],
+  nes: [
+    { value: "mesen2", label: "Mesen 2" },
+    { value: "fceux", label: "FCEUX" },
+    { value: "nestopia-ue", label: "Nestopia UE" },
+    { value: "punes", label: "puNES" },
+    { value: "retroarch-fceumm", label: "RetroArch FCEUmm" }
+  ],
+  gba: [
+    { value: "mgba", label: "mGBA" },
+    { value: "vba-m", label: "VBA-M" },
+    { value: "nocashgba", label: "No$GBA" },
+    { value: "skyemu", label: "SkyEmu" }
+  ],
+  n64: [
+    { value: "mister", label: "MiSTer" },
+    { value: "retroarch", label: "RetroArch" },
+    { value: "project64", label: "Project64" },
+    { value: "mupen-family", label: "Mupen/RMG" },
+    { value: "everdrive", label: "EverDrive" }
+  ],
+  genesis: [
+    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
+    { value: "picodrive", label: "PicoDrive" },
+    { value: "blastem", label: "BlastEm" }
+  ],
+  "sega-cd": [
+    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
+    { value: "picodrive", label: "PicoDrive" },
+    { value: "retroarch-genesis-plus-gx", label: "RetroArch Genesis Plus GX" }
+  ],
+  "sega-32x": [
+    { value: "picodrive", label: "PicoDrive" },
+    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
+    { value: "retroarch-picodrive", label: "RetroArch PicoDrive" }
+  ],
+  "master-system": [
+    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
+    { value: "gearsystem", label: "Gearsystem" },
+    { value: "emulicious", label: "Emulicious" },
+    { value: "meka", label: "MEKA" }
+  ],
+  "game-gear": [
+    { value: "gearsystem", label: "Gearsystem" },
+    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
+    { value: "emulicious", label: "Emulicious" }
+  ],
+  "pc-engine": [
+    { value: "mister", label: "MiSTer" },
+    { value: "mednafen", label: "Mednafen" },
+    { value: "retroarch-beetle-pce", label: "RetroArch Beetle PCE" },
+    { value: "mesen2", label: "Mesen 2" }
+  ],
+  "atari-lynx": [
+    { value: "handy", label: "Handy" },
+    { value: "mednafen", label: "Mednafen" },
+    { value: "retroarch-handy", label: "RetroArch Handy" }
+  ],
+  wonderswan: [
+    { value: "mednafen", label: "Mednafen" },
+    { value: "ares", label: "ares" },
+    { value: "retroarch-beetle-wswan", label: "RetroArch Beetle WonderSwan" }
+  ],
+  "sg-1000": [
+    { value: "emulicious", label: "Emulicious" },
+    { value: "gearsystem", label: "Gearsystem" },
+    { value: "genesis-plus-gx", label: "Genesis Plus GX" }
+  ],
+  colecovision: [
+    { value: "blue-msx", label: "blueMSX" },
+    { value: "gearcoleco", label: "Gearcoleco" },
+    { value: "mame", label: "MAME" }
+  ],
+  "atari-jaguar": [
+    { value: "bigpemu", label: "BigPEmu" },
+    { value: "virtual-jaguar", label: "Virtual Jaguar" },
+    { value: "retroarch-virtual-jaguar", label: "RetroArch Virtual Jaguar" }
+  ],
+  "3do": [
+    { value: "opera", label: "Opera" },
+    { value: "phoenix", label: "Phoenix" },
+    { value: "4do", label: "4DO" }
+  ],
+  dreamcast: [
+    { value: "flycast", label: "Flycast" },
+    { value: "redream", label: "Redream" },
+    { value: "mister", label: "MiSTer" },
+    { value: "retroarch-flycast", label: "RetroArch Flycast" }
+  ],
+  saturn: [
+    { value: "mister", label: "MiSTer" },
+    { value: "mednafen", label: "Mednafen" },
+    { value: "yabasanshiro", label: "Yaba Sanshiro" },
+    { value: "yabause", label: "Yabause" }
+  ],
+  psx: [
+    { value: "mister", label: "MiSTer" },
+    { value: "retroarch", label: "RetroArch" }
+  ],
+  ps2: [{ value: "pcsx2", label: "PCSX2" }]
+};
+
 export function DeviceManagePage(): JSX.Element {
   const params = useParams<{ deviceId: string }>();
   const deviceId = Number.parseInt(params.deviceId ?? "0", 10);
@@ -67,6 +176,7 @@ export function DeviceManagePage(): JSX.Element {
   const [draftRomPath, setDraftRomPath] = useState("");
   const [draftLabel, setDraftLabel] = useState("");
   const [saving, setSaving] = useState(false);
+  const [commandKey, setCommandKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
@@ -132,6 +242,19 @@ export function DeviceManagePage(): JSX.Element {
     });
     return out;
   }, [data]);
+
+  const draftProfileOptions = useMemo(() => profileOptionsForSystem(draftSystemSlug), [draftSystemSlug]);
+
+  useEffect(() => {
+    if (draftProfileOptions.length === 0) {
+      return;
+    }
+    if (!draftProfileOptions.some((option) => option.value === draftProfile)) {
+      const nextProfile = draftProfileOptions[0].value;
+      setDraftProfile(nextProfile);
+      setDraftKind(recommendedKindForProfile(nextProfile));
+    }
+  }, [draftProfile, draftProfileOptions]);
 
   function toggleAllowedSystem(slug: string): void {
     if (isSystemDisabled(slug)) {
@@ -221,6 +344,23 @@ export function DeviceManagePage(): JSX.Element {
     }
   }
 
+  async function onCommand(command: "sync" | "scan" | "deep_scan"): Promise<void> {
+    if (!data?.device) {
+      return;
+    }
+    setCommandKey(command);
+    setSaveError(null);
+    setSaveMessage(null);
+    try {
+      await commandDevice(data.device.id, command, "device_manage_page");
+      setSaveMessage(`${commandLabel(command)} sent to ${data.device.displayName}`);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Command failed");
+    } finally {
+      setCommandKey(null);
+    }
+  }
+
   return (
     <SectionCard title="Manage Device" subtitle="Rename the helper, choose allowed consoles, and add backend-managed sync sources.">
       {loading ? <LoadingState label="Loading device..." /> : null}
@@ -233,6 +373,17 @@ export function DeviceManagePage(): JSX.Element {
           <p>
             <strong>Device:</strong> {data.device.displayName} ({data.device.deviceType} · {data.device.fingerprint})
           </p>
+          <div className="device-manage-actions">
+            <button className="btn btn-ghost" type="button" disabled={commandKey === "sync"} onClick={() => void onCommand("sync")}>
+              {commandKey === "sync" ? "Sending..." : "Sync now"}
+            </button>
+            <button className="btn btn-ghost" type="button" disabled={commandKey === "scan"} onClick={() => void onCommand("scan")}>
+              {commandKey === "scan" ? "Sending..." : "Scan folders"}
+            </button>
+            <button className="btn btn-ghost" type="button" disabled={commandKey === "deep_scan"} onClick={() => void onCommand("deep_scan")}>
+              {commandKey === "deep_scan" ? "Sending..." : "Deep scan"}
+            </button>
+          </div>
 
           <label className="field">
             <span>Alias</span>
@@ -269,7 +420,16 @@ export function DeviceManagePage(): JSX.Element {
             <div className="device-source-form">
               <label className="field">
                 <span>Console</span>
-                <select value={draftSystemSlug} onChange={(event) => setDraftSystemSlug(event.target.value)}>
+                <select
+                  value={draftSystemSlug}
+                  onChange={(event) => {
+                    const nextSystem = event.target.value;
+                    const nextProfile = profileOptionsForSystem(nextSystem)[0]?.value ?? "generic";
+                    setDraftSystemSlug(nextSystem);
+                    setDraftProfile(nextProfile);
+                    setDraftKind(recommendedKindForProfile(nextProfile));
+                  }}
+                >
                   {data.systems
                     .filter((system) => Boolean(system.slug))
                     .map((system) => (
@@ -291,8 +451,14 @@ export function DeviceManagePage(): JSX.Element {
               </label>
               <label className="field">
                 <span>Profile</span>
-                <select value={draftProfile} onChange={(event) => setDraftProfile(event.target.value)}>
-                  {PROFILE_OPTIONS.map((option) => (
+                <select
+                  value={draftProfile}
+                  onChange={(event) => {
+                    setDraftProfile(event.target.value);
+                    setDraftKind(recommendedKindForProfile(event.target.value));
+                  }}
+                >
+                  {draftProfileOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -335,6 +501,7 @@ export function DeviceManagePage(): JSX.Element {
                 </article>
               ))}
             </div>
+            <DevicePolicyPreview syncAll={syncAll} sources={editableSources} />
           </section>
 
           {!syncAll ? (
@@ -406,7 +573,9 @@ function uniqueSourceId(baseId: string, existingIds: Set<string>): string {
 }
 
 function profileLabel(profile: string): string {
-  return PROFILE_OPTIONS.find((option) => option.value === profile)?.label ?? profile;
+  return PROFILE_OPTIONS.find((option) => option.value === profile)?.label
+    ?? Object.values(SYSTEM_PROFILE_OPTIONS).flat().find((option) => option.value === profile)?.label
+    ?? profile;
 }
 
 function formatSourcePaths(paths: string[]): string {
@@ -417,4 +586,54 @@ function formatSourcePaths(paths: string[]): string {
     return paths[0];
   }
   return `${paths[0]} + ${paths.length - 1} more`;
+}
+
+function profileOptionsForSystem(systemSlug: string): Array<{ value: string; label: string }> {
+  const scoped = SYSTEM_PROFILE_OPTIONS[systemSlug.trim()];
+  if (scoped && scoped.length > 0) {
+    return scoped;
+  }
+  return PROFILE_OPTIONS;
+}
+
+function recommendedKindForProfile(profile: string): string {
+  if (profile === "mister" || profile === "everdrive") {
+    return "mister-fpga";
+  }
+  if (profile.startsWith("retroarch")) {
+    return "retroarch";
+  }
+  if (["snes9x", "bsnes", "mesen2", "fceux", "nestopia-ue", "mgba", "vba-m", "project64", "mupen-family", "pcsx2"].includes(profile)) {
+    return "custom";
+  }
+  return "custom";
+}
+
+function commandLabel(command: "sync" | "scan" | "deep_scan"): string {
+  switch (command) {
+    case "sync":
+      return "Sync";
+    case "scan":
+      return "Scan";
+    case "deep_scan":
+      return "Deep scan";
+    default:
+      return command;
+  }
+}
+
+function DevicePolicyPreview({ syncAll, sources }: { syncAll: boolean; sources: DeviceConfigSource[] }): JSX.Element {
+  const systems = Array.from(new Set(sources.flatMap((source) => source.systems ?? []))).sort();
+  const managed = sources.filter((source) => source.managed).length;
+  return (
+    <aside className="device-policy-preview" aria-label="Policy preview">
+      <div>
+        <span>Policy preview</span>
+        <strong>{syncAll ? "Sync all allowed systems" : `${systems.length} manually selected`}</strong>
+      </div>
+      <p>
+        {sources.length} source profiles, {managed} backend-managed. {systems.length > 0 ? `Consoles: ${systems.join(", ")}.` : "No backend console sources yet."}
+      </p>
+    </aside>
+  );
 }

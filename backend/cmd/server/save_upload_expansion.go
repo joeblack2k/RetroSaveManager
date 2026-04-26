@@ -147,7 +147,7 @@ func (a *app) handleExpandedMultipartSaveUploads(w http.ResponseWriter, helperCt
 			SlotName:            firstNonEmpty(strings.TrimSpace(formValue("slotName")), upload.SourcePath),
 			SystemSlug:          upload.SystemSlug,
 			GameSlug:            canonicalSegment(upload.Game.Name, "unknown-game"),
-			TrustedHelperSystem: helperCtx.IsHelper && strings.TrimSpace(formValue("system")) != "",
+			TrustedHelperSystem: strings.TrimSpace(formValue("system")) != "",
 		}
 		preview := a.normalizeSaveInputDetailed(input)
 		if preview.Rejected || !isSupportedSystemSlug(preview.Input.SystemSlug) {
@@ -156,6 +156,7 @@ func (a *app) handleExpandedMultipartSaveUploads(w http.ResponseWriter, helperCt
 			if rejectReason != "" {
 				logMessage += ": " + rejectReason
 			}
+			a.quarantineRejectedUpload(upload.Filename, upload.SourcePath, upload.Payload, previewItemFromNormalized(upload.Filename, upload.SourcePath, upload.Payload, "", preview), deviceName)
 			a.appendSyncLog(syncLogInput{DeviceName: deviceName, Action: "upload", Game: syncLogGameLabelFromFilename(upload.Filename), ErrorMessage: logMessage, SystemSlug: preview.Input.SystemSlug})
 			errorCount++
 			results = append(results, map[string]any{"filename": upload.Filename, "sourcePath": upload.SourcePath, "success": false, "error": errUnsupportedSaveFormat.Error(), "reason": rejectReason})
@@ -195,6 +196,10 @@ func (a *app) handleExpandedMultipartSaveUploads(w http.ResponseWriter, helperCt
 				if reason := unsupportedSaveRejectReason(err); reason != "" {
 					result["reason"] = reason
 				}
+				item := previewItemFromNormalized(upload.Filename, upload.SourcePath, upload.Payload, "", preview)
+				item.Accepted = false
+				item.Reason = firstNonEmpty(unsupportedSaveRejectReason(err), err.Error())
+				a.quarantineRejectedUpload(upload.Filename, upload.SourcePath, upload.Payload, item, deviceName)
 			}
 			results = append(results, result)
 			continue
