@@ -54,6 +54,10 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Frontend audit
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
+
   security:
     runs-on: ubuntu-latest
     steps:

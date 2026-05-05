@@ -23,7 +23,7 @@ fi
   cd frontend
   npm test
   npm run build
-  npm audit --audit-level=high
+  npm audit --audit-level=moderate
 )
 
 ./scripts/security-gate.sh
