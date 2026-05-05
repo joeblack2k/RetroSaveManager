@@ -13,11 +13,11 @@ export function PublicLayout(): JSX.Element {
       <header className="hero-header">
         <div className="brand-row">
           <Link to="/" className="brand-link">
-            Retro Save Manager
+            RetroSaveManager
           </Link>
           <TopNav items={publicNav} />
         </div>
-        <p className="hero-subtitle">Self-hosted save sync for MiSTer, RetroArch, OnionOS, OpenEmu and more.</p>
+        <p className="hero-subtitle">Professional self-hosted save sync for MiSTer, RetroArch, OpenEmu and more.</p>
       </header>
       <main className="content-wrap">
         <Outlet />

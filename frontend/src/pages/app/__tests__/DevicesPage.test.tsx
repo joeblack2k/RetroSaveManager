@@ -97,7 +97,6 @@ vi.mock("../../../services/retrosaveApi", () => ({
 describe("DevicesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -167,6 +166,8 @@ describe("DevicesPage", () => {
 
     const button = await screen.findByRole("button", { name: "Delete" });
     fireEvent.click(button);
+    expect(screen.getByText(/must re-enroll before it can sync again/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete device" }));
 
     await waitFor(() => {
       expect(deleteDevice).toHaveBeenCalledWith(42);

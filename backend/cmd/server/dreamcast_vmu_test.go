@@ -172,12 +172,12 @@ func TestContractSavesMultipartAcceptsDreamcastVMUImage(t *testing.T) {
 	helperKey := createHelperAppPassword(t, h, "", "dreamcast-helper")
 
 	uploadSave(t, h, "/saves", map[string]string{
-		"app_password": helperKey,
-		"rom_sha1":     "dc-line:dreamcast:mister:a1",
-		"slotName":     "A1",
-		"system":       "dreamcast",
-		"device_type":  "mister",
-		"fingerprint":  "dreamcast-device",
+		"app_password":   helperKey,
+		"rom_sha1":       "dc-line:dreamcast:mister:a1",
+		"slotName":       "A1",
+		"system":         "dreamcast",
+		"device_type":    "mister",
+		"fingerprint":    "dreamcast-device",
 		"runtimeProfile": "dreamcast/mister",
 	}, "Sonic Adventure 2.A1.bin", buildDreamcastVMUWithSingleSave())
 
@@ -210,12 +210,12 @@ func TestContractSavesMultipartRejectsEmptyDreamcastVMUImage(t *testing.T) {
 	helperKey := createHelperAppPassword(t, h, "", "dreamcast-helper")
 
 	rr := h.multipart("/saves", map[string]string{
-		"app_password": helperKey,
-		"rom_sha1":     "dc-line:dreamcast:mister:a1",
-		"slotName":     "A1",
-		"system":       "dreamcast",
-		"device_type":  "mister",
-		"fingerprint":  "dreamcast-device",
+		"app_password":   helperKey,
+		"rom_sha1":       "dc-line:dreamcast:mister:a1",
+		"slotName":       "A1",
+		"system":         "dreamcast",
+		"device_type":    "mister",
+		"fingerprint":    "dreamcast-device",
 		"runtimeProfile": "dreamcast/mister",
 	}, "file", "Sonic Adventure 2.A1.bin", buildDreamcastEmptyVMU())
 	assertStatus(t, rr, http.StatusUnprocessableEntity)

@@ -1,0 +1,1335 @@
+.treegrid-panel {
+  min-height: calc(100vh - 32px);
+  border: 1px solid rgba(67, 75, 93, 0.72);
+  border-radius: 3px;
+  background:
+    linear-gradient(180deg, rgba(41, 46, 59, 0.98), rgba(28, 32, 42, 0.99)),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.01) 0 1px, transparent 1px 5px);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  overflow: hidden;
+}
+
+.treegrid-panel__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 58px;
+  padding: 12px 18px 10px;
+  border-bottom: 1px solid rgba(77, 84, 101, 0.62);
+}
+
+.treegrid-panel__header h1 {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #edf2f9;
+  text-transform: uppercase;
+}
+
+.treegrid-panel__header p {
+  margin: 6px 0 0;
+  color: #8f99af;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-header-action {
+  min-height: 26px;
+  padding: 0 12px;
+  border: 1px solid rgba(111, 134, 183, 0.92);
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(30, 39, 60, 0.98), rgba(15, 19, 30, 0.98));
+  color: #f2f7ff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.treegrid-header-action:hover {
+  border-color: rgba(161, 192, 255, 0.98);
+  background: rgba(35, 47, 73, 1);
+}
+
+.treegrid-panel__empty {
+  margin: 0;
+  padding: 20px 28px;
+  color: var(--text-muted);
+}
+
+.treegrid-table-wrap {
+  overflow: auto;
+}
+
+.treegrid-table {
+  width: 100%;
+  min-width: 1100px;
+  border-collapse: collapse;
+}
+
+.treegrid-table thead th {
+  background: rgba(29, 33, 43, 0.94);
+  border-bottom: 1px solid rgba(80, 87, 103, 0.74);
+  color: #f5f7fb;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-table td {
+  border-bottom: 1px solid rgba(71, 78, 95, 0.72);
+  color: #edf1f7;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 9px 12px;
+  vertical-align: middle;
+}
+
+.treegrid-table tbody:last-child tr:last-child td {
+  border-bottom: 0;
+}
+
+.treegrid-table__align-center {
+  text-align: center;
+}
+
+.treegrid-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.treegrid-sort__icon {
+  color: #7a87a0;
+  font-size: 12px;
+}
+
+.treegrid-sort__icon--active {
+  color: #dfe8ff;
+}
+
+.treegrid-group-body {
+  background: transparent;
+}
+
+.treegrid-group-row td {
+  padding: 0;
+  background: linear-gradient(180deg, rgba(47, 55, 70, 0.98), rgba(43, 49, 63, 0.98));
+}
+
+.treegrid-group-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  color: #edf1f7;
+  padding: 11px 14px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.treegrid-group-toggle:hover {
+  background: rgba(72, 82, 102, 0.18);
+}
+
+.treegrid-group-toggle__icon {
+  width: 12px;
+  height: 12px;
+  color: #f7f9fd;
+}
+
+.treegrid-chevron-icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.treegrid-folder-icon {
+  width: 18px;
+  height: 14px;
+  fill: rgba(214, 222, 234, 0.9);
+}
+
+.treegrid-group-toggle__title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.treegrid-group-toggle__meta {
+  margin-left: auto;
+  color: #b7c0d1;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-child-row {
+  background: rgba(31, 35, 46, 0.98);
+}
+
+.treegrid-child-row:hover {
+  background: rgba(37, 42, 54, 0.98);
+}
+
+.treegrid-game-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.treegrid-game-cell--child {
+  padding-left: 12px;
+}
+
+.treegrid-platform-badge {
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 2px;
+  border: 1px solid rgba(55, 64, 82, 0.96);
+  background: linear-gradient(180deg, rgba(8, 10, 14, 1), rgba(11, 14, 20, 0.98));
+  color: #ecf2ff;
+  display: inline-grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.treegrid-system-glyph {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.treegrid-platform-badge__label {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.treegrid-game-title {
+  color: #f5f8fd;
+  font-size: 10px;
+}
+
+.treegrid-region {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 66px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.treegrid-region__flag {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.treegrid-save-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(94, 118, 169, 0.95);
+  background: linear-gradient(180deg, rgba(26, 33, 49, 0.98), rgba(18, 23, 35, 0.98));
+  color: #e6f0ff;
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.treegrid-save-trigger:hover {
+  border-color: rgba(145, 183, 255, 0.98);
+  background: linear-gradient(180deg, rgba(33, 42, 62, 1), rgba(22, 28, 42, 1));
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.treegrid-save-trigger:focus-visible {
+  outline: 1px solid rgba(166, 206, 255, 0.98);
+  outline-offset: 1px;
+}
+
+.treegrid-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(5, 8, 13, 0.82);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.treegrid-modal {
+  width: min(820px, calc(100vw - 40px));
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border: 1px solid rgba(92, 103, 126, 0.96);
+  background:
+    linear-gradient(180deg, rgba(19, 23, 32, 0.98), rgba(12, 15, 22, 0.99));
+  box-shadow:
+    0 28px 72px rgba(0, 0, 0, 0.56),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.treegrid-modal--wide {
+  width: min(1080px, calc(100vw - 40px));
+}
+
+.treegrid-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(62, 72, 92, 0.96);
+  background: linear-gradient(180deg, rgba(24, 30, 42, 0.98), rgba(15, 19, 28, 0.98));
+}
+
+.treegrid-modal__header h2 {
+  margin: 0;
+  color: #f8fbff;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+
+.treegrid-modal__header p {
+  margin: 4px 0 0;
+  color: #b8c6dd;
+  font-size: 11px;
+}
+
+.treegrid-modal__close {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(80, 92, 116, 0.96);
+  background: rgba(17, 21, 31, 0.98);
+  color: #eef4ff;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.treegrid-modal__close:hover {
+  border-color: rgba(135, 162, 216, 0.98);
+  background: rgba(27, 33, 46, 1);
+}
+
+.treegrid-modal__body {
+  min-height: 0;
+  padding: 14px 18px 18px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.treegrid-modal__status {
+  margin: 0;
+  color: #c6d0e2;
+  font-size: 11px;
+}
+
+.treegrid-modal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.treegrid-modal-table th,
+.treegrid-modal-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(52, 61, 78, 0.94);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.treegrid-modal-table th {
+  color: #95a3bc;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(20, 24, 34, 0.98);
+}
+
+.treegrid-modal-table tbody tr:hover {
+  background: rgba(34, 40, 53, 0.94);
+}
+
+.treegrid-upload-form {
+  padding: 14px 18px 18px;
+}
+
+.treegrid-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.treegrid-upload-field {
+  display: grid;
+  gap: 5px;
+  color: #95a3bc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.treegrid-upload-field--wide {
+  grid-column: 1 / -1;
+}
+
+.treegrid-upload-field input,
+.treegrid-upload-field select {
+  min-height: 30px;
+  border: 1px solid rgba(75, 86, 110, 0.95);
+  border-radius: 0;
+  background: rgba(11, 14, 21, 0.98);
+  color: #edf4ff;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0 9px;
+}
+
+.treegrid-upload-field input[type="file"] {
+  padding: 6px 9px;
+}
+
+.treegrid-upload-hint {
+  margin: 12px 0 0;
+  color: #a7b4ca;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.treegrid-upload-hint code {
+  color: #dbe8ff;
+}
+
+.treegrid-upload-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.treegrid-upload-preview {
+  margin-top: 14px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid rgba(64, 75, 96, 0.95);
+  background: rgba(10, 13, 19, 0.96);
+}
+
+.treegrid-upload-preview td strong,
+.validation-table td strong {
+  display: block;
+  color: #edf4ff;
+  font-size: 11px;
+}
+
+.treegrid-upload-preview td small,
+.validation-table td small {
+  display: block;
+  margin-top: 2px;
+  color: #8e9ab0;
+  font-size: 10px;
+}
+
+.treegrid-preview-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  padding: 0 7px;
+  border: 1px solid #526079;
+  background: #171c27;
+  color: #dbe7ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.treegrid-preview-pill--ok {
+  border-color: #4e8b59;
+  background: #102516;
+  color: #c9ffd0;
+}
+
+.treegrid-preview-pill--bad {
+  border-color: #9b4f4f;
+  background: #2a1113;
+  color: #ffd0d0;
+}
+
+.treegrid-current-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border: 1px solid rgba(82, 129, 80, 0.95);
+  background: rgba(25, 46, 29, 0.95);
+  color: #d9ffd7;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.treegrid-select-button {
+  min-height: 22px;
+  padding: 0 9px;
+  border: 1px solid rgba(95, 118, 170, 0.94);
+  background: linear-gradient(180deg, rgba(31, 40, 61, 0.98), rgba(20, 25, 38, 0.98));
+  color: #eef5ff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.treegrid-select-button:hover:not(:disabled) {
+  border-color: rgba(145, 183, 255, 0.98);
+  background: linear-gradient(180deg, rgba(40, 51, 76, 1), rgba(25, 31, 48, 1));
+}
+
+.treegrid-select-button--ghost {
+  border-color: rgba(76, 87, 110, 0.94);
+  background: rgba(16, 20, 29, 0.98);
+}
+
+.treegrid-select-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.treegrid-icon-button {
+  width: 24px;
+  height: 24px;
+  border-radius: 2px;
+  border: 1px solid rgba(85, 92, 108, 0.92);
+  background: rgba(24, 29, 39, 0.98);
+  color: #edf2f9;
+  display: inline-grid;
+  place-items: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.treegrid-icon-button:hover:not(:disabled) {
+  border-color: rgba(113, 144, 205, 0.95);
+  background: rgba(39, 44, 56, 1);
+  transform: translateY(-1px);
+}
+
+.treegrid-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.treegrid-icon-button--download {
+  color: #d7efff;
+  border-color: rgba(100, 158, 210, 0.5);
+  background: linear-gradient(180deg, rgba(42, 74, 101, 0.95), rgba(25, 43, 60, 0.98));
+  box-shadow: 0 0 12px -8px rgba(88, 177, 255, 0.72);
+}
+
+.treegrid-icon-button--download:hover {
+  box-shadow: 0 0 14px -6px rgba(97, 183, 255, 0.78);
+}
+
+.treegrid-icon-button--danger {
+  color: #ff695f;
+  border-color: rgba(157, 72, 67, 0.54);
+  background: linear-gradient(180deg, rgba(60, 30, 34, 0.92), rgba(45, 24, 28, 0.94));
+}
+
+.treegrid-icon-button--danger:hover:not(:disabled) {
+  border-color: rgba(201, 99, 95, 0.92);
+  background: rgba(62, 31, 35, 1);
+}
+
+.treegrid-icon-button--cheat {
+  color: #ffe89a;
+  border-color: rgba(170, 146, 73, 0.58);
+  background: linear-gradient(180deg, rgba(62, 52, 18, 0.94), rgba(42, 34, 10, 0.98));
+  box-shadow: 0 0 12px -9px rgba(255, 224, 108, 0.72);
+}
+
+.treegrid-icon-button--cheat:hover:not(:disabled) {
+  border-color: rgba(223, 193, 101, 0.9);
+  background: rgba(78, 64, 20, 0.98);
+}
+
+.treegrid-cheat-trigger {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(170, 146, 73, 0.58);
+  background: linear-gradient(180deg, rgba(62, 52, 18, 0.94), rgba(42, 34, 10, 0.98));
+  color: #ffe89a;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 0 12px -9px rgba(255, 224, 108, 0.72);
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.treegrid-cheat-trigger:hover:not(:disabled) {
+  border-color: rgba(223, 193, 101, 0.9);
+  background: rgba(78, 64, 20, 0.98);
+  transform: translateY(-1px);
+}
+
+.treegrid-empty-cell {
+  color: rgba(122, 133, 154, 0.9);
+}
+
+.treegrid-inline-icon {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.treegrid-cheat-body {
+  display: grid;
+  gap: 14px;
+}
+
+.treegrid-cheat-slot-picker,
+.treegrid-cheat-input {
+  display: grid;
+  gap: 6px;
+  color: #d6e0f2;
+  font-size: 11px;
+}
+
+.treegrid-cheat-slot-picker select,
+.treegrid-cheat-input input,
+.treegrid-cheat-input select {
+  min-height: 30px;
+  border: 1px solid rgba(77, 88, 108, 0.96);
+  background: rgba(14, 18, 26, 0.98);
+  color: #eef4ff;
+  font: inherit;
+  padding: 0 10px;
+}
+
+.treegrid-cheat-presets {
+  display: grid;
+  gap: 8px;
+}
+
+.treegrid-cheat-presets__label {
+  margin: 0;
+  color: #95a3bc;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.treegrid-cheat-presets__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.treegrid-cheat-preset {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid rgba(93, 105, 127, 0.94);
+  background: rgba(22, 28, 39, 0.98);
+  color: #eef4ff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.treegrid-cheat-preset:hover {
+  border-color: rgba(140, 174, 239, 0.94);
+  background: rgba(32, 39, 53, 1);
+}
+
+.treegrid-cheat-preset--ghost {
+  color: #d7dfec;
+  border-color: rgba(79, 87, 101, 0.94);
+}
+
+.treegrid-cheat-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.treegrid-cheat-section {
+  border: 1px solid rgba(55, 63, 79, 0.94);
+  background: rgba(11, 15, 22, 0.86);
+}
+
+.treegrid-cheat-section__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(44, 50, 64, 0.94);
+  background: rgba(17, 22, 31, 0.96);
+}
+
+.treegrid-cheat-section__header h3 {
+  margin: 0;
+  color: #f3f7ff;
+  font-size: 12px;
+}
+
+.treegrid-cheat-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.treegrid-cheat-field {
+  min-width: 0;
+}
+
+.treegrid-cheat-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  color: #eef4ff;
+  font-size: 11px;
+}
+
+.treegrid-cheat-toggle--compact {
+  min-height: 22px;
+}
+
+.treegrid-cheat-bitmask {
+  margin: 0;
+  min-width: 0;
+  border: 1px solid rgba(51, 60, 76, 0.94);
+  padding: 10px;
+}
+
+.treegrid-cheat-bitmask legend {
+  padding: 0 6px;
+  color: #eef4ff;
+  font-size: 11px;
+}
+
+.treegrid-cheat-bitmask__options {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.treegrid-cheat-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.treegrid-cheat-unsupported {
+  display: grid;
+  gap: 4px;
+  color: #c8d1e0;
+  font-size: 11px;
+}
+
+.logs-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.logs-panel__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #9099ad;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.logs-panel__empty {
+  margin: 0;
+  color: #b6bece;
+  font-size: 12px;
+}
+
+.logs-table-wrap {
+  overflow: auto;
+  border: 1px solid rgba(71, 78, 95, 0.72);
+  background: rgba(24, 28, 37, 0.92);
+}
+
+.logs-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.logs-table th {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(80, 87, 103, 0.74);
+  background: rgba(29, 33, 43, 0.94);
+  color: #f5f7fb;
+  font-size: 10px;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.logs-table td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(71, 78, 95, 0.72);
+  color: #edf1f7;
+  font-size: 11px;
+  line-height: 1.25;
+  vertical-align: top;
+}
+
+.logs-table tbody tr:hover {
+  background: rgba(37, 42, 54, 0.98);
+}
+
+.logs-table__game {
+  color: #f5f8fd;
+}
+
+.logs-table__message {
+  margin-top: 4px;
+  color: #9ea7bc;
+  font-size: 10px;
+}
+
+.logs-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(84, 96, 116, 0.72);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.logs-badge--ok {
+  border-color: rgba(80, 141, 104, 0.78);
+  background: rgba(18, 41, 26, 0.98);
+  color: #c8f5d3;
+}
+
+.logs-badge--error {
+  border-color: rgba(160, 87, 87, 0.84);
+  background: rgba(57, 20, 20, 0.98);
+  color: #ffd4d4;
+}
+
+.logs-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: #c2cada;
+  font-size: 11px;
+}
+
+@media (max-width: 1040px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    max-height: none;
+    position: static;
+    border-right: 0;
+    border-bottom: 1px solid var(--sidebar-border);
+    padding: 12px 14px;
+  }
+
+  .sidebar-brand {
+    padding: 0 0 12px;
+  }
+
+  .side-nav {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    justify-items: stretch;
+  }
+
+  .side-nav__link {
+    width: auto;
+    min-height: 42px;
+    justify-content: flex-start;
+    padding: 0 12px;
+    border-radius: 2px;
+  }
+
+  .side-nav__link::before {
+    inset: auto auto -10px 10px;
+    width: calc(100% - 20px);
+    height: 3px;
+  }
+
+  .side-nav__label {
+    font-size: 12px;
+  }
+
+  .sidebar-user {
+    display: none;
+  }
+
+  .app-main {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  .save-detail-shell,
+  .save-detail-hero,
+  .save-detail-panel,
+  .save-detail-technical {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .save-detail-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .save-detail-actions {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .save-detail-primary-btn {
+    justify-content: center;
+    width: 100%;
+    white-space: normal;
+  }
+
+  .save-detail-metrics,
+  .save-detail-gameplay-grid,
+  .save-detail-technical-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .save-detail-subtitle,
+  .save-detail-panel__header p,
+  .save-detail-decoder-empty p,
+  .save-detail-note-line,
+  .save-detail-evidence,
+  .save-detail-metric strong,
+  .save-detail-gameplay-card strong,
+  .save-detail-tech-row strong {
+    overflow-wrap: anywhere;
+  }
+
+  .save-detail-logical {
+    grid-template-columns: 1fr;
+  }
+
+  .save-detail-logical__stats {
+    justify-content: flex-start;
+  }
+
+  .save-detail-panel__header,
+  .save-detail-decoder-empty {
+    display: grid;
+  }
+
+  .treegrid-panel__header {
+    padding: 18px 18px 12px;
+  }
+
+  .treegrid-table {
+    min-width: 940px;
+  }
+
+  .treegrid-modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+  }
+
+  .treegrid-modal__body {
+    padding: 12px;
+  }
+
+  .treegrid-modal-table {
+    min-width: 560px;
+  }
+
+  .treegrid-upload-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .treegrid-group-toggle__meta {
+    display: none;
+  }
+}
+
+/* Pre-live polish layer */
+.sidebar-brand__subheading {
+  display: block;
+  margin-top: 4px;
+  color: #8f9bb0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.side-nav__link svg,
+.sidebar-logout svg,
+.sidebar-helper__button svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.sidebar-helper__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.runtime-warning {
+  max-width: 1320px;
+  margin: 0 auto 12px;
+  border: 1px solid rgba(177, 133, 48, 0.62);
+  background: linear-gradient(180deg, rgba(44, 34, 18, 0.96), rgba(28, 23, 16, 0.98));
+  color: #ffe1a3;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.runtime-warning svg {
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+}
+
+.runtime-warning strong,
+.runtime-warning span {
+  display: block;
+}
+
+.runtime-warning strong {
+  color: #fff4d1;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.runtime-warning span {
+  margin-top: 2px;
+  color: #e9d2a3;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.treegrid-panel__status {
+  margin: 0;
+  border-bottom: 1px solid rgba(70, 78, 96, 0.72);
+  color: #aeb9cc;
+  font-size: 11px;
+  padding: 9px 18px;
+}
+
+.treegrid-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(70, 78, 96, 0.72);
+  padding: 12px 18px;
+  color: #aeb9cc;
+  font-size: 11px;
+}
+
+.treegrid-select-button--danger {
+  border-color: rgba(176, 78, 72, 0.9);
+  background: linear-gradient(180deg, rgba(71, 30, 35, 0.98), rgba(45, 21, 25, 0.98));
+  color: #ffd6d3;
+}
+
+.treegrid-select-button--danger:hover:not(:disabled) {
+  border-color: rgba(222, 104, 96, 0.98);
+  background: rgba(77, 34, 38, 1);
+}
+
+.treegrid-upload-advanced {
+  margin-top: 10px;
+  border: 1px solid rgba(54, 64, 84, 0.94);
+  background: rgba(12, 16, 23, 0.72);
+}
+
+.treegrid-upload-advanced summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 12px;
+  color: #cbd6e9;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.treegrid-upload-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.treegrid-upload-advanced summary::before {
+  content: "+";
+  display: inline-block;
+  margin-right: 8px;
+  color: #f0f5ff;
+}
+
+.treegrid-upload-advanced[open] summary::before {
+  content: "-";
+}
+
+.treegrid-upload-advanced .treegrid-upload-grid {
+  border-top: 1px solid rgba(54, 64, 84, 0.94);
+  padding: 12px;
+}
+
+.confirm-dialog {
+  width: min(460px, calc(100vw - 32px));
+  border: 1px solid rgba(96, 108, 132, 0.96);
+  background: linear-gradient(180deg, rgba(20, 25, 35, 0.99), rgba(12, 15, 22, 0.99));
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.56);
+}
+
+.confirm-dialog__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(62, 72, 92, 0.96);
+}
+
+.confirm-dialog__header svg {
+  width: 20px;
+  height: 20px;
+  color: #ffbf69;
+}
+
+.confirm-dialog__header h2 {
+  margin: 0;
+  color: #f8fbff;
+  font-size: 16px;
+}
+
+.confirm-dialog__header p {
+  margin: 6px 0 0;
+  color: #b8c6dd;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 18px 18px;
+}
+
+@media (max-width: 760px) {
+  .app-main {
+    padding: 10px;
+  }
+
+  .treegrid-panel {
+    min-height: auto;
+  }
+
+  .treegrid-panel__header {
+    align-items: stretch;
+    display: grid;
+    gap: 12px;
+  }
+
+  .treegrid-header-action {
+    width: 100%;
+  }
+
+  .treegrid-table-wrap {
+    overflow: visible;
+  }
+
+  .treegrid-table,
+  .treegrid-table tbody,
+  .treegrid-table tr,
+  .treegrid-table td {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .treegrid-table thead {
+    display: none;
+  }
+
+  .treegrid-group-row td {
+    border-bottom: 0;
+  }
+
+  .treegrid-child-row {
+    margin: 10px;
+    border: 1px solid rgba(62, 72, 92, 0.96);
+    background: rgba(20, 25, 35, 0.98);
+  }
+
+  .treegrid-child-row td {
+    border-bottom: 1px solid rgba(49, 58, 76, 0.82);
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 10px;
+  }
+
+  .treegrid-child-row td:last-child {
+    border-bottom: 0;
+  }
+
+  .treegrid-child-row td::before {
+    color: #8f9bb0;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .treegrid-child-row td:nth-child(1)::before {
+    content: "Game";
+  }
+
+  .treegrid-child-row td:nth-child(2)::before {
+    content: "Region";
+  }
+
+  .treegrid-child-row td:nth-child(3)::before {
+    content: "Saves";
+  }
+
+  .treegrid-child-row td:nth-child(4)::before {
+    content: "Latest";
+  }
+
+  .treegrid-child-row td:nth-child(5)::before {
+    content: "Total";
+  }
+
+  .treegrid-child-row td:nth-child(6)::before {
+    content: "Date";
+  }
+
+  .treegrid-child-row td:nth-child(7)::before {
+    content: "Cheats";
+  }
+
+  .treegrid-child-row td:nth-child(8)::before {
+    content: "Details";
+  }
+
+  .treegrid-child-row td:nth-child(9)::before {
+    content: "Download";
+  }
+
+  .treegrid-child-row td:nth-child(10)::before {
+    content: "Delete";
+  }
+
+  .treegrid-game-cell--child {
+    padding-left: 0;
+  }
+
+  .treegrid-modal-backdrop {
+    align-items: start;
+    justify-items: center;
+    padding: 8px;
+    overflow: auto;
+  }
+
+  .treegrid-modal {
+    width: min(100%, calc(100vw - 16px));
+    max-height: calc(100vh - 16px);
+  }
+
+  .treegrid-upload-form,
+  .treegrid-modal__header {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .treegrid-upload-actions,
+  .confirm-dialog__actions {
+    display: grid;
+  }
+
+  .treegrid-pagination {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .runtime-warning {
+    margin-bottom: 10px;
+  }
+}

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { SectionCard } from "../../components/SectionCard";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -19,6 +20,7 @@ export function ValidationPage(): JSX.Element {
   const [rescanning, setRescanning] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
   const [quarantineAction, setQuarantineAction] = useState<string | null>(null);
+  const [pendingQuarantineDelete, setPendingQuarantineDelete] = useState<QuarantineRecord | null>(null);
   const [rescanError, setRescanError] = useState<string | null>(null);
   const [rescanMessage, setRescanMessage] = useState<string | null>(null);
 
@@ -61,17 +63,18 @@ export function ValidationPage(): JSX.Element {
     }
   }
 
-  async function deleteQuarantine(id: string): Promise<void> {
-    const confirmed = window.confirm("Delete this quarantined file? The saved cloud versions are not touched.");
-    if (!confirmed) {
+  async function confirmDeleteQuarantine(): Promise<void> {
+    if (!pendingQuarantineDelete) {
       return;
     }
+    const id = pendingQuarantineDelete.id;
     setQuarantineAction(`delete:${id}`);
     setRescanError(null);
     setRescanMessage(null);
     try {
       await deleteQuarantineItem(id);
       setRescanMessage("Quarantined file deleted.");
+      setPendingQuarantineDelete(null);
       await reload();
     } catch (err: unknown) {
       setRescanError(err instanceof Error ? err.message : "Delete failed.");
@@ -94,7 +97,18 @@ export function ValidationPage(): JSX.Element {
           quarantineAction={quarantineAction}
           onRescan={runRescan}
           onRetryQuarantine={retryQuarantine}
-          onDeleteQuarantine={deleteQuarantine}
+          onDeleteQuarantine={setPendingQuarantineDelete}
+        />
+      ) : null}
+      {pendingQuarantineDelete ? (
+        <ConfirmDialog
+          title="Delete quarantined file"
+          message={`This permanently removes "${pendingQuarantineDelete.displayTitle || pendingQuarantineDelete.filename}" from quarantine. Existing cloud save versions are not touched.`}
+          confirmLabel="Delete file"
+          danger
+          busy={quarantineAction === `delete:${pendingQuarantineDelete.id}`}
+          onConfirm={() => void confirmDeleteQuarantine()}
+          onCancel={() => setPendingQuarantineDelete(null)}
         />
       ) : null}
     </SectionCard>
@@ -116,13 +130,14 @@ function ValidationContent({
   quarantineAction: string | null;
   onRescan: (dryRun?: boolean) => Promise<void>;
   onRetryQuarantine: (id: string) => Promise<void>;
-  onDeleteQuarantine: (id: string) => Promise<void>;
+  onDeleteQuarantine: (item: QuarantineRecord) => void;
 }): JSX.Element {
   const topSystems = useMemo(() => {
     return Object.entries(status.systems ?? {})
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
       .slice(0, 8);
   }, [status.systems]);
+  const quarantine = status.quarantine ?? [];
 
   return (
     <div className="validation-page">
@@ -178,7 +193,7 @@ function ValidationContent({
           <h3>Quarantine</h3>
           <span>Retry after parser updates, or delete known junk</span>
         </div>
-        {status.quarantine.length === 0 ? (
+        {quarantine.length === 0 ? (
           <p className="treegrid-panel__empty">No quarantined files.</p>
         ) : (
           <div className="treegrid-table-wrap">
@@ -196,7 +211,7 @@ function ValidationContent({
                 </tr>
               </thead>
               <tbody>
-                {status.quarantine.map((item) => (
+                {quarantine.map((item) => (
                   <tr key={item.id}>
                     <td>
                       <strong>{item.displayTitle || item.filename}</strong>
@@ -224,7 +239,7 @@ function ValidationContent({
                           className="btn btn-ghost btn-danger"
                           type="button"
                           disabled={quarantineAction === `delete:${item.id}`}
-                          onClick={() => void onDeleteQuarantine(item.id)}
+                          onClick={() => onDeleteQuarantine(item)}
                         >
                           Delete
                         </button>

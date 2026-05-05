@@ -24,6 +24,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o
 FROM gcr.io/distroless/static-debian12
 WORKDIR /app
 
+ARG RSM_VERSION=dev
+ARG RSM_COMMIT=
+
 COPY --from=backend-build /out/retrosave-api /usr/local/bin/retrosave-api
 COPY --from=backend-build /out/retrosave-healthcheck /usr/local/bin/retrosave-healthcheck
 COPY --from=frontend-build /src/frontend/dist /app/frontend-dist
@@ -35,6 +38,8 @@ ENV SAVE_ROOT=/saves
 ENV STATE_ROOT=/config
 ENV FRONTEND_DIST_DIR=/app/frontend-dist
 ENV CHEAT_PACK_ROOT=/app/contracts/cheats/packs
+ENV RSM_VERSION=${RSM_VERSION}
+ENV RSM_COMMIT=${RSM_COMMIT}
 
 EXPOSE 80
 

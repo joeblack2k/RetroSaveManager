@@ -16,35 +16,35 @@ import (
 )
 
 const (
-	saturnHeaderMagic               = "BackUpRam Format"
-	saturnMinimumMagicBytes         = 0x40
-	saturnInternalRawSize           = 0x8000
-	saturnInternalInterleavedSize   = saturnInternalRawSize * 2
-	saturnCartridgeRawSize          = 0x80000
-	saturnCartridgeInterleavedSize  = saturnCartridgeRawSize * 2
-	saturnYabaSanshiroRawSize       = 0x400000
-	saturnYabaSanshiroExpandedSize  = saturnYabaSanshiroRawSize * 2
-	saturnCombinedRawSize           = saturnInternalRawSize + saturnCartridgeRawSize
-	saturnCombinedInterleavedSize   = saturnInternalInterleavedSize + saturnCartridgeInterleavedSize
-	saturnInternalBlockSize         = 0x40
-	saturnCartridgeBlockSize        = 0x200
-	saturnArchiveEntryMarker uint32 = 0x80000000
-	saturnDataEntryMarker    uint32 = 0x00000000
+	saturnHeaderMagic                     = "BackUpRam Format"
+	saturnMinimumMagicBytes               = 0x40
+	saturnInternalRawSize                 = 0x8000
+	saturnInternalInterleavedSize         = saturnInternalRawSize * 2
+	saturnCartridgeRawSize                = 0x80000
+	saturnCartridgeInterleavedSize        = saturnCartridgeRawSize * 2
+	saturnYabaSanshiroRawSize             = 0x400000
+	saturnYabaSanshiroExpandedSize        = saturnYabaSanshiroRawSize * 2
+	saturnCombinedRawSize                 = saturnInternalRawSize + saturnCartridgeRawSize
+	saturnCombinedInterleavedSize         = saturnInternalInterleavedSize + saturnCartridgeInterleavedSize
+	saturnInternalBlockSize               = 0x40
+	saturnCartridgeBlockSize              = 0x200
+	saturnArchiveEntryMarker       uint32 = 0x80000000
+	saturnDataEntryMarker          uint32 = 0x00000000
 )
 
 var saturnKnownFormats = map[string]struct{}{
-	"original":            {},
-	"mister":              {},
-	"internal-raw":        {},
-	"cartridge-raw":       {},
-	"mednafen":            {},
-	"mednafen-internal":   {},
-	"mednafen-cartridge":  {},
-	"yabause":             {},
-	"yabasanshiro":        {},
-	"bup":                 {},
-	"ymir":                {},
-	"ymbp":                {},
+	"original":           {},
+	"mister":             {},
+	"internal-raw":       {},
+	"cartridge-raw":      {},
+	"mednafen":           {},
+	"mednafen-internal":  {},
+	"mednafen-cartridge": {},
+	"yabause":            {},
+	"yabasanshiro":       {},
+	"bup":                {},
+	"ymir":               {},
+	"ymbp":               {},
 }
 
 type saturnDetails struct {
@@ -653,7 +653,7 @@ func saturnDownloadPayload(record saveRecord, payload []byte, format, selectedEn
 		if err != nil {
 			return "", "", nil, err
 		}
-		return safeFilename(saturnEntryBaseName(entry)+filenameExt), "application/octet-stream", built, nil
+		return safeFilename(saturnEntryBaseName(entry) + filenameExt), "application/octet-stream", built, nil
 	default:
 		return "", "", nil, fmt.Errorf("unsupported saturnFormat %q", format)
 	}

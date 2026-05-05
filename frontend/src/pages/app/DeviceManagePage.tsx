@@ -4,153 +4,20 @@ import { ErrorState, LoadingState } from "../../components/LoadState";
 import { SectionCard } from "../../components/SectionCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { commandDevice, getDevice, listSaveSystems, updateDevice } from "../../services/retrosaveApi";
-import type { Device, DeviceConfigSource, DevicePolicyBlock, SaveSystem } from "../../services/types";
-
-type SystemGroup = {
-  manufacturer: string;
-  systems: SaveSystem[];
-};
-
-type DeviceCommand = "sync" | "scan" | "deep_scan" | "config_changed";
-
-const SOURCE_KIND_OPTIONS = [
-  { value: "custom", label: "Custom" },
-  { value: "retroarch", label: "RetroArch" },
-  { value: "mister-fpga", label: "MiSTer FPGA" },
-  { value: "steamdeck", label: "Steam Deck" },
-  { value: "windows", label: "Windows" },
-  { value: "openemu", label: "OpenEmu" },
-  { value: "analogue-pocket", label: "Analogue Pocket" }
-];
-
-const PROFILE_OPTIONS = [
-  { value: "retroarch", label: "RetroArch" },
-  { value: "mister", label: "MiSTer" },
-  { value: "snes9x", label: "Snes9x" },
-  { value: "bsnes", label: "bsnes" },
-  { value: "mesen2", label: "Mesen 2" },
-  { value: "fceux", label: "FCEUX" },
-  { value: "nestopia-ue", label: "Nestopia UE" },
-  { value: "mgba", label: "mGBA" },
-  { value: "vba-m", label: "VBA-M" },
-  { value: "project64", label: "Project64" },
-  { value: "mupen-family", label: "Mupen/RMG" },
-  { value: "everdrive", label: "EverDrive" },
-  { value: "genesis-plus-gx", label: "Genesis Plus GX" },
-  { value: "picodrive", label: "PicoDrive" },
-  { value: "flycast", label: "Flycast" },
-  { value: "redream", label: "Redream" },
-  { value: "generic", label: "Generic" }
-];
-
-const SYSTEM_PROFILE_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
-  snes: [
-    { value: "snes9x", label: "Snes9x" },
-    { value: "bsnes", label: "bsnes" },
-    { value: "retroarch-snes9x", label: "RetroArch Snes9x" },
-    { value: "mesen2", label: "Mesen 2" },
-    { value: "higan", label: "higan" }
-  ],
-  nes: [
-    { value: "mesen2", label: "Mesen 2" },
-    { value: "fceux", label: "FCEUX" },
-    { value: "nestopia-ue", label: "Nestopia UE" },
-    { value: "punes", label: "puNES" },
-    { value: "retroarch-fceumm", label: "RetroArch FCEUmm" }
-  ],
-  gba: [
-    { value: "mgba", label: "mGBA" },
-    { value: "vba-m", label: "VBA-M" },
-    { value: "nocashgba", label: "No$GBA" },
-    { value: "skyemu", label: "SkyEmu" }
-  ],
-  n64: [
-    { value: "mister", label: "MiSTer" },
-    { value: "retroarch", label: "RetroArch" },
-    { value: "project64", label: "Project64" },
-    { value: "mupen-family", label: "Mupen/RMG" },
-    { value: "everdrive", label: "EverDrive" }
-  ],
-  genesis: [
-    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
-    { value: "picodrive", label: "PicoDrive" },
-    { value: "blastem", label: "BlastEm" }
-  ],
-  "sega-cd": [
-    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
-    { value: "picodrive", label: "PicoDrive" },
-    { value: "retroarch-genesis-plus-gx", label: "RetroArch Genesis Plus GX" }
-  ],
-  "sega-32x": [
-    { value: "picodrive", label: "PicoDrive" },
-    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
-    { value: "retroarch-picodrive", label: "RetroArch PicoDrive" }
-  ],
-  "master-system": [
-    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
-    { value: "gearsystem", label: "Gearsystem" },
-    { value: "emulicious", label: "Emulicious" },
-    { value: "meka", label: "MEKA" }
-  ],
-  "game-gear": [
-    { value: "gearsystem", label: "Gearsystem" },
-    { value: "genesis-plus-gx", label: "Genesis Plus GX" },
-    { value: "emulicious", label: "Emulicious" }
-  ],
-  "pc-engine": [
-    { value: "mister", label: "MiSTer" },
-    { value: "mednafen", label: "Mednafen" },
-    { value: "retroarch-beetle-pce", label: "RetroArch Beetle PCE" },
-    { value: "mesen2", label: "Mesen 2" }
-  ],
-  "atari-lynx": [
-    { value: "handy", label: "Handy" },
-    { value: "mednafen", label: "Mednafen" },
-    { value: "retroarch-handy", label: "RetroArch Handy" }
-  ],
-  wonderswan: [
-    { value: "mednafen", label: "Mednafen" },
-    { value: "ares", label: "ares" },
-    { value: "retroarch-beetle-wswan", label: "RetroArch Beetle WonderSwan" }
-  ],
-  "sg-1000": [
-    { value: "emulicious", label: "Emulicious" },
-    { value: "gearsystem", label: "Gearsystem" },
-    { value: "genesis-plus-gx", label: "Genesis Plus GX" }
-  ],
-  colecovision: [
-    { value: "blue-msx", label: "blueMSX" },
-    { value: "gearcoleco", label: "Gearcoleco" },
-    { value: "mame", label: "MAME" }
-  ],
-  "atari-jaguar": [
-    { value: "bigpemu", label: "BigPEmu" },
-    { value: "virtual-jaguar", label: "Virtual Jaguar" },
-    { value: "retroarch-virtual-jaguar", label: "RetroArch Virtual Jaguar" }
-  ],
-  "3do": [
-    { value: "opera", label: "Opera" },
-    { value: "phoenix", label: "Phoenix" },
-    { value: "4do", label: "4DO" }
-  ],
-  dreamcast: [
-    { value: "flycast", label: "Flycast" },
-    { value: "redream", label: "Redream" },
-    { value: "mister", label: "MiSTer" },
-    { value: "retroarch-flycast", label: "RetroArch Flycast" }
-  ],
-  saturn: [
-    { value: "mister", label: "MiSTer" },
-    { value: "mednafen", label: "Mednafen" },
-    { value: "yabasanshiro", label: "Yaba Sanshiro" },
-    { value: "yabause", label: "Yabause" }
-  ],
-  psx: [
-    { value: "mister", label: "MiSTer" },
-    { value: "retroarch", label: "RetroArch" }
-  ],
-  ps2: [{ value: "pcsx2", label: "PCSX2" }]
-};
+import type { DeviceConfigSource, DevicePolicyBlock, SaveSystem } from "../../services/types";
+import { DeviceManageSummary } from "./device-manage/DeviceManageSummary";
+import { DeviceSourceEditor } from "./device-manage/DeviceSourceEditor";
+import { SystemPolicySelector } from "./device-manage/SystemPolicySelector";
+import {
+  cloneSource,
+  commandLabel,
+  profileLabel,
+  profileOptionsForSystem,
+  recommendedKindForProfile,
+  uniqueSourceId,
+  type DeviceManageCommand,
+  type SystemGroup
+} from "./device-manage/options";
 
 export function DeviceManagePage(): JSX.Element {
   const params = useParams<{ deviceId: string }>();
@@ -285,6 +152,18 @@ export function DeviceManagePage(): JSX.Element {
     return blockedReasons.get(slug)?.reason ?? "not reported by helper config";
   }
 
+  function onDraftSystemChange(nextSystem: string): void {
+    const nextProfile = profileOptionsForSystem(nextSystem)[0]?.value ?? "generic";
+    setDraftSystemSlug(nextSystem);
+    setDraftProfile(nextProfile);
+    setDraftKind(recommendedKindForProfile(nextProfile));
+  }
+
+  function onDraftProfileChange(nextProfile: string): void {
+    setDraftProfile(nextProfile);
+    setDraftKind(recommendedKindForProfile(nextProfile));
+  }
+
   function addBackendSource(): void {
     const systemSlug = draftSystemSlug.trim();
     const savePath = draftSavePath.trim();
@@ -346,7 +225,7 @@ export function DeviceManagePage(): JSX.Element {
     }
   }
 
-  async function onCommand(command: DeviceCommand): Promise<void> {
+  async function onCommand(command: DeviceManageCommand): Promise<void> {
     if (!data?.device) {
       return;
     }
@@ -422,134 +301,36 @@ export function DeviceManagePage(): JSX.Element {
             </p>
           ) : null}
 
-          <section className="device-source-editor device-manage-panel">
-            <div className="device-source-editor__header">
-              <div>
-                <h3>Add console source</h3>
-                <p>Add folders the always-on helper should include in its next backend-managed config policy.</p>
-              </div>
-              {sourcesDirty ? <span>Unsaved changes</span> : null}
-            </div>
-
-            <div className="device-source-form">
-              <label className="field">
-                <span>Console</span>
-                <select
-                  value={draftSystemSlug}
-                  onChange={(event) => {
-                    const nextSystem = event.target.value;
-                    const nextProfile = profileOptionsForSystem(nextSystem)[0]?.value ?? "generic";
-                    setDraftSystemSlug(nextSystem);
-                    setDraftProfile(nextProfile);
-                    setDraftKind(recommendedKindForProfile(nextProfile));
-                  }}
-                >
-                  {data.systems
-                    .filter((system) => Boolean(system.slug))
-                    .map((system) => (
-                      <option key={system.slug} value={system.slug}>
-                        {system.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Runtime kind</span>
-                <select value={draftKind} onChange={(event) => setDraftKind(event.target.value)}>
-                  {SOURCE_KIND_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Profile</span>
-                <select
-                  value={draftProfile}
-                  onChange={(event) => {
-                    setDraftProfile(event.target.value);
-                    setDraftKind(recommendedKindForProfile(event.target.value));
-                  }}
-                >
-                  {draftProfileOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Label</span>
-                <input value={draftLabel} onChange={(event) => setDraftLabel(event.target.value)} placeholder="Optional display name" />
-              </label>
-              <label className="field device-source-form__wide">
-                <span>Save folder</span>
-                <input value={draftSavePath} onChange={(event) => setDraftSavePath(event.target.value)} placeholder="/media/snes9x/saves" />
-              </label>
-              <label className="field device-source-form__wide">
-                <span>ROM folder</span>
-                <input value={draftRomPath} onChange={(event) => setDraftRomPath(event.target.value)} placeholder="/media/snes9x/roms (optional)" />
-              </label>
-            </div>
-            <button className="btn btn-ghost" type="button" onClick={addBackendSource}>
-              Add console
-            </button>
-
-            <div className="device-source-list">
-              {editableSources.length === 0 ? <p>No helper config sources reported yet.</p> : null}
-              {editableSources.map((source) => (
-                <article key={source.id} className="device-source-row">
-                  <div>
-                    <strong>{source.label || source.id}</strong>
-                    <p>
-                      {[source.kind, source.profile, source.origin].filter(Boolean).join(" / ") || "Unknown source"}
-                    </p>
-                    <small>
-                      {(source.systems ?? []).join(", ") || "No systems"} · {formatSourcePaths(source.savePaths ?? (source.savePath ? [source.savePath] : []))}
-                    </small>
-                  </div>
-                  <button className="btn btn-ghost btn-danger" type="button" onClick={() => removeSource(source.id)}>
-                    Remove
-                  </button>
-                </article>
-              ))}
-            </div>
-            <DevicePolicyPreview syncAll={syncAll} sources={editableSources} />
-          </section>
+          <DeviceSourceEditor
+            systems={data.systems}
+            sources={editableSources}
+            sourcesDirty={sourcesDirty}
+            syncAll={syncAll}
+            draftSystemSlug={draftSystemSlug}
+            draftKind={draftKind}
+            draftProfile={draftProfile}
+            draftProfileOptions={draftProfileOptions}
+            draftLabel={draftLabel}
+            draftSavePath={draftSavePath}
+            draftRomPath={draftRomPath}
+            onSystemChange={onDraftSystemChange}
+            onKindChange={setDraftKind}
+            onProfileChange={onDraftProfileChange}
+            onLabelChange={setDraftLabel}
+            onSavePathChange={setDraftSavePath}
+            onRomPathChange={setDraftRomPath}
+            onAddSource={addBackendSource}
+            onRemoveSource={removeSource}
+          />
 
           {!syncAll ? (
-            <div className="stack compact">
-              {groups.map((group) => (
-                <details key={group.manufacturer} className="device-group" open>
-                  <summary>
-                    <strong>{group.manufacturer}</strong>
-                    <span>{group.systems.length} systems</span>
-                  </summary>
-                  <div className="device-group__list">
-                    {group.systems.map((system) => {
-                      const slug = system.slug ?? "";
-                      const disabled = isSystemDisabled(slug);
-                      const reason = systemDisabledReason(slug);
-                      return (
-                        <label key={slug} className="sync-option-row">
-                          <input
-                            type="checkbox"
-                            checked={allowedSystems.includes(slug)}
-                            disabled={disabled}
-                            onChange={() => toggleAllowedSystem(slug)}
-                          />
-                          <span>
-                            {system.name}
-                            {disabled ? <small>Blocked: {reason}</small> : null}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </details>
-              ))}
-            </div>
+            <SystemPolicySelector
+              groups={groups}
+              allowedSystems={allowedSystems}
+              onToggleSystem={toggleAllowedSystem}
+              isSystemDisabled={isSystemDisabled}
+              systemDisabledReason={systemDisabledReason}
+            />
           ) : null}
 
           <div className="inline-actions">
@@ -563,134 +344,5 @@ export function DeviceManagePage(): JSX.Element {
         </div>
       ) : null}
     </SectionCard>
-  );
-}
-
-function DeviceManageSummary({
-  device,
-  sources,
-  syncAll,
-  allowedSystems
-}: {
-  device: Device;
-  sources: DeviceConfigSource[];
-  syncAll: boolean;
-  allowedSystems: string[];
-}): JSX.Element {
-  const effectiveSystems = device.effectivePolicy?.allowedSystemSlugs ?? (syncAll ? device.reportedSystemSlugs : allowedSystems);
-  const blockedCount = device.effectivePolicy?.blocked?.length ?? 0;
-  const serviceState = device.service?.freshness || device.service?.status || (device.lastSeenAt ? "seen" : "offline");
-  const savePathCount = device.sensors?.savePathCount ?? sources.reduce((count, source) => count + (source.savePaths?.length ?? (source.savePath ? 1 : 0)), 0);
-  return (
-    <div className="device-manage-summary" aria-label="Device policy summary">
-      <div>
-        <span>Service</span>
-        <strong>{serviceState}</strong>
-        <small>{device.service?.lastError || device.service?.lastEvent || "No recent error"}</small>
-      </div>
-      <div>
-        <span>Policy</span>
-        <strong>{syncAll ? "Auto" : "Manual"}</strong>
-        <small>{effectiveSystems?.length ? `${effectiveSystems.length} consoles allowed` : "No consoles allowed yet"}</small>
-      </div>
-      <div>
-        <span>Sources</span>
-        <strong>{sources.length}</strong>
-        <small>{savePathCount} save folders reported</small>
-      </div>
-      <div className={blockedCount > 0 ? "device-manage-summary__warn" : ""}>
-        <span>Guard</span>
-        <strong>{blockedCount}</strong>
-        <small>{blockedCount > 0 ? "blocked unsafe routes" : "no blocked routes"}</small>
-      </div>
-    </div>
-  );
-}
-
-function cloneSource(source: DeviceConfigSource): DeviceConfigSource {
-  return {
-    ...source,
-    savePaths: source.savePaths ? [...source.savePaths] : undefined,
-    romPaths: source.romPaths ? [...source.romPaths] : undefined,
-    systems: source.systems ? [...source.systems] : undefined,
-    unsupportedSystemSlugs: source.unsupportedSystemSlugs ? [...source.unsupportedSystemSlugs] : undefined
-  };
-}
-
-function uniqueSourceId(baseId: string, existingIds: Set<string>): string {
-  let id = baseId;
-  let suffix = 2;
-  while (existingIds.has(id)) {
-    id = `${baseId}-${suffix}`;
-    suffix += 1;
-  }
-  return id;
-}
-
-function profileLabel(profile: string): string {
-  return PROFILE_OPTIONS.find((option) => option.value === profile)?.label
-    ?? Object.values(SYSTEM_PROFILE_OPTIONS).flat().find((option) => option.value === profile)?.label
-    ?? profile;
-}
-
-function formatSourcePaths(paths: string[]): string {
-  if (paths.length === 0) {
-    return "no save path";
-  }
-  if (paths.length === 1) {
-    return paths[0];
-  }
-  return `${paths[0]} + ${paths.length - 1} more`;
-}
-
-function profileOptionsForSystem(systemSlug: string): Array<{ value: string; label: string }> {
-  const scoped = SYSTEM_PROFILE_OPTIONS[systemSlug.trim()];
-  if (scoped && scoped.length > 0) {
-    return scoped;
-  }
-  return PROFILE_OPTIONS;
-}
-
-function recommendedKindForProfile(profile: string): string {
-  if (profile === "mister" || profile === "everdrive") {
-    return "mister-fpga";
-  }
-  if (profile.startsWith("retroarch")) {
-    return "retroarch";
-  }
-  if (["snes9x", "bsnes", "mesen2", "fceux", "nestopia-ue", "mgba", "vba-m", "project64", "mupen-family", "pcsx2"].includes(profile)) {
-    return "custom";
-  }
-  return "custom";
-}
-
-function commandLabel(command: DeviceCommand): string {
-  switch (command) {
-    case "sync":
-      return "Sync";
-    case "scan":
-      return "Scan";
-    case "deep_scan":
-      return "Deep scan";
-    case "config_changed":
-      return "Reload config";
-    default:
-      return command;
-  }
-}
-
-function DevicePolicyPreview({ syncAll, sources }: { syncAll: boolean; sources: DeviceConfigSource[] }): JSX.Element {
-  const systems = Array.from(new Set(sources.flatMap((source) => source.systems ?? []))).sort();
-  const managed = sources.filter((source) => source.managed).length;
-  return (
-    <aside className="device-policy-preview" aria-label="Policy preview">
-      <div>
-        <span>Policy preview</span>
-        <strong>{syncAll ? "Sync all allowed systems" : `${systems.length} manually selected`}</strong>
-      </div>
-      <p>
-        {sources.length} source profiles, {managed} backend-managed. {systems.length > 0 ? `Consoles: ${systems.join(", ")}.` : "No backend console sources yet."}
-      </p>
-    </aside>
   );
 }

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppLayout } from "../AppLayout";
-import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus } from "../../../services/retrosaveApi";
+import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus, getRuntimeConfig } from "../../../services/retrosaveApi";
 
 vi.mock("../../../services/authSession", () => ({
   clearFrontendAuthSession: vi.fn(),
@@ -11,7 +11,8 @@ vi.mock("../../../services/authSession", () => ({
 
 vi.mock("../../../services/retrosaveApi", () => ({
   enableAutoAppPasswordEnrollment: vi.fn(),
-  getAutoAppPasswordEnrollmentStatus: vi.fn(() => Promise.resolve({ active: false, enabledUntil: null }))
+  getAutoAppPasswordEnrollmentStatus: vi.fn(() => Promise.resolve({ active: false, enabledUntil: null })),
+  getRuntimeConfig: vi.fn()
 }));
 
 describe("AppLayout", () => {
@@ -24,6 +25,26 @@ describe("AppLayout", () => {
     vi.mocked(enableAutoAppPasswordEnrollment).mockResolvedValue({
       active: true,
       enabledUntil: "2026-04-23T12:15:00Z"
+    });
+    vi.mocked(getRuntimeConfig).mockResolvedValue({
+      success: true,
+      runtime: {
+        appName: "RetroSaveManager",
+        authMode: "disabled",
+        authEnabled: false,
+        baseUrl: "http://localhost",
+        version: "test",
+        commit: "",
+        features: {
+          selfHosted: true,
+          publicSignup: false,
+          helperPairing: true,
+          saveValidation: true,
+          runtimeModules: true,
+          cloudMultiTenant: false
+        },
+        warnings: ["Authentication is disabled. Keep this instance on a trusted LAN or protect it behind your own reverse proxy."]
+      }
     });
   });
 
@@ -52,6 +73,7 @@ describe("AppLayout", () => {
     expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Devices" })).toBeInTheDocument();
     expect(screen.getByText("My Saves content")).toBeInTheDocument();
+    expect(await screen.findByText("LAN-only mode")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Add helper" })).toBeInTheDocument();
   });
 

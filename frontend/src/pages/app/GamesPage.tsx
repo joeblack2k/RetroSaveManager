@@ -10,7 +10,8 @@ import { buildSaveDetailsHref, buildSaveRows, type SaveRow } from "../../utils/s
 export function GamesPage(): JSX.Element {
   const loader = useCallback(() => listSaves(), []);
   const { loading, error, data } = useAsyncData(loader, []);
-  const rows = useMemo<SaveRow[]>(() => buildSaveRows(data ?? []), [data]);
+  const saves = data?.saves ?? [];
+  const rows = useMemo<SaveRow[]>(() => buildSaveRows(saves), [saves]);
 
   return (
     <SectionCard title="Games & saves" subtitle="Canonieke save-lijst per game uit de compat API.">

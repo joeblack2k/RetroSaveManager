@@ -386,6 +386,14 @@ export type SaveSummary = {
   metadata: unknown;
 };
 
+export type SaveListResponse = {
+  success: boolean;
+  saves: SaveSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type SaveHistorySummary = {
   displayTitle: string;
   system: SaveSystem | null;
@@ -396,6 +404,24 @@ export type SaveHistorySummary = {
   totalSizeBytes: number;
   latestVersion: number;
   latestCreatedAt: string;
+};
+
+export type RuntimeConfig = {
+  appName: string;
+  authMode: string;
+  authEnabled: boolean;
+  baseUrl: string;
+  version: string;
+  commit: string;
+  features: {
+    selfHosted: boolean;
+    publicSignup: boolean;
+    helperPairing: boolean;
+    saveValidation: boolean;
+    runtimeModules: boolean;
+    cloudMultiTenant: boolean;
+  };
+  warnings: string[];
 };
 
 export type SaveHistoryResponse = {

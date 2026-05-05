@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -110,6 +111,106 @@ func TestContractSaveLatestMissingAndSuccessShape(t *testing.T) {
 	}
 	if mustString(t, successBody["id"], "id") == "" {
 		t.Fatalf("expected non-empty save id")
+	}
+}
+
+func TestContractSaveLatestFallsBackToCanonicalTrackContext(t *testing.T) {
+	h := newContractHarness(t)
+
+	upload := uploadSave(t, h, "/saves", map[string]string{
+		"rom_sha1": "pokemon-cloud-rom",
+		"slotName": "default",
+		"system":   "gameboy",
+	}, "Pokemon Noise Loop.srm", buildNonBlankPayload(8192, 0x23))
+	saveObj := mustObject(t, upload["save"], "save")
+	wantID := mustString(t, saveObj["id"], "save.id")
+	wantSHA := mustString(t, saveObj["sha256"], "save.sha256")
+
+	withoutContext := h.request(http.MethodGet, "/save/latest?romSha1=pokemon-local-rom&slotName=default", nil)
+	assertStatus(t, withoutContext, http.StatusOK)
+	withoutBody := decodeJSONMap(t, withoutContext.Body)
+	if mustBool(t, withoutBody["exists"], "exists") {
+		t.Fatalf("expected exact latest miss without track context: %s", prettyJSON(withoutBody))
+	}
+
+	query := url.Values{}
+	query.Set("romSha1", "pokemon-local-rom")
+	query.Set("slotName", "default")
+	query.Set("filename", "Pokemon Noise Loop.srm")
+	query.Set("system", "gameboy")
+	withContext := h.request(http.MethodGet, "/save/latest?"+query.Encode(), nil)
+	assertStatus(t, withContext, http.StatusOK)
+	withBody := decodeJSONMap(t, withContext.Body)
+	if !mustBool(t, withBody["exists"], "exists") {
+		t.Fatalf("expected latest fallback hit with track context: %s", prettyJSON(withBody))
+	}
+	if got := mustString(t, withBody["id"], "id"); got != wantID {
+		t.Fatalf("expected fallback id %q, got %q", wantID, got)
+	}
+	if got := mustString(t, withBody["sha256"], "sha256"); got != wantSHA {
+		t.Fatalf("expected fallback sha %q, got %q", wantSHA, got)
+	}
+	if indexed, ok := h.app.findSaveRecordByID(wantID); !ok || indexed.Summary.SHA256 != wantSHA {
+		t.Fatalf("expected indexed lookup to match uploaded save, got ok=%v record=%+v", ok, indexed.Summary)
+	}
+}
+
+func TestContractRuntimeConfigShapeAndAuthMode(t *testing.T) {
+	t.Setenv("AUTH_MODE", "disabled")
+	t.Setenv("RSM_VERSION", "test-version")
+	t.Setenv("RSM_COMMIT", "test-commit")
+	h := newContractHarness(t)
+
+	rr := h.request(http.MethodGet, "/api/runtime-config", nil)
+	assertStatus(t, rr, http.StatusOK)
+	assertJSONContentType(t, rr)
+
+	body := decodeJSONMap(t, rr.Body)
+	if !mustBool(t, body["success"], "success") {
+		t.Fatalf("expected success=true")
+	}
+	runtime := mustObject(t, body["runtime"], "runtime")
+	if mustString(t, runtime["appName"], "runtime.appName") != "RetroSaveManager" {
+		t.Fatalf("unexpected app name: %s", prettyJSON(runtime))
+	}
+	if got := mustString(t, runtime["authMode"], "runtime.authMode"); got != "disabled" {
+		t.Fatalf("unexpected auth mode %q", got)
+	}
+	if mustBool(t, runtime["authEnabled"], "runtime.authEnabled") {
+		t.Fatalf("expected authEnabled=false when AUTH_MODE=disabled")
+	}
+	if got := mustString(t, runtime["version"], "runtime.version"); got != "test-version" {
+		t.Fatalf("unexpected version %q", got)
+	}
+	if got := mustString(t, runtime["commit"], "runtime.commit"); got != "test-commit" {
+		t.Fatalf("unexpected commit %q", got)
+	}
+	features := mustObject(t, runtime["features"], "runtime.features")
+	if !mustBool(t, features["selfHosted"], "features.selfHosted") {
+		t.Fatalf("expected selfHosted feature")
+	}
+	if mustBool(t, features["publicSignup"], "features.publicSignup") {
+		t.Fatalf("public signup should be disabled for self-host release")
+	}
+	warnings := mustArray(t, runtime["warnings"], "runtime.warnings")
+	if len(warnings) == 0 {
+		t.Fatalf("expected LAN-only warning when auth is disabled")
+	}
+}
+
+func TestContractRuntimeConfigAuthEnabled(t *testing.T) {
+	t.Setenv("AUTH_MODE", "enabled")
+	h := newContractHarness(t)
+
+	rr := h.request(http.MethodGet, "/runtime-config", nil)
+	assertStatus(t, rr, http.StatusOK)
+	body := decodeJSONMap(t, rr.Body)
+	runtime := mustObject(t, body["runtime"], "runtime")
+	if got := mustString(t, runtime["authMode"], "runtime.authMode"); got != "enabled" {
+		t.Fatalf("unexpected auth mode %q", got)
+	}
+	if !mustBool(t, runtime["authEnabled"], "runtime.authEnabled") {
+		t.Fatalf("expected authEnabled=true when AUTH_MODE=enabled")
 	}
 }
 

@@ -87,6 +87,24 @@ func latestReadableSaveRecord(records []saveRecord, romSHA1, slotName string) (s
 	return latest, found
 }
 
+func latestReadableSaveRecordByTrackContext(records []saveRecord, filename, systemSlug, displayTitle, regionCode string) (saveRecord, bool) {
+	cleanFilename := strings.TrimSpace(filename)
+	if cleanFilename == "" || strings.TrimSpace(systemSlug) == "" {
+		return saveRecord{}, false
+	}
+	input := saveCreateInput{
+		Filename:     cleanFilename,
+		SystemSlug:   systemSlug,
+		DisplayTitle: displayTitle,
+		RegionCode:   regionCode,
+	}
+	trackKey := canonicalDuplicateTrackKeyForInput(input, cleanFilename)
+	if trackKey == "" {
+		return saveRecord{}, false
+	}
+	return latestSaveRecordForKey(records, trackKey, canonicalDuplicateTrackKeyForRecord)
+}
+
 func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
@@ -147,7 +165,16 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	latest, ok := latestReadableSaveRecord(a.snapshotSaveRecords(), romSHA1, slotName)
+	latest, ok := a.latestReadableSaveRecord(romSHA1, slotName)
+	if !ok {
+		query := r.URL.Query()
+		latest, ok = a.latestReadableSaveRecordByTrackContext(
+			query.Get("filename"),
+			query.Get("system"),
+			query.Get("displayTitle"),
+			query.Get("regionCode"),
+		)
+	}
 	if ok {
 		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(latest)) {
 			writeJSON(w, http.StatusOK, map[string]any{
@@ -763,12 +790,12 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 		end = len(filtered)
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true,
-		"saves":   filtered[offset:end],
-		"total":   len(filtered),
-		"limit":   limit,
-		"offset":  offset,
+	writeJSON(w, http.StatusOK, saveListResponse{
+		Success: true,
+		Saves:   filtered[offset:end],
+		Total:   len(filtered),
+		Limit:   limit,
+		Offset:  offset,
 	})
 }
 
@@ -1527,6 +1554,9 @@ func (a *app) findSaveRecordByID(saveID string) (saveRecord, bool) {
 	targetID := strings.TrimSpace(saveID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if record, ok := a.saveIndex.recordByID(targetID); ok {
+		return record, true
+	}
 	for _, record := range a.saveRecords {
 		if record.Summary.ID == targetID {
 			return record, true
@@ -1536,16 +1566,20 @@ func (a *app) findSaveRecordByID(saveID string) (saveRecord, bool) {
 }
 
 func (a *app) saveRecordsByIDs(ids []string) []saveRecord {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if selected := a.saveIndex.recordsByIDs(ids); len(selected) > 0 {
+		return selected
+	}
+
 	idSet := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
 		if clean := strings.TrimSpace(id); clean != "" {
 			idSet[clean] = struct{}{}
 		}
 	}
-
-	records := a.snapshotSaveRecords()
 	selected := make([]saveRecord, 0, len(idSet))
-	for _, record := range records {
+	for _, record := range a.saveRecords {
 		if _, ok := idSet[record.Summary.ID]; ok {
 			selected = append(selected, record)
 		}
@@ -1557,6 +1591,28 @@ func (a *app) saveRecordsByIDs(ids []string) []saveRecord {
 		return selected[i].Summary.CreatedAt.After(selected[j].Summary.CreatedAt)
 	})
 	return selected
+}
+
+func (a *app) latestReadableSaveRecord(romSHA1, slotName string) (saveRecord, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if record, ok := a.saveIndex.latestReadableByROMSlot(romSHA1, slotName); ok {
+		if saveRecordPayloadExists(record) {
+			return record, true
+		}
+	}
+	return latestReadableSaveRecord(a.saveRecords, romSHA1, slotName)
+}
+
+func (a *app) latestReadableSaveRecordByTrackContext(filename, systemSlug, displayTitle, regionCode string) (saveRecord, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if record, ok := a.saveIndex.latestReadableByTrackContext(filename, systemSlug, displayTitle, regionCode); ok {
+		if saveRecordPayloadExists(record) {
+			return record, true
+		}
+	}
+	return latestReadableSaveRecordByTrackContext(a.saveRecords, filename, systemSlug, displayTitle, regionCode)
 }
 
 func (a *app) deleteSaveRecordsByIDs(ids []string) (int, bool, error) {

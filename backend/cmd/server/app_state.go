@@ -58,6 +58,7 @@ type app struct {
 	playStationStore            *playStationStore
 	n64ControllerPakStoreRef    *n64ControllerPakStore
 	saveRecords                 []saveRecord
+	saveIndex                   saveRecordIndex
 	enricher                    *gameEnricher
 	conflicts                   map[string]conflictRecord
 	syncLogs                    []syncLogRecord
@@ -315,6 +316,7 @@ func (a *app) createSave(input saveCreateInput) (saveRecord, error) {
 	a.mu.Lock()
 	a.saveRecords = append([]saveRecord{record}, a.saveRecords...)
 	a.saves = append([]saveSummary{record.Summary}, a.saves...)
+	a.saveIndex = buildSaveRecordIndex(a.saveRecords)
 	a.mu.Unlock()
 	return record, nil
 }
@@ -342,6 +344,7 @@ func (a *app) reloadSavesFromDisk() error {
 	a.mu.Lock()
 	a.saveRecords = records
 	a.saves = summaries
+	a.saveIndex = buildSaveRecordIndex(records)
 	a.mu.Unlock()
 	return nil
 }
@@ -361,6 +364,9 @@ func conflictKey(romSHA1, slotName string) string {
 func (a *app) latestSaveRecord(romSHA1, slotName string) (saveRecord, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if record, ok := a.saveIndex.latestByROMSlot(romSHA1, slotName); ok {
+		return record, true
+	}
 	return latestSaveRecordLocked(a.saveRecords, romSHA1, slotName)
 }
 

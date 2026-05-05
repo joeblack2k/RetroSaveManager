@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { SectionCard } from "../../components/SectionCard";
 import { login } from "../../services/retrosaveApi";
 import { isFrontendAuthRequired, markFrontendAuthSession } from "../../services/authSession";
@@ -57,12 +57,6 @@ export function LoginPage(): JSX.Element {
           <button className="btn btn-primary" type="submit" disabled={loading}>
             {loading ? "Bezig..." : "Login"}
           </button>
-          <Link className="btn btn-ghost" to="/forgot-password">
-            Wachtwoord vergeten
-          </Link>
-          <Link className="btn btn-ghost" to="/signup">
-            Signup
-          </Link>
         </div>
       </form>
       {message ? <p className="success-state">{message}</p> : null}

@@ -23,6 +23,7 @@ func registerAgentRoutes(r chi.Router, app *app, prefix string) {
 }
 
 func mountAgentRoutes(r chi.Router, app *app) {
+	r.Get("/runtime-config", app.handleRuntimeConfig)
 	r.Get("/overview", app.handleAgentOverview)
 	r.Get("/sync/status", app.handleAgentSyncStatus)
 	r.Get("/systems", app.handleAgentSystems)

@@ -20,6 +20,8 @@ import type {
   ReferralInfo,
   RoadmapItem,
   RoadmapSuggestion,
+  RuntimeConfig,
+  SaveListResponse,
   SaveSystem,
   SaveHistoryResponse,
   SaveCheatResponse,
@@ -75,9 +77,14 @@ export async function getCurrentUser(): Promise<AuthUser> {
   return response.user;
 }
 
-export async function listSaves(): Promise<SaveSummary[]> {
-  const response = await apiFetchJSON<{ saves: SaveSummary[] }>("/saves?limit=100&offset=0");
-  return response.saves;
+export function getRuntimeConfig(): Promise<{ success: boolean; runtime: RuntimeConfig }> {
+  return apiFetchJSON<{ success: boolean; runtime: RuntimeConfig }>("/api/runtime-config");
+}
+
+export async function listSaves(params: { limit?: number; offset?: number } = {}): Promise<SaveListResponse> {
+  const limit = params.limit && params.limit > 0 ? params.limit : 100;
+  const offset = params.offset && params.offset > 0 ? params.offset : 0;
+  return apiFetchJSON<SaveListResponse>(`/saves?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`);
 }
 
 export function uploadSaveFile(params: {

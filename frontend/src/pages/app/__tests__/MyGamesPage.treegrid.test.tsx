@@ -75,7 +75,7 @@ function titlesForGroup(container: HTMLElement, groupKey: string): string[] {
 
 describe("MyGamesPage TreeGrid", () => {
   beforeEach(() => {
-    vi.mocked(retrosaveApi.listSaves).mockResolvedValue([
+    const saves = [
       makeSave({
         id: "ps-save-2",
         title: "Resident Evil 2",
@@ -110,7 +110,14 @@ describe("MyGamesPage TreeGrid", () => {
         createdAt: "2026-04-19T08:00:00Z",
         cheats: { supported: true, availableCount: 4, editorId: "sm64-eeprom" }
       })
-    ]);
+    ];
+    vi.mocked(retrosaveApi.listSaves).mockResolvedValue({
+      success: true,
+      saves,
+      total: saves.length,
+      limit: 100,
+      offset: 0
+    });
     vi.mocked(retrosaveApi.getSaveHistory).mockResolvedValue({
       success: true,
       game: null,
@@ -335,6 +342,7 @@ describe("MyGamesPage TreeGrid", () => {
     expect(await screen.findByRole("heading", { name: "Upload Save" })).toBeInTheDocument();
     const file = new File([new Uint8Array([1, 2, 3, 4])], "data.bin", { type: "application/octet-stream" });
     fireEvent.change(screen.getByLabelText(/save file or zip/i), { target: { files: [file] } });
+    fireEvent.click(screen.getByText("Advanced metadata"));
     fireEvent.change(screen.getByLabelText(/^system$/i), { target: { value: "wii" } });
     fireEvent.change(screen.getByLabelText(/wii title code/i), { target: { value: "SB4P" } });
 

@@ -1,20 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { AlertTriangle, Database, FileWarning, KeyRound, ListChecks, LogOut, MonitorSmartphone, ScrollText, Settings, Wand2 } from "lucide-react";
 import { clearFrontendAuthSession, isFrontendAuthRequired } from "../../services/authSession";
-import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus } from "../../services/retrosaveApi";
+import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus, getRuntimeConfig } from "../../services/retrosaveApi";
+import type { RuntimeConfig } from "../../services/types";
 
-const appNav: Array<{ label: string; to: string }> = [
-  { label: "My Saves", to: "/app/my-games" },
-  { label: "Cheats", to: "/app/cheats" },
-  { label: "Validation", to: "/app/validation" },
-  { label: "Logs", to: "/app/logs" },
-  { label: "Devices", to: "/app/devices" },
-  { label: "Settings", to: "/app/settings" }
+const appNav: Array<{ label: string; to: string; icon: typeof Database }> = [
+  { label: "My Saves", to: "/app/my-games", icon: Database },
+  { label: "Cheats", to: "/app/cheats", icon: Wand2 },
+  { label: "Validation", to: "/app/validation", icon: ListChecks },
+  { label: "Logs", to: "/app/logs", icon: ScrollText },
+  { label: "Devices", to: "/app/devices", icon: MonitorSmartphone },
+  { label: "Settings", to: "/app/settings", icon: Settings }
 ];
 
 export function AppLayout(): JSX.Element {
   const navigate = useNavigate();
   const authRequired = isFrontendAuthRequired();
+  const [runtime, setRuntime] = useState<RuntimeConfig | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRuntime(): Promise<void> {
+      try {
+        const response = await getRuntimeConfig();
+        if (!cancelled) {
+          setRuntime(response.runtime);
+        }
+      } catch {
+        if (!cancelled) {
+          setRuntime(null);
+        }
+      }
+    }
+    void loadRuntime();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleLogout(): void {
     clearFrontendAuthSession();
@@ -25,21 +48,26 @@ export function AppLayout(): JSX.Element {
     <div className="app-shell">
       <aside className="app-sidebar">
         <Link to="/" className="sidebar-brand" aria-label="RetroSaveManager home" title="RetroSaveManager">
-          <span className="sidebar-brand__heading">Storage</span>
+          <span className="sidebar-brand__heading">RetroSaveManager</span>
+          <span className="sidebar-brand__subheading">Self-hosted save sync</span>
         </Link>
 
         <nav className="side-nav" aria-label="App">
-          {appNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              title={item.label}
-              aria-label={item.label}
-              className={({ isActive }) => (isActive ? "side-nav__link side-nav__link--active" : "side-nav__link")}
-            >
-              <span className="side-nav__label">{item.label}</span>
-            </NavLink>
-          ))}
+          {appNav.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                title={item.label}
+                aria-label={item.label}
+                className={({ isActive }) => (isActive ? "side-nav__link side-nav__link--active" : "side-nav__link")}
+              >
+                <Icon aria-hidden="true" />
+                <span className="side-nav__label">{item.label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
 
         <SidebarHelperPanel />
@@ -49,6 +77,7 @@ export function AppLayout(): JSX.Element {
         {authRequired ? (
           <footer className="sidebar-user">
             <button className="sidebar-logout" type="button" aria-label="Log out" title="Log out" onClick={handleLogout}>
+              <LogOut aria-hidden="true" />
               Log out
             </button>
           </footer>
@@ -56,9 +85,26 @@ export function AppLayout(): JSX.Element {
       </aside>
 
       <main className="app-main">
+        <RuntimeWarning runtime={runtime} />
         <Outlet />
       </main>
     </div>
+  );
+}
+
+function RuntimeWarning({ runtime }: { runtime: RuntimeConfig | null }): JSX.Element | null {
+  const warning = runtime?.warnings?.[0];
+  if (!warning) {
+    return null;
+  }
+  return (
+    <section className="runtime-warning" role="status" aria-live="polite">
+      <AlertTriangle aria-hidden="true" />
+      <div>
+        <strong>LAN-only mode</strong>
+        <span>{warning}</span>
+      </div>
+    </section>
   );
 }
 
@@ -153,6 +199,7 @@ function SidebarHelperPanel(): JSX.Element {
             onClick={() => void handleActivate()}
             disabled={loading || activating}
           >
+            {activating ? <FileWarning aria-hidden="true" /> : <KeyRound aria-hidden="true" />}
             {activating ? "Opening..." : "Add helper"}
           </button>
         )}

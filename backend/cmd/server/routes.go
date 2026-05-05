@@ -59,6 +59,7 @@ func registerCompatRoutes(r chi.Router, app *app, prefix string) {
 
 func mountCompatRoutes(r chi.Router, app *app) {
 	r.Get("/stripe/status", handleUnsupportedBillingAlias)
+	r.Get("/runtime-config", app.handleRuntimeConfig)
 
 	r.Post("/auth/login", app.handleAuthLogin)
 	r.Post("/auth/signup", app.handleAuthSignup)

@@ -25,6 +25,39 @@ type apiError struct {
 	StatusCode int    `json:"statusCode"`
 }
 
+type runtimeConfigResponse struct {
+	Success bool          `json:"success"`
+	Runtime runtimeConfig `json:"runtime"`
+}
+
+type runtimeConfig struct {
+	AppName     string                `json:"appName"`
+	AuthMode    string                `json:"authMode"`
+	AuthEnabled bool                  `json:"authEnabled"`
+	BaseURL     string                `json:"baseUrl"`
+	Version     string                `json:"version"`
+	Commit      string                `json:"commit"`
+	Features    runtimeConfigFeatures `json:"features"`
+	Warnings    []string              `json:"warnings"`
+}
+
+type runtimeConfigFeatures struct {
+	SelfHosted       bool `json:"selfHosted"`
+	PublicSignup     bool `json:"publicSignup"`
+	HelperPairing    bool `json:"helperPairing"`
+	SaveValidation   bool `json:"saveValidation"`
+	RuntimeModules   bool `json:"runtimeModules"`
+	CloudMultiTenant bool `json:"cloudMultiTenant"`
+}
+
+type saveListResponse struct {
+	Success bool          `json:"success"`
+	Saves   []saveSummary `json:"saves"`
+	Total   int           `json:"total"`
+	Limit   int           `json:"limit"`
+	Offset  int           `json:"offset"`
+}
+
 type lookupQuery struct {
 	Type  string          `json:"type"`
 	Value json.RawMessage `json:"value"`

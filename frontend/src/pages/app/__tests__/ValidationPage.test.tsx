@@ -69,7 +69,6 @@ describe("ValidationPage", () => {
   });
 
   it("renders validation counts and can trigger a rescan", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<ValidationPage />);
 
     expect(await screen.findByText("Validation")).toBeInTheDocument();
@@ -93,6 +92,8 @@ describe("ValidationPage", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByText(/existing cloud save versions are not touched/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete file" }));
     await waitFor(() => {
       expect(deleteQuarantineItem).toHaveBeenCalledWith("q1");
     });

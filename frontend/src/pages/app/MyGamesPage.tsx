@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { ErrorState, LoadingState } from "../../components/LoadState";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import {
@@ -13,57 +13,34 @@ import {
   rollbackSave,
   uploadSaveFile
 } from "../../services/retrosaveApi";
-import type { SaveCheatEditorState, SaveCheatField, SaveSummary, SaveUploadPreviewItem } from "../../services/types";
-import { formatBytes, formatDate } from "../../utils/format";
+import type { SaveCheatEditorState, SaveCheatField, SaveDownloadProfile, SaveSummary, SaveUploadPreviewItem } from "../../services/types";
+import { formatBytes } from "../../utils/format";
 import {
-  buildSaveDownloadHref,
-  buildSaveDetailsHref,
   buildSaveRows,
   sortSaveRows,
-  systemBadgeForSlug,
   type SaveRow,
   type SaveSortDirection,
   type SaveSortKey
 } from "../../utils/saveRows";
-import type { SaveDownloadProfile } from "../../services/types";
-
-type ConsoleGroup = {
-  key: string;
-  name: string;
-  rows: SaveRow[];
-  saveCount: number;
-  totalBytes: number;
-};
+import { CheatEditorDialog } from "./my-games/CheatEditorDialog";
+import { DownloadSaveDialog } from "./my-games/DownloadSaveDialog";
+import { MyGamesLibraryTable } from "./my-games/MyGamesLibraryTable";
+import { SaveVersionSelectorDialog } from "./my-games/SaveVersionSelectorDialog";
+import { UploadSaveDialog } from "./my-games/UploadSaveDialog";
+import { defaultCheatSlotId, defaultDirectionFor, pluralize, sanitizeCheatDraftValue } from "./my-games/helpers";
+import type { ConsoleGroup, DownloadModalState, SaveSelectorState } from "./my-games/types";
 
 const DEFAULT_SORT: { key: SaveSortKey; direction: SaveSortDirection } = {
   key: "date",
   direction: "desc"
 };
 
-const SORTABLE_COLUMNS: Array<{ key: SaveSortKey; label: string; align?: "left" | "center" }> = [
-  { key: "game", label: "Gamename" },
-  { key: "region", label: "Region", align: "center" },
-  { key: "saves", label: "Saves" },
-  { key: "latest", label: "Latest" },
-  { key: "total", label: "Total" },
-  { key: "date", label: "Date" }
-];
-
-type SaveSelectorState = {
-  row: SaveRow;
-  displayTitle: string;
-  versions: SaveSummary[];
-};
-
-type DownloadModalState = {
-  title: string;
-  request: { saveId: string; psLogicalKey?: string; revisionId?: string };
-  profiles: SaveDownloadProfile[];
-};
+const SAVE_PAGE_SIZE = 100;
 
 export function MyGamesPage(): JSX.Element {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingKeys, setDeletingKeys] = useState<string[]>([]);
+  const [pendingDeleteRow, setPendingDeleteRow] = useState<SaveRow | null>(null);
   const [sortKey, setSortKey] = useState<SaveSortKey>(DEFAULT_SORT.key);
   const [sortDirection, setSortDirection] = useState<SaveSortDirection>(DEFAULT_SORT.direction);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
@@ -92,12 +69,15 @@ export function MyGamesPage(): JSX.Element {
   const [cheatApplying, setCheatApplying] = useState(false);
   const [cheatSelectedSlot, setCheatSelectedSlot] = useState("");
   const [cheatPendingUpdates, setCheatPendingUpdates] = useState<Record<string, unknown>>({});
+  const [saveLimit, setSaveLimit] = useState(SAVE_PAGE_SIZE);
 
-  const loader = useCallback(async () => listSaves(), []);
+  const loader = useCallback(async () => listSaves({ limit: saveLimit, offset: 0 }), [saveLimit]);
 
-  const { loading, error, data, reload } = useAsyncData(loader, []);
+  const { loading, error, data, reload } = useAsyncData(loader, [saveLimit]);
 
-  const rows = useMemo<SaveRow[]>(() => buildSaveRows(data ?? []), [data]);
+  const loadedSaves = data?.saves ?? [];
+  const totalAvailableSaves = data?.total ?? loadedSaves.length;
+  const rows = useMemo<SaveRow[]>(() => buildSaveRows(loadedSaves), [loadedSaves]);
 
   const consoleGroups = useMemo<ConsoleGroup[]>(() => {
     const grouped = new Map<string, ConsoleGroup>();
@@ -163,7 +143,7 @@ export function MyGamesPage(): JSX.Element {
   }, [consoleGroups]);
 
   useEffect(() => {
-    if (!selectorState && !cheatRow && !downloadState && !uploadOpen) {
+    if (!selectorState && !cheatRow && !downloadState && !uploadOpen && !pendingDeleteRow) {
       return;
     }
 
@@ -173,16 +153,23 @@ export function MyGamesPage(): JSX.Element {
         closeCheatModal();
         closeDownloadModal();
         closeUploadModal();
+        setPendingDeleteRow(null);
       }
     }
 
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [selectorState, cheatRow, downloadState, uploadOpen]);
+  }, [selectorState, cheatRow, downloadState, uploadOpen, pendingDeleteRow]);
 
   const totalSaveCount = useMemo(() => rows.reduce((sum, row) => sum + row.saveCount, 0), [rows]);
   const totalBytes = useMemo(() => rows.reduce((sum, row) => sum + row.totalBytes, 0), [rows]);
-  const summaryText = `${consoleGroups.length} ${pluralize(consoleGroups.length, "system", "systems")} · ${rows.length} ${pluralize(rows.length, "game", "games")} · ${totalSaveCount} ${pluralize(totalSaveCount, "save", "saves")} · ${formatBytes(totalBytes)} total`;
+  const loadingMore = loading && loadedSaves.length > 0;
+  const hasMoreSaves = loadedSaves.length < totalAvailableSaves;
+  const loadedText =
+    totalAvailableSaves > loadedSaves.length
+      ? ` · showing ${loadedSaves.length} of ${totalAvailableSaves} library rows`
+      : "";
+  const summaryText = `${consoleGroups.length} ${pluralize(consoleGroups.length, "system", "systems")} · ${rows.length} ${pluralize(rows.length, "game", "games")} · ${totalSaveCount} ${pluralize(totalSaveCount, "save", "saves")} · ${formatBytes(totalBytes)} total${loadedText}`;
 
   const cheatCurrentValues = useMemo<Record<string, unknown>>(() => {
     if (!cheatData) {
@@ -196,12 +183,6 @@ export function MyGamesPage(): JSX.Element {
   }, [cheatData, cheatSelectedSlot]);
 
   async function handleDeleteRow(row: SaveRow): Promise<void> {
-    const saveLabel = row.saveCount === 1 ? "save" : "saves";
-    const confirmed = window.confirm(`Are you sure?\n\nThis will permanently delete ${row.saveCount} ${saveLabel} for "${row.gameName}".`);
-    if (!confirmed) {
-      return;
-    }
-
     setDeleteError(null);
     setDeletingKeys((current) => (current.includes(row.key) ? current : [...current, row.key]));
     try {
@@ -215,6 +196,7 @@ export function MyGamesPage(): JSX.Element {
       setDeleteError(err instanceof Error ? err.message : "Delete failed.");
     } finally {
       setDeletingKeys((current) => current.filter((key) => key !== row.key));
+      setPendingDeleteRow(null);
     }
   }
 
@@ -491,7 +473,7 @@ export function MyGamesPage(): JSX.Element {
     }
   }
 
-  if (loading) {
+  if (loading && loadedSaves.length === 0) {
     return <LoadingState label="Loading My Saves..." />;
   }
 
@@ -512,882 +494,131 @@ export function MyGamesPage(): JSX.Element {
       </header>
 
       {deleteError ? <p className="error-state">{deleteError}</p> : null}
+      {loadingMore ? <p className="treegrid-panel__status">Refreshing save library...</p> : null}
       {rows.length === 0 ? <p className="treegrid-panel__empty">No saves found.</p> : null}
 
       {rows.length > 0 ? (
-        <div className="treegrid-table-wrap">
-          <table className="treegrid-table" role="treegrid" aria-label="My Saves">
-            <thead>
-              <tr>
-                {SORTABLE_COLUMNS.map((column) => (
-                  <th key={column.key} className={column.align === "center" ? "treegrid-table__align-center" : undefined}>
-                    <button
-                      className="treegrid-sort"
-                      type="button"
-                      onClick={() => handleSort(column.key)}
-                      aria-label={`Sort by ${column.label}`}
-                    >
-                      <span>{column.label}</span>
-                      <span className={`treegrid-sort__icon${sortKey === column.key ? " treegrid-sort__icon--active" : ""}`} aria-hidden="true">
-                        {sortKey === column.key ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}
-                      </span>
-                    </button>
-                  </th>
-                ))}
-                <th>Cheats</th>
-                <th>Details</th>
-                <th>Download</th>
-                <th>Delete</th>
-              </tr>
-            </thead>
+        <MyGamesLibraryTable
+          consoleGroups={consoleGroups}
+          expandedGroups={expandedGroups}
+          deletingKeys={deletingKeys}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onToggleGroup={toggleGroup}
+          onSort={handleSort}
+          onOpenSaveSelector={(row) => void handleOpenSaveSelector(row)}
+          onOpenCheats={(row) => void handleOpenCheats(row)}
+          onOpenDownload={openDownloadModal}
+          onRequestDelete={setPendingDeleteRow}
+        />
+      ) : null}
 
-            {consoleGroups.map((group) => {
-              const expanded = expandedGroups[group.key] ?? false;
-              const folderMeta = `${group.rows.length} ${pluralize(group.rows.length, "game", "games")} · ${group.saveCount} ${pluralize(group.saveCount, "save", "saves")}`;
-              return (
-                <tbody key={group.key} className="treegrid-group-body">
-                  <tr className="treegrid-group-row" aria-expanded={expanded}>
-                    <td colSpan={10}>
-                      <button
-                        className="treegrid-group-toggle"
-                        type="button"
-                        onClick={() => toggleGroup(group.key)}
-                        aria-expanded={expanded}
-                        aria-label={`${expanded ? "Collapse" : "Expand"} ${group.name}`}
-                      >
-                        <span className="treegrid-group-toggle__icon" aria-hidden="true">
-                          <ChevronIcon expanded={expanded} />
-                        </span>
-                        <FolderIcon />
-                        <span className="treegrid-group-toggle__title">{group.name}</span>
-                        <span className="treegrid-group-toggle__meta">{folderMeta}</span>
-                      </button>
-                    </td>
-                  </tr>
+      {hasMoreSaves ? (
+        <footer className="treegrid-pagination" aria-label="Save library pagination">
+          <span>
+            Showing {loadedSaves.length} of {totalAvailableSaves}
+          </span>
+          <button
+            className="treegrid-select-button"
+            type="button"
+            disabled={loading}
+            onClick={() => setSaveLimit((current) => current + SAVE_PAGE_SIZE)}
+          >
+            {loading ? "Loading..." : "Load more"}
+          </button>
+        </footer>
+      ) : null}
 
-                  {expanded
-                    ? group.rows.map((row) => {
-                        const isDeleting = deletingKeys.includes(row.key);
-                        const detailsHref = buildSaveDetailsHref(row);
-                        const platformBadge = systemBadgeForSlug(row.systemSlug);
-                        return (
-                          <tr key={row.key} className="treegrid-child-row" data-treegrid-group={group.key} data-treegrid-node="child">
-                            <td data-treegrid-cell="game">
-                              <div className="treegrid-game-cell treegrid-game-cell--child">
-                                <span className="treegrid-platform-badge" aria-hidden="true" title={platformBadge.title}>
-                                  <SystemGlyph systemSlug={row.systemSlug} fallbackLabel={platformBadge.label} />
-                                </span>
-                                <span className="treegrid-game-title">{row.gameName}</span>
-                              </div>
-                            </td>
-                            <td className="treegrid-table__align-center">
-                              <span className="treegrid-region" title={row.regionCode}>
-                                <span className="treegrid-region__flag" aria-hidden="true">{row.regionFlag}</span>
-                                <span>{displayRegionCode(row.regionCode)}</span>
-                              </span>
-                            </td>
-                            <td>
-                              {row.saveCount > 1 ? (
-                                <button
-                                  className="treegrid-save-trigger"
-                                  type="button"
-                                  onClick={() => void handleOpenSaveSelector(row)}
-                                  aria-label={`Select sync save for ${row.gameName}`}
-                                  title={`Select sync save for ${row.gameName}`}
-                                >
-                                  {formatCountLabel(row.saveCount, "save", "saves")}
-                                </button>
-                              ) : (
-                                <span>{formatCountLabel(row.saveCount, "save", "saves")}</span>
-                              )}
-                            </td>
-                            <td>{formatBytes(row.latestSizeBytes)}</td>
-                            <td>{formatBytes(row.totalBytes)}</td>
-                            <td>{formatCompactDate(row.latestCreatedAt)}</td>
-                            <td>
-                              {row.cheatsSupported && row.cheatAvailableCount > 0 ? (
-                                <button
-                                  className="treegrid-cheat-trigger"
-                                  type="button"
-                                  onClick={() => void handleOpenCheats(row)}
-                                  aria-label={`Edit cheats for ${row.gameName}`}
-                                  title={`Edit cheats for ${row.gameName}`}
-                                >
-                                  <CheatIcon />
-                                  <span>{formatCountLabel(row.cheatAvailableCount, "cheat", "cheats")}</span>
-                                </button>
-                              ) : (
-                                <span className="treegrid-empty-cell" aria-hidden="true">-</span>
-                              )}
-                            </td>
-                            <td>
-                              <Link
-                                className="treegrid-icon-button"
-                                to={detailsHref}
-                                aria-label={`View details for ${row.gameName}`}
-                                title={`View details for ${row.gameName}`}
-                              >
-                                <DetailsIcon />
-                              </Link>
-                            </td>
-                            <td>
-                              <button
-                                className="treegrid-icon-button treegrid-icon-button--download"
-                                type="button"
-                                onClick={() => openDownloadModal(row.gameName, row.downloadRequest, row.downloadProfiles)}
-                                aria-label={`Download ${row.gameName}`}
-                                title={`Download ${row.gameName}`}
-                              >
-                                <DownloadIcon />
-                              </button>
-                            </td>
-                            <td>
-                              <button
-                                className="treegrid-icon-button treegrid-icon-button--danger"
-                                type="button"
-                                onClick={() => void handleDeleteRow(row)}
-                                disabled={isDeleting}
-                                aria-label={`Delete ${row.gameName}`}
-                                title={`Delete ${row.gameName}`}
-                              >
-                                <DeleteIcon />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    : null}
-                </tbody>
-              );
-            })}
-          </table>
-        </div>
+      {pendingDeleteRow ? (
+        <ConfirmDialog
+          title="Delete saves permanently?"
+          message={`This will permanently delete ${pendingDeleteRow.saveCount} ${pluralize(pendingDeleteRow.saveCount, "save", "saves")} for "${pendingDeleteRow.gameName}" from this server.`}
+          confirmLabel="Delete saves"
+          danger
+          busy={deletingKeys.includes(pendingDeleteRow.key)}
+          onConfirm={() => void handleDeleteRow(pendingDeleteRow)}
+          onCancel={() => setPendingDeleteRow(null)}
+        />
       ) : null}
 
       {uploadOpen ? (
-        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeUploadModal}>
-          <section
-            className="treegrid-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="treegrid-upload-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="treegrid-modal__header">
-              <div>
-                <h2 id="treegrid-upload-title">Upload Save</h2>
-                <p>Preview first, then import only validated saves. Rejected files are quarantined for review.</p>
-              </div>
-              <button className="treegrid-modal__close" type="button" onClick={closeUploadModal} aria-label="Close upload">
-                Close
-              </button>
-            </header>
-
-            <form className="treegrid-upload-form" onSubmit={(event) => void handleUploadSubmit(event)}>
-              <div className="treegrid-upload-grid">
-                <label className="treegrid-upload-field treegrid-upload-field--wide">
-                  <span>Save file or zip</span>
-                  <input
-                    type="file"
-                    accept=".zip,.bin,.sav,.srm,.sa1,.ram,.rtc,.gme,.eep,.sra,.fla,.mpk,.cpk,.mcr,.mcd,.mc,.ps2,.vms,.dci,.bkr,.bcr,.bup,.brm,.eeprom,.nvram"
-                    onChange={(event) => {
-                      setUploadFile(event.target.files?.[0] ?? null);
-                      resetUploadPreview();
-                    }}
-                  />
-                </label>
-                <label className="treegrid-upload-field">
-                  <span>System</span>
-                  <select
-                    value={uploadSystem}
-                    onChange={(event) => {
-                      setUploadSystem(event.target.value);
-                      setUploadRuntimeProfile("");
-                      resetUploadPreview();
-                    }}
-                  >
-                    <option value="">Auto-detect when possible</option>
-                    <option value="wii">Nintendo Wii</option>
-                    <option value="n64">Nintendo 64</option>
-                    <option value="snes">Super Nintendo</option>
-                    <option value="nes">Nintendo Entertainment System</option>
-                    <option value="gba">Game Boy Advance</option>
-                    <option value="gameboy">Game Boy</option>
-                    <option value="pc-engine">PC Engine / TurboGrafx-16</option>
-                    <option value="atari-lynx">Atari Lynx</option>
-                    <option value="wonderswan">WonderSwan</option>
-                    <option value="genesis">Genesis / Mega Drive</option>
-                    <option value="master-system">Master System</option>
-                    <option value="game-gear">Game Gear</option>
-                    <option value="sega-cd">Sega CD / Mega-CD</option>
-                    <option value="sega-32x">Sega 32X</option>
-                    <option value="sg-1000">SG-1000</option>
-                    <option value="dreamcast">Dreamcast</option>
-                    <option value="saturn">Saturn</option>
-                    <option value="neogeo">Neo Geo</option>
-                    <option value="colecovision">ColecoVision</option>
-                    <option value="atari-jaguar">Atari Jaguar</option>
-                    <option value="3do">3DO</option>
-                    <option value="psx">PlayStation</option>
-                    <option value="ps2">PlayStation 2</option>
-                  </select>
-                </label>
-                <label className="treegrid-upload-field">
-                  <span>Runtime profile</span>
-                  <select
-                    value={uploadRuntimeProfile}
-                    onChange={(event) => {
-                      setUploadRuntimeProfile(event.target.value);
-                      resetUploadPreview();
-                    }}
-                  >
-                    <option value="">Original / backend default</option>
-                    {runtimeProfileOptionsForSystem(uploadSystem).map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="treegrid-upload-field">
-                  <span>Slot name</span>
-                  <input
-                    type="text"
-                    value={uploadSlotName}
-                    onChange={(event) => {
-                      setUploadSlotName(event.target.value);
-                      resetUploadPreview();
-                    }}
-                    placeholder="default"
-                  />
-                </label>
-                <label className="treegrid-upload-field">
-                  <span>ROM SHA1</span>
-                  <input
-                    type="text"
-                    value={uploadRomSha1}
-                    onChange={(event) => {
-                      setUploadRomSha1(event.target.value);
-                      resetUploadPreview();
-                    }}
-                    placeholder="optional but recommended"
-                  />
-                </label>
-                <label className="treegrid-upload-field">
-                  <span>Wii title code</span>
-                  <input
-                    type="text"
-                    value={uploadWiiTitleId}
-                    onChange={(event) => {
-                      setUploadWiiTitleId(event.target.value.toUpperCase());
-                      resetUploadPreview();
-                    }}
-                    placeholder="SB4P"
-                    maxLength={4}
-                  />
-                </label>
-              </div>
-
-              <p className="treegrid-upload-hint">
-                Wii zip uploads can contain <code>private/wii/title/SB4P/data.bin</code> or <code>SB4P/data.bin</code>. Raw Wii <code>data.bin</code> uploads should include the title code.
-              </p>
-              {uploadError ? <p className="error-state">{uploadError}</p> : null}
-              {uploadResult ? <p className="treegrid-modal__status">{uploadResult}</p> : null}
-              {uploadPreviewItems ? <UploadPreviewTable items={uploadPreviewItems} /> : null}
-
-              <footer className="treegrid-upload-actions">
-                <button className="treegrid-select-button treegrid-select-button--ghost" type="button" disabled={uploadPreviewBusy || uploadBusy} onClick={() => void handleUploadPreview()}>
-                  {uploadPreviewBusy ? "Previewing..." : "Preview"}
-                </button>
-                <button className="treegrid-select-button" type="submit" disabled={uploadBusy || uploadPreviewBusy || !uploadPreviewItems || uploadPreviewItems.every((item) => !item.accepted)}>
-                  {uploadBusy ? "Importing..." : "Import Accepted"}
-                </button>
-              </footer>
-            </form>
-          </section>
-        </div>
+        <UploadSaveDialog
+          uploadSystem={uploadSystem}
+          uploadSlotName={uploadSlotName}
+          uploadRomSha1={uploadRomSha1}
+          uploadWiiTitleId={uploadWiiTitleId}
+          uploadRuntimeProfile={uploadRuntimeProfile}
+          uploadPreviewItems={uploadPreviewItems}
+          uploadPreviewBusy={uploadPreviewBusy}
+          uploadBusy={uploadBusy}
+          uploadError={uploadError}
+          uploadResult={uploadResult}
+          onClose={closeUploadModal}
+          onSubmit={(event) => void handleUploadSubmit(event)}
+          onPreview={() => void handleUploadPreview()}
+          onFileChange={(file) => {
+            setUploadFile(file);
+            resetUploadPreview();
+          }}
+          onSystemChange={(value) => {
+            setUploadSystem(value);
+            setUploadRuntimeProfile("");
+            resetUploadPreview();
+          }}
+          onRuntimeProfileChange={(value) => {
+            setUploadRuntimeProfile(value);
+            resetUploadPreview();
+          }}
+          onSlotNameChange={(value) => {
+            setUploadSlotName(value);
+            resetUploadPreview();
+          }}
+          onRomSha1Change={(value) => {
+            setUploadRomSha1(value);
+            resetUploadPreview();
+          }}
+          onWiiTitleIdChange={(value) => {
+            setUploadWiiTitleId(value);
+            resetUploadPreview();
+          }}
+        />
       ) : null}
 
-      {downloadState ? (
-        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeDownloadModal}>
-          <section
-            className="treegrid-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="treegrid-download-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="treegrid-modal__header">
-              <div>
-                <h2 id="treegrid-download-title">Download Save</h2>
-                <p>{downloadState.title}</p>
-              </div>
-              <button className="treegrid-modal__close" type="button" onClick={closeDownloadModal} aria-label="Close download options">
-                Close
-              </button>
-            </header>
-
-            <div className="treegrid-modal__body">
-              <table className="treegrid-modal-table">
-                <thead>
-                  <tr>
-                    <th>Profile</th>
-                    <th>Extension</th>
-                    <th>Notes</th>
-                    <th>Download</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {downloadState.profiles.map((profile) => (
-                    <tr key={profile.id}>
-                      <td>{profile.label}</td>
-                      <td>{profile.targetExtension || "-"}</td>
-                      <td>{profile.note || "-"}</td>
-                      <td>
-                        <a
-                          className="saves-action-link"
-                          href={buildSaveDownloadHref(downloadState.request, profile.id !== "original" ? profile.id : undefined)}
-                        >
-                          Download
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      {downloadState ? <DownloadSaveDialog state={downloadState} onClose={closeDownloadModal} /> : null}
 
       {selectorState ? (
-        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeSaveSelector}>
-          <section
-            className="treegrid-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="treegrid-sync-save-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="treegrid-modal__header">
-              <div>
-                <h2 id="treegrid-sync-save-title">Select Sync Save</h2>
-                <p>{selectorState.displayTitle}</p>
-              </div>
-              <button className="treegrid-modal__close" type="button" onClick={closeSaveSelector} aria-label="Close save selector">
-                Close
-              </button>
-            </header>
-
-            <div className="treegrid-modal__body">
-              {selectorError ? <p className="error-state">{selectorError}</p> : null}
-              {selectorLoading ? <p className="treegrid-modal__status">Loading save history...</p> : null}
-              {!selectorLoading && selectorState.versions.length === 0 ? <p className="treegrid-modal__status">No save history found.</p> : null}
-
-              {!selectorLoading && selectorState.versions.length > 0 ? (
-                <table className="treegrid-modal-table">
-                  <thead>
-                    <tr>
-                      <th>Version</th>
-                      <th>Date</th>
-                      <th>Size</th>
-                      <th>Status</th>
-                      <th>Select</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectorState.versions.map((version, index) => {
-                      const isCurrent = version.id === selectorState.row.primarySaveID || (selectorState.row.primarySaveID === "" && index === 0);
-                      const isBusy = selectingVersionID === version.id;
-                      return (
-                        <tr key={version.id}>
-                          <td>v{version.version}</td>
-                          <td>{formatCompactDate(version.createdAt)}</td>
-                          <td>{formatBytes(version.fileSize)}</td>
-                          <td>{isCurrent ? <span className="treegrid-current-pill">Current Sync Save</span> : <span>Available</span>}</td>
-                          <td>
-                            <button
-                              className="treegrid-select-button"
-                              type="button"
-                              disabled={isCurrent || isBusy}
-                              onClick={() => void handleSelectSyncSave(version)}
-                              aria-label={`Select version ${version.version} for sync`}
-                            >
-                              {isCurrent ? "Current" : isBusy ? "Selecting..." : "Select"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : null}
-            </div>
-          </section>
-        </div>
+        <SaveVersionSelectorDialog
+          state={selectorState}
+          loading={selectorLoading}
+          error={selectorError}
+          selectingVersionID={selectingVersionID}
+          onClose={closeSaveSelector}
+          onSelect={(version) => void handleSelectSyncSave(version)}
+        />
       ) : null}
 
       {cheatRow ? (
-        <div className="treegrid-modal-backdrop" role="presentation" onClick={closeCheatModal}>
-          <section
-            className="treegrid-modal treegrid-modal--wide"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="treegrid-cheat-title"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <header className="treegrid-modal__header">
-              <div>
-                <h2 id="treegrid-cheat-title">Cheat Editor</h2>
-                <p>{cheatDisplayTitle || cheatRow.gameName}</p>
-              </div>
-              <button className="treegrid-modal__close" type="button" onClick={closeCheatModal} aria-label="Close cheat editor">
-                Close
-              </button>
-            </header>
-
-            <div className="treegrid-modal__body treegrid-cheat-body">
-              {cheatError ? <p className="error-state">{cheatError}</p> : null}
-              {cheatLoading ? <p className="treegrid-modal__status">Loading cheat options...</p> : null}
-              {!cheatLoading && cheatData && !cheatData.supported ? <p className="treegrid-modal__status">No safe cheat editor is available for this save.</p> : null}
-
-              {!cheatLoading && cheatData?.supported ? (
-                <>
-                  {cheatData.selector?.options && cheatData.selector.options.length > 0 ? (
-                    <label className="treegrid-cheat-slot-picker">
-                      <span>{cheatData.selector.label}</span>
-                      <select value={cheatSelectedSlot || defaultCheatSlotId(cheatData)} onChange={(event) => {
-                        setCheatSelectedSlot(event.target.value);
-                        setCheatPendingUpdates({});
-                      }}>
-                        {cheatData.selector.options.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
-
-                  {cheatData.presets && cheatData.presets.length > 0 ? (
-                    <div className="treegrid-cheat-presets">
-                      <p className="treegrid-cheat-presets__label">Presets</p>
-                      <div className="treegrid-cheat-presets__actions">
-                        {cheatData.presets.map((preset) => (
-                          <button
-                            key={preset.id}
-                            className="treegrid-cheat-preset"
-                            type="button"
-                            onClick={() => handleApplyPreset(preset.updates)}
-                            title={preset.description || preset.label}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                        {Object.keys(cheatPendingUpdates).length > 0 ? (
-                          <button className="treegrid-cheat-preset treegrid-cheat-preset--ghost" type="button" onClick={() => setCheatPendingUpdates({})}>
-                            Reset Draft
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="treegrid-cheat-sections">
-                    {cheatData.sections?.map((section) => (
-                      <section key={section.id} className="treegrid-cheat-section">
-                        <header className="treegrid-cheat-section__header">
-                          <h3>{section.title}</h3>
-                        </header>
-                        <div className="treegrid-cheat-fields">
-                          {section.fields.map((field) => {
-                            const currentValue = cheatPendingUpdates[field.id] ?? cheatCurrentValues[field.id];
-                            return (
-                              <div key={field.id} className="treegrid-cheat-field">
-                                {renderCheatField(field, currentValue, handleCheatFieldChange)}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    ))}
-                  </div>
-
-                  <footer className="treegrid-cheat-actions">
-                    <button className="treegrid-select-button" type="button" onClick={handleApplyCheats} disabled={cheatApplying}>
-                      {cheatApplying ? "Applying..." : "Apply Cheats"}
-                    </button>
-                  </footer>
-                </>
-              ) : null}
-            </div>
-          </section>
-        </div>
+        <CheatEditorDialog
+          row={cheatRow}
+          displayTitle={cheatDisplayTitle}
+          data={cheatData}
+          loading={cheatLoading}
+          error={cheatError}
+          applying={cheatApplying}
+          selectedSlot={cheatSelectedSlot}
+          pendingUpdates={cheatPendingUpdates}
+          currentValues={cheatCurrentValues}
+          onClose={closeCheatModal}
+          onSlotChange={(slotId) => {
+            setCheatSelectedSlot(slotId);
+            setCheatPendingUpdates({});
+          }}
+          onResetDraft={() => setCheatPendingUpdates({})}
+          onApplyPreset={handleApplyPreset}
+          onFieldChange={handleCheatFieldChange}
+          onApply={handleApplyCheats}
+        />
       ) : null}
     </section>
-  );
-}
-
-function UploadPreviewTable({ items }: { items: SaveUploadPreviewItem[] }): JSX.Element {
-  return (
-    <div className="treegrid-upload-preview" aria-label="Upload validation preview">
-      <table className="treegrid-modal-table">
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Save</th>
-            <th>System</th>
-            <th>Validation</th>
-            <th>Size</th>
-            <th>Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={`${item.sourcePath || item.filename}:${item.sha256}`} className={item.accepted ? "treegrid-preview-row--accepted" : "treegrid-preview-row--rejected"}>
-              <td>
-                <span className={item.accepted ? "treegrid-preview-pill treegrid-preview-pill--ok" : "treegrid-preview-pill treegrid-preview-pill--bad"}>
-                  {item.accepted ? "Accepted" : "Rejected"}
-                </span>
-              </td>
-              <td>
-                <strong>{item.displayTitle || item.filename}</strong>
-                <small>{item.sourcePath || item.filename}</small>
-              </td>
-              <td>{item.systemName || item.systemSlug || "Unknown"}</td>
-              <td>{item.trustLevel || item.parserLevel || "media-verified"}</td>
-              <td>{formatBytes(item.sizeBytes)}</td>
-              <td>{item.reason || item.warnings?.[0] || "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function renderCheatField(
-  field: SaveCheatField,
-  currentValue: unknown,
-  onChange: (field: SaveCheatField, value: unknown) => void
-): JSX.Element {
-  switch (field.type) {
-    case "boolean": {
-      const checked = Boolean(currentValue);
-      return (
-        <label className="treegrid-cheat-toggle">
-          <input type="checkbox" checked={checked} onChange={(event) => onChange(field, event.target.checked)} />
-          <span>{field.label}</span>
-        </label>
-      );
-    }
-    case "integer": {
-      const value = typeof currentValue === "number" ? currentValue : 0;
-      return (
-        <label className="treegrid-cheat-input">
-          <span>{field.label}</span>
-          <input
-            type="number"
-            min={field.min}
-            max={field.max}
-            step={field.step ?? 1}
-            value={value}
-            onChange={(event) => onChange(field, Number(event.target.value || 0))}
-          />
-        </label>
-      );
-    }
-    case "enum": {
-      const value = typeof currentValue === "string" ? currentValue : field.options?.[0]?.id ?? "";
-      return (
-        <label className="treegrid-cheat-input">
-          <span>{field.label}</span>
-          <select value={value} onChange={(event) => onChange(field, event.target.value)}>
-            {(field.options ?? []).map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      );
-    }
-    case "bitmask": {
-      const selected = Array.isArray(currentValue) ? currentValue.filter((item): item is string => typeof item === "string") : [];
-      return (
-        <fieldset className="treegrid-cheat-bitmask">
-          <legend>{field.label}</legend>
-          <div className="treegrid-cheat-bitmask__options">
-            {(field.bits ?? []).map((bit) => {
-              const checked = selected.includes(bit.id);
-              return (
-                <label key={bit.id} className="treegrid-cheat-toggle treegrid-cheat-toggle--compact">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(event) => {
-                      const next = event.target.checked
-                        ? [...selected, bit.id]
-                        : selected.filter((item) => item !== bit.id);
-                      onChange(field, next);
-                    }}
-                  />
-                  <span>{bit.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
-      );
-    }
-    default:
-      return (
-        <div className="treegrid-cheat-unsupported">
-          <strong>{field.label}</strong>
-          <span>Unsupported field type: {field.type}</span>
-        </div>
-      );
-  }
-}
-
-function defaultCheatSlotId(data: SaveCheatEditorState | null): string {
-  return data?.selector?.options?.[0]?.id ?? "";
-}
-
-function sanitizeCheatDraftValue(field: SaveCheatField, value: unknown): unknown {
-  switch (field.type) {
-    case "integer":
-      return typeof value === "number" && Number.isFinite(value) ? value : 0;
-    case "bitmask":
-      return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-    case "boolean":
-      return Boolean(value);
-    default:
-      return value;
-  }
-}
-
-function pluralize(value: number, singular: string, plural: string): string {
-  return value === 1 ? singular : plural;
-}
-
-function formatCountLabel(value: number, singular: string, plural: string): string {
-  return `${value} ${pluralize(value, singular, plural)}`;
-}
-
-function displayRegionCode(regionCode: string): string {
-  return regionCode === "UNKNOWN" ? "Other" : regionCode;
-}
-
-function formatCompactDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return formatDate(iso);
-  }
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
-}
-
-function defaultDirectionFor(sortKey: SaveSortKey): SaveSortDirection {
-  switch (sortKey) {
-    case "game":
-    case "region":
-      return "asc";
-    default:
-      return "desc";
-  }
-}
-
-const RUNTIME_PROFILE_OPTIONS: Array<{ system: string; value: string; label: string }> = [
-  { system: "n64", value: "n64/mister", label: "MiSTer N64" },
-  { system: "n64", value: "n64/retroarch", label: "RetroArch N64" },
-  { system: "n64", value: "n64/project64", label: "Project64" },
-  { system: "n64", value: "n64/mupen-family", label: "Mupen/RMG" },
-  { system: "n64", value: "n64/everdrive", label: "EverDrive" },
-  { system: "snes", value: "snes/snes9x", label: "Snes9x" },
-  { system: "snes", value: "snes/bsnes", label: "bsnes" },
-  { system: "snes", value: "snes/retroarch-snes9x", label: "RetroArch Snes9x" },
-  { system: "snes", value: "snes/mesen2", label: "Mesen 2" },
-  { system: "snes", value: "snes/higan", label: "higan" },
-  { system: "nes", value: "nes/mesen2", label: "Mesen 2" },
-  { system: "nes", value: "nes/fceux", label: "FCEUX" },
-  { system: "nes", value: "nes/nestopia-ue", label: "Nestopia UE" },
-  { system: "nes", value: "nes/punes", label: "puNES" },
-  { system: "nes", value: "nes/retroarch-nestopia", label: "RetroArch Nestopia" },
-  { system: "nes", value: "nes/retroarch-fceumm", label: "RetroArch FCEUmm" },
-  { system: "gba", value: "gba/mgba", label: "mGBA" },
-  { system: "gba", value: "gba/vba-m", label: "VBA-M" },
-  { system: "gba", value: "gba/nocashgba", label: "No$GBA" },
-  { system: "gba", value: "gba/skyemu", label: "SkyEmu" },
-  { system: "gba", value: "gba/retroarch-mgba", label: "RetroArch mGBA" },
-  { system: "gba", value: "gba/retroarch-vbam", label: "RetroArch VBA-M" },
-  { system: "genesis", value: "genesis/genesis-plus-gx", label: "Genesis Plus GX" },
-  { system: "genesis", value: "genesis/picodrive", label: "PicoDrive" },
-  { system: "genesis", value: "genesis/blastem", label: "BlastEm" },
-  { system: "genesis", value: "genesis/retroarch-genesis-plus-gx", label: "RetroArch Genesis Plus GX" },
-  { system: "genesis", value: "genesis/retroarch-picodrive", label: "RetroArch PicoDrive" },
-  { system: "sega-cd", value: "sega-cd/genesis-plus-gx", label: "Genesis Plus GX" },
-  { system: "sega-cd", value: "sega-cd/picodrive", label: "PicoDrive" },
-  { system: "sega-cd", value: "sega-cd/retroarch-genesis-plus-gx", label: "RetroArch Genesis Plus GX" },
-  { system: "sega-cd", value: "sega-cd/retroarch-picodrive", label: "RetroArch PicoDrive" },
-  { system: "sega-32x", value: "sega-32x/picodrive", label: "PicoDrive" },
-  { system: "sega-32x", value: "sega-32x/genesis-plus-gx", label: "Genesis Plus GX" },
-  { system: "sega-32x", value: "sega-32x/retroarch-picodrive", label: "RetroArch PicoDrive" },
-  { system: "master-system", value: "sms/genesis-plus-gx", label: "Genesis Plus GX SMS" },
-  { system: "master-system", value: "sms/emulicious", label: "Emulicious" },
-  { system: "master-system", value: "sms/meka", label: "MEKA" },
-  { system: "master-system", value: "sms/retroarch-gearsystem", label: "RetroArch Gearsystem" },
-  { system: "game-gear", value: "gamegear/gearsystem", label: "Gearsystem" },
-  { system: "game-gear", value: "gamegear/emulicious", label: "Emulicious" },
-  { system: "game-gear", value: "gamegear/genesis-plus-gx", label: "Genesis Plus GX" },
-  { system: "game-gear", value: "gamegear/retroarch-gearsystem", label: "RetroArch Gearsystem" },
-  { system: "pc-engine", value: "pc-engine/mister", label: "MiSTer PC Engine" },
-  { system: "pc-engine", value: "pc-engine/mednafen", label: "Mednafen" },
-  { system: "pc-engine", value: "pc-engine/retroarch-beetle-pce", label: "RetroArch Beetle PCE" },
-  { system: "pc-engine", value: "pc-engine/mesen2", label: "Mesen 2" },
-  { system: "atari-lynx", value: "atari-lynx/handy", label: "Handy" },
-  { system: "atari-lynx", value: "atari-lynx/mednafen", label: "Mednafen" },
-  { system: "atari-lynx", value: "atari-lynx/retroarch-handy", label: "RetroArch Handy" },
-  { system: "wonderswan", value: "wonderswan/mednafen", label: "Mednafen" },
-  { system: "wonderswan", value: "wonderswan/ares", label: "ares" },
-  { system: "wonderswan", value: "wonderswan/retroarch-beetle-wswan", label: "RetroArch Beetle WonderSwan" },
-  { system: "sg-1000", value: "sg-1000/emulicious", label: "Emulicious" },
-  { system: "sg-1000", value: "sg-1000/gearsystem", label: "Gearsystem" },
-  { system: "sg-1000", value: "sg-1000/genesis-plus-gx", label: "Genesis Plus GX" },
-  { system: "colecovision", value: "colecovision/blue-msx", label: "blueMSX" },
-  { system: "colecovision", value: "colecovision/gearcoleco", label: "Gearcoleco" },
-  { system: "colecovision", value: "colecovision/mame", label: "MAME" },
-  { system: "atari-jaguar", value: "atari-jaguar/bigpemu", label: "BigPEmu" },
-  { system: "atari-jaguar", value: "atari-jaguar/virtual-jaguar", label: "Virtual Jaguar" },
-  { system: "atari-jaguar", value: "atari-jaguar/retroarch-virtual-jaguar", label: "RetroArch Virtual Jaguar" },
-  { system: "3do", value: "3do/opera", label: "Opera" },
-  { system: "3do", value: "3do/phoenix", label: "Phoenix" },
-  { system: "3do", value: "3do/4do", label: "4DO" },
-  { system: "dreamcast", value: "dreamcast/flycast", label: "Flycast" },
-  { system: "dreamcast", value: "dreamcast/redream", label: "Redream" },
-  { system: "dreamcast", value: "dreamcast/mister", label: "MiSTer Dreamcast" },
-  { system: "dreamcast", value: "dreamcast/retroarch-flycast", label: "RetroArch Flycast" },
-  { system: "saturn", value: "saturn/mister", label: "MiSTer Saturn" },
-  { system: "saturn", value: "saturn/mednafen", label: "Mednafen" },
-  { system: "saturn", value: "saturn/yabasanshiro", label: "YabaSanshiro" },
-  { system: "psx", value: "psx/mister", label: "MiSTer PSX" },
-  { system: "psx", value: "psx/retroarch", label: "RetroArch PSX" },
-  { system: "ps2", value: "ps2/pcsx2", label: "PCSX2" }
-];
-
-function runtimeProfileOptionsForSystem(systemSlug: string): Array<{ value: string; label: string }> {
-  const slug = systemSlug.trim();
-  if (!slug) {
-    return RUNTIME_PROFILE_OPTIONS.map(({ value, label }) => ({ value, label }));
-  }
-  return RUNTIME_PROFILE_OPTIONS.filter((option) => option.system === slug).map(({ value, label }) => ({ value, label }));
-}
-
-function FolderIcon(): JSX.Element {
-  return (
-    <svg className="treegrid-folder-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3.5 7.5a2 2 0 0 1 2-2h4l1.8 1.6H18.5a2 2 0 0 1 2 2v7.2a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ expanded }: { expanded: boolean }): JSX.Element {
-  return (
-    <svg className="treegrid-chevron-icon" viewBox="0 0 24 24" aria-hidden="true">
-      {expanded ? <path d="m6.5 9 5.5 5.5L17.5 9" /> : <path d="m9 6.5 5.5 5.5L9 17.5" />}
-    </svg>
-  );
-}
-
-function SystemGlyph({ systemSlug, fallbackLabel }: { systemSlug: string; fallbackLabel: string }): JSX.Element {
-  switch (systemSlug) {
-    case "psx":
-    case "ps2":
-    case "psp":
-    case "psvita":
-      return (
-        <svg className="treegrid-system-glyph" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M7 5.5h4.6c2.7 0 4.4 1.4 4.4 3.8 0 2.4-1.7 3.8-4.4 3.8H10v5.4H7z" />
-          <path d="M12.7 12.1c3 .5 5.1 1.5 5.1 3.2 0 2.1-2.5 3.2-5.8 3.2-2 0-3.8-.3-5.2-.9" />
-        </svg>
-      );
-    case "n64":
-    case "nds":
-    case "nes":
-    case "snes":
-    case "gameboy":
-    case "gba":
-    case "wii":
-    case "atari-lynx":
-    case "wonderswan":
-      return (
-        <svg className="treegrid-system-glyph" viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="4.5" y="6.5" width="15" height="11" rx="3" />
-          <path d="M9 12h3M10.5 10.5v3" />
-          <circle cx="15.5" cy="11" r="1" fill="currentColor" stroke="none" />
-          <circle cx="17.5" cy="13" r="1" fill="currentColor" stroke="none" />
-        </svg>
-      );
-    case "dreamcast":
-    case "game-gear":
-    case "genesis":
-    case "master-system":
-    case "pc-engine":
-    case "sega-32x":
-    case "sega-cd":
-    case "sg-1000":
-      return (
-        <svg className="treegrid-system-glyph" viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="5" y="7" width="14" height="10" rx="1" />
-          <path d="M7.5 10h9M7.5 13.5h6" />
-        </svg>
-      );
-    default:
-      return <span className="treegrid-platform-badge__label">{fallbackLabel}</span>;
-  }
-}
-
-function CheatIcon(): JSX.Element {
-  return (
-    <svg className="treegrid-inline-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 17.2 16.8 6.4" />
-      <path d="m14.9 5.2 3.9 3.9" />
-      <path d="M5.2 18.8 6 17.2l1.6-.8" />
-    </svg>
-  );
-}
-
-function DetailsIcon(): JSX.Element {
-  return (
-    <svg className="treegrid-inline-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.6" />
-      <path d="M12 10v5" />
-      <circle cx="12" cy="7.2" r="0.8" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function DownloadIcon(): JSX.Element {
-  return (
-    <svg className="treegrid-inline-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 4.5v9" />
-      <path d="m8.6 10.8 3.4 3.4 3.4-3.4" />
-      <rect x="5" y="16.5" width="14" height="3" rx="1" />
-    </svg>
-  );
-}
-
-function DeleteIcon(): JSX.Element {
-  return (
-    <svg className="treegrid-inline-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6.8 7.4h10.4" />
-      <path d="M9.2 7.4V5.5h5.6v1.9" />
-      <path d="M8.2 7.4v10.1a1 1 0 0 0 1 1h5.6a1 1 0 0 0 1-1V7.4" />
-    </svg>
   );
 }

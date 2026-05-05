@@ -138,4 +138,27 @@ describe("SettingsPage", () => {
     });
     expect(await screen.findByText("Module gb-module-game is disabled.")).toBeInTheDocument();
   });
+
+  it("uses in-app confirmation for destructive settings actions", async () => {
+    render(<SettingsPage />);
+
+    await screen.findByRole("heading", { name: "Game Support Modules" });
+    fireEvent.click(screen.getAllByText("Manage")[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByText(/parser and cheat support stop applying/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete module" }));
+
+    await waitFor(() => {
+      expect(retrosaveApi.deleteGameModule).toHaveBeenCalledWith("gb-module-game");
+    });
+
+    fireEvent.click(screen.getByText("Helper keys"));
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    expect(screen.getByText(/must receive a new key before it can sync again/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Revoke key" }));
+
+    await waitFor(() => {
+      expect(retrosaveApi.revokeAppPassword).toHaveBeenCalledWith("key-1");
+    });
+  });
 });
