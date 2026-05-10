@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { AlertTriangle, Database, FileWarning, KeyRound, ListChecks, LogOut, MonitorSmartphone, ScrollText, Settings, Wand2 } from "lucide-react";
+import { AlertTriangle, Database, FileWarning, Gamepad2, KeyRound, ListChecks, LogOut, MonitorSmartphone, ScrollText, Settings, Wand2 } from "lucide-react";
 import { clearFrontendAuthSession, isFrontendAuthRequired } from "../../services/authSession";
 import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus, getRuntimeConfig } from "../../services/retrosaveApi";
 import type { RuntimeConfig } from "../../services/types";
 
 const appNav: Array<{ label: string; to: string; icon: typeof Database }> = [
   { label: "My Saves", to: "/app/my-games", icon: Database },
+  { label: "Ports", to: "/app/ports", icon: Gamepad2 },
   { label: "Cheats", to: "/app/cheats", icon: Wand2 },
   { label: "Validation", to: "/app/validation", icon: ListChecks },
   { label: "Logs", to: "/app/logs", icon: ScrollText },
@@ -97,12 +98,16 @@ function RuntimeWarning({ runtime }: { runtime: RuntimeConfig | null }): JSX.Ele
   if (!warning) {
     return null;
   }
+  const displayWarning = warning.replace(
+    "Keep this instance on a trusted LAN or protect it behind your own reverse proxy.",
+    "Trusted LAN or reverse proxy required."
+  );
   return (
     <section className="runtime-warning" role="status" aria-live="polite">
       <AlertTriangle aria-hidden="true" />
       <div>
         <strong>LAN-only mode</strong>
-        <span>{warning}</span>
+        <span title={warning}>{displayWarning}</span>
       </div>
     </section>
   );

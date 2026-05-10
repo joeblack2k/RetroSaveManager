@@ -703,6 +703,7 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 	romSHA1 := strings.TrimSpace(r.URL.Query().Get("romSha1"))
 	romMD5 := strings.TrimSpace(r.URL.Query().Get("romMd5"))
 	systemID := parseIntOrDefault(r.URL.Query().Get("systemId"), 0)
+	systemSlug := canonicalOptionalSegment(firstNonEmpty(r.URL.Query().Get("systemSlug"), r.URL.Query().Get("system")))
 
 	records := a.snapshotSaveRecords()
 	filteredRecords := make([]saveRecord, 0, len(records))
@@ -717,6 +718,9 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 			if record.Summary.Game.System == nil || record.Summary.Game.System.ID != systemID {
 				continue
 			}
+		}
+		if systemSlug != "" && canonicalOptionalSegment(saveRecordSystemSlug(record)) != systemSlug {
+			continue
 		}
 		filteredRecords = append(filteredRecords, record)
 	}
@@ -782,8 +786,10 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 		summary.LatestVersion = summary.Version
 		filtered = append(filtered, summary)
 	}
-	if romMD5 == "" {
+	if romMD5 == "" && (systemSlug == "" || systemSlug == "psx" || systemSlug == "ps2") {
 		filtered = append(filtered, a.playStationLogicalListSummaries(systemID)...)
+	}
+	if romMD5 == "" && (systemSlug == "" || systemSlug == "n64") {
 		filtered = append(filtered, a.n64ControllerPakListSummaries(systemID, romSHA1)...)
 	}
 	sort.Slice(filtered, func(i, j int) bool {

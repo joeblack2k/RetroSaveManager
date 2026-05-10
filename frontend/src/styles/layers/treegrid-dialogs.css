@@ -1064,6 +1064,10 @@
   margin-top: 1px;
 }
 
+.runtime-warning > div {
+  min-width: 0;
+}
+
 .runtime-warning strong,
 .runtime-warning span {
   display: block;
@@ -1081,6 +1085,7 @@
   color: #e9d2a3;
   font-size: 12px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .treegrid-panel__status {

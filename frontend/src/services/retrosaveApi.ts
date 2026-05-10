@@ -81,10 +81,17 @@ export function getRuntimeConfig(): Promise<{ success: boolean; runtime: Runtime
   return apiFetchJSON<{ success: boolean; runtime: RuntimeConfig }>("/api/runtime-config");
 }
 
-export async function listSaves(params: { limit?: number; offset?: number } = {}): Promise<SaveListResponse> {
+export async function listSaves(params: { limit?: number; offset?: number; systemSlug?: string } = {}): Promise<SaveListResponse> {
   const limit = params.limit && params.limit > 0 ? params.limit : 100;
   const offset = params.offset && params.offset > 0 ? params.offset : 0;
-  return apiFetchJSON<SaveListResponse>(`/saves?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`);
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset)
+  });
+  if (params.systemSlug?.trim()) {
+    query.set("systemSlug", params.systemSlug.trim());
+  }
+  return apiFetchJSON<SaveListResponse>(`/saves?${query.toString()}`);
 }
 
 export function uploadSaveFile(params: {

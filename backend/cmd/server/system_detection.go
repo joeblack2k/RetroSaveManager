@@ -249,8 +249,10 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 	displayTitle := strings.TrimSpace(input.DisplayTitle)
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(filename)), ".")
 	payload := input.Payload
+	declaredSlug := canonicalOptionalSegment(input.DeclaredSystemSlug)
+	trustedNativePort := declaredSlug == nativePortSystemSlug && (input.TrustedHelperSystem || input.TrustedStoredSystem)
 
-	if noisy, reason := isLikelyNoiseFilename(filename); noisy {
+	if noisy, reason := isLikelyNoiseFilename(filename); noisy && !trustedNativePort {
 		return saveSystemDetectionResult{
 			Slug:       "unknown-system",
 			System:     nil,

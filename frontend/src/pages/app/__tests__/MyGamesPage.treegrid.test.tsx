@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MyGamesPage } from "../MyGamesPage";
@@ -59,10 +60,10 @@ function makeSave(overrides: Partial<SaveSummary> & { id: string; title: string;
   };
 }
 
-function renderPage(): ReturnType<typeof render> {
+function renderPage(props?: ComponentProps<typeof MyGamesPage>): ReturnType<typeof render> {
   return render(
     <MemoryRouter>
-      <MyGamesPage />
+      <MyGamesPage {...props} />
     </MemoryRouter>
   );
 }
@@ -249,6 +250,13 @@ describe("MyGamesPage TreeGrid", () => {
     fireEvent.click(screen.getByRole("button", { name: /expand super nintendo/i }));
 
     expect(await screen.findByText("Chrono Trigger")).toBeInTheDocument();
+  });
+
+  it("can render the dedicated Ports library route with backend-side filtering", async () => {
+    renderPage({ title: "Ports", systemSlugFilter: "ports", emptyLabel: "No native port saves found." });
+
+    expect(await screen.findByRole("heading", { name: "Ports" })).toBeInTheDocument();
+    expect(retrosaveApi.listSaves).toHaveBeenCalledWith({ limit: 100, offset: 0, systemSlug: "ports" });
   });
 
   it("sorts rows inside a console group and opens the download profile popup with the preserved PlayStation key", async () => {

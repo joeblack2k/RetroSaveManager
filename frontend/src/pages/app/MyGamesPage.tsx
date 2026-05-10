@@ -37,7 +37,13 @@ const DEFAULT_SORT: { key: SaveSortKey; direction: SaveSortDirection } = {
 
 const SAVE_PAGE_SIZE = 100;
 
-export function MyGamesPage(): JSX.Element {
+type MyGamesPageProps = {
+  title?: string;
+  systemSlugFilter?: string;
+  emptyLabel?: string;
+};
+
+export function MyGamesPage({ title = "My Saves", systemSlugFilter, emptyLabel = "No saves found." }: MyGamesPageProps = {}): JSX.Element {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingKeys, setDeletingKeys] = useState<string[]>([]);
   const [pendingDeleteRow, setPendingDeleteRow] = useState<SaveRow | null>(null);
@@ -71,9 +77,9 @@ export function MyGamesPage(): JSX.Element {
   const [cheatPendingUpdates, setCheatPendingUpdates] = useState<Record<string, unknown>>({});
   const [saveLimit, setSaveLimit] = useState(SAVE_PAGE_SIZE);
 
-  const loader = useCallback(async () => listSaves({ limit: saveLimit, offset: 0 }), [saveLimit]);
+  const loader = useCallback(async () => listSaves({ limit: saveLimit, offset: 0, systemSlug: systemSlugFilter }), [saveLimit, systemSlugFilter]);
 
-  const { loading, error, data, reload } = useAsyncData(loader, [saveLimit]);
+  const { loading, error, data, reload } = useAsyncData(loader, [saveLimit, systemSlugFilter]);
 
   const loadedSaves = data?.saves ?? [];
   const totalAvailableSaves = data?.total ?? loadedSaves.length;
@@ -474,7 +480,7 @@ export function MyGamesPage(): JSX.Element {
   }
 
   if (loading && loadedSaves.length === 0) {
-    return <LoadingState label="Loading My Saves..." />;
+    return <LoadingState label={`Loading ${title}...`} />;
   }
 
   if (error) {
@@ -485,7 +491,7 @@ export function MyGamesPage(): JSX.Element {
     <section className="treegrid-panel fade-in-up">
       <header className="treegrid-panel__header">
         <div>
-          <h1>My Saves</h1>
+          <h1>{title}</h1>
           <p>{summaryText}</p>
         </div>
         <button className="treegrid-header-action" type="button" onClick={openUploadModal}>
@@ -495,7 +501,7 @@ export function MyGamesPage(): JSX.Element {
 
       {deleteError ? <p className="error-state">{deleteError}</p> : null}
       {loadingMore ? <p className="treegrid-panel__status">Refreshing save library...</p> : null}
-      {rows.length === 0 ? <p className="treegrid-panel__empty">No saves found.</p> : null}
+      {rows.length === 0 ? <p className="treegrid-panel__empty">{emptyLabel}</p> : null}
 
       {rows.length > 0 ? (
         <MyGamesLibraryTable

@@ -88,6 +88,7 @@ export const appRouter = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/app/my-games" replace /> },
       { path: "my-games", element: <MyGamesPage /> },
+      { path: "ports", element: <MyGamesPage title="Ports" systemSlugFilter="ports" emptyLabel="No native port saves found." /> },
       { path: "cheats", element: <CheatsPage /> },
       { path: "validation", element: <ValidationPage /> },
       { path: "logs", element: <LogsPage /> },

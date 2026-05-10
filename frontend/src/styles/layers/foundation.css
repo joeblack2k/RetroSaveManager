@@ -24,9 +24,11 @@ html,
 body,
 #root {
   min-height: 100%;
+  background: #13151b;
 }
 
 body {
+  min-height: 100vh;
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -56,6 +58,7 @@ code {
   display: grid;
   grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app-sidebar {
