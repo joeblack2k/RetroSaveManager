@@ -237,6 +237,13 @@ type saveSummary struct {
 	Saturn                *saturnDetails      `json:"saturn,omitempty"`
 	Inspection            *saveInspection     `json:"inspection,omitempty"`
 	RuntimeProfile        string              `json:"runtimeProfile,omitempty"`
+	PortID                string              `json:"portId,omitempty"`
+	PortName              string              `json:"portName,omitempty"`
+	OriginSystemSlug      string              `json:"originSystemSlug,omitempty"`
+	PortSaveKind          string              `json:"portSaveKind,omitempty"`
+	RelativePath          string              `json:"relativePath,omitempty"`
+	RootRelativePath      string              `json:"rootRelativePath,omitempty"`
+	SlotID                string              `json:"slotId,omitempty"`
 	CardSlot              string              `json:"cardSlot,omitempty"`
 	ProjectionID          string              `json:"projectionId,omitempty"`
 	SourceImportID        string              `json:"sourceImportId,omitempty"`

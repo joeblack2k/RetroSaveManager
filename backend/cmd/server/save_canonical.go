@@ -13,6 +13,8 @@ type canonicalSaveTrack struct {
 	IsMemoryCard   bool
 	MemoryCardName string
 	RuntimeProfile string
+	PortID         string
+	SlotID         string
 }
 
 func canonicalSystemForSave(existing *system, fallbackSlug string) (string, *system) {
@@ -87,6 +89,14 @@ func canonicalTrackFromInput(input saveCreateInput) canonicalSaveTrack {
 		track.DisplayTitle = track.MemoryCardName
 		track.RuntimeProfile = strings.TrimSpace(input.RuntimeProfile)
 	}
+	if systemSlug == nativePortSystemSlug {
+		track.PortID = firstNonEmpty(canonicalOptionalSegment(input.PortID), canonicalOptionalSegment(strings.TrimPrefix(input.RuntimeProfile, "port/")))
+		track.SlotID = firstNonEmpty(canonicalOptionalSegment(input.SlotID), canonicalOptionalSegment(input.SlotName), "default")
+		if title := strings.TrimSpace(input.DisplayTitle); title != "" {
+			track.DisplayTitle = title
+		}
+		track.RuntimeProfile = strings.TrimSpace(input.RuntimeProfile)
+	}
 	return track
 }
 
@@ -111,6 +121,14 @@ func canonicalTrackFromSummary(summary saveSummary, fallbackSystemSlug string) c
 		track.IsMemoryCard = true
 		track.MemoryCardName = canonicalMemoryCardName(summary.MemoryCard, "", summary.Filename)
 		track.DisplayTitle = track.MemoryCardName
+		track.RuntimeProfile = strings.TrimSpace(summary.RuntimeProfile)
+	}
+	if systemSlug == nativePortSystemSlug {
+		track.PortID = firstNonEmpty(canonicalOptionalSegment(summary.PortID), canonicalOptionalSegment(strings.TrimPrefix(summary.RuntimeProfile, "port/")))
+		track.SlotID = firstNonEmpty(canonicalOptionalSegment(summary.SlotID), "default")
+		if title := strings.TrimSpace(summary.DisplayTitle); title != "" {
+			track.DisplayTitle = title
+		}
 		track.RuntimeProfile = strings.TrimSpace(summary.RuntimeProfile)
 	}
 	return track
@@ -141,12 +159,20 @@ func canonicalTrackKey(track canonicalSaveTrack) string {
 		}
 		return systemSlug + "::memory-card::" + cardName
 	}
+	if systemSlug == nativePortSystemSlug {
+		portID := canonicalSegment(track.PortID, "unknown-port")
+		slotID := canonicalSegment(track.SlotID, "default")
+		return systemSlug + "::" + portID + "::" + slotID
+	}
 	return systemSlug + "::" + canonicalTrackTitleKey(track.DisplayTitle) + "::" + normalizeRegionCode(track.RegionCode)
 }
 
 func canonicalGameSlugForTrack(track canonicalSaveTrack) string {
 	if track.IsMemoryCard {
 		return canonicalSegment(track.MemoryCardName, "memory-card")
+	}
+	if canonicalSegment(track.SystemSlug, "") == nativePortSystemSlug {
+		return canonicalSegment(firstNonEmpty(track.PortID, track.DisplayTitle), "unknown-port") + "-" + canonicalSegment(track.SlotID, "default")
 	}
 	return canonicalSegment(track.DisplayTitle, "unknown-game")
 }

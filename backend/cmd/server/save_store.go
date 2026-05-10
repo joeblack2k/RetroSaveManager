@@ -63,6 +63,13 @@ type saveCreateInput struct {
 	SourceArtifactProfile string
 	TrustedHelperSystem   bool
 	RuntimeProfile        string
+	PortID                string
+	PortName              string
+	OriginSystemSlug      string
+	PortSaveKind          string
+	RelativePath          string
+	RootRelativePath      string
+	SlotID                string
 	CardSlot              string
 	ProjectionID          string
 	SourceImportID        string
@@ -314,6 +321,13 @@ func (s *saveStore) create(input saveCreateInput) (saveRecord, error) {
 			ProjectionCapable:     input.ProjectionCapable,
 			SourceArtifactProfile: strings.TrimSpace(input.SourceArtifactProfile),
 			RuntimeProfile:        strings.TrimSpace(input.RuntimeProfile),
+			PortID:                strings.TrimSpace(input.PortID),
+			PortName:              strings.TrimSpace(input.PortName),
+			OriginSystemSlug:      strings.TrimSpace(input.OriginSystemSlug),
+			PortSaveKind:          strings.TrimSpace(input.PortSaveKind),
+			RelativePath:          strings.TrimSpace(input.RelativePath),
+			RootRelativePath:      strings.TrimSpace(input.RootRelativePath),
+			SlotID:                strings.TrimSpace(input.SlotID),
 			CardSlot:              strings.TrimSpace(input.CardSlot),
 			ProjectionID:          strings.TrimSpace(input.ProjectionID),
 			SourceImportID:        strings.TrimSpace(input.SourceImportID),

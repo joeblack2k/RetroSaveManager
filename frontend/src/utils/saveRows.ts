@@ -130,6 +130,7 @@ export function systemBadgeForSlug(systemSlug: string): { label: string; title: 
     nes: { label: "NES", title: "Nintendo Entertainment System" },
     psx: { label: "PS", title: "PlayStation" },
     ps2: { label: "PS2", title: "PlayStation 2" },
+    ports: { label: "PORT", title: "Native Ports" },
     psp: { label: "PSP", title: "PlayStation Portable" },
     psvita: { label: "VITA", title: "PlayStation Vita" },
     "pc-engine": { label: "PCE", title: "PC Engine / TurboGrafx-16" },
@@ -188,6 +189,8 @@ export function normalizeConsoleLabel(slug: string, name: string): { slug: strin
     playstation: { slug: "psx", name: "PlayStation" },
     ps2: { slug: "ps2", name: "PlayStation 2" },
     "playstation-2": { slug: "ps2", name: "PlayStation 2" },
+    ports: { slug: "ports", name: "Ports" },
+    "native-ports": { slug: "ports", name: "Ports" },
     psp: { slug: "psp", name: "PlayStation Portable" },
     psvita: { slug: "psvita", name: "PlayStation Vita" },
     snes: { slug: "snes", name: "Super Nintendo" },
@@ -395,7 +398,11 @@ function buildStandardSaveRow(save: SaveSummary, systemInfo: { slug: string; nam
   const logicalKey = (save.logicalKey || "").trim();
 
   return {
-    key: logicalKey !== "" ? `${systemInfo.slug}:${logicalKey}:${regionCode}` : `${systemInfo.slug}:${save.game.id}:${gameName}`,
+    key: logicalKey !== ""
+      ? `${systemInfo.slug}:${logicalKey}:${regionCode}`
+      : systemInfo.slug === "ports"
+        ? `${systemInfo.slug}:${save.portId || save.runtimeProfile || save.game.id}:${save.slotId || save.relativePath || gameName}`
+        : `${systemInfo.slug}:${save.game.id}:${gameName}`,
     primarySaveID: save.id,
     gameName,
     coverArtUrl: save.coverArtUrl || save.game.coverArtUrl || save.game.boxartThumb || save.game.boxart || null,

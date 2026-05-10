@@ -284,6 +284,14 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			declaredSystem = "wii"
 		}
 		runtimeProfile := requestedRuntimeProfileFromForm(formValue, declaredSystem)
+		portMeta, hasPortMeta := nativePortMetadataFromForm(formValue, runtimeProfile)
+		if declaredSystem == nativePortSystemSlug && hasPortMeta {
+			gameInfo.System = supportedSystemFromSlug(nativePortSystemSlug)
+			if strings.TrimSpace(portMeta.DisplayTitle) != "" {
+				gameInfo.Name = portMeta.DisplayTitle
+				gameInfo.DisplayTitle = portMeta.DisplayTitle
+			}
+		}
 		input := saveCreateInput{
 			Filename:            filename,
 			Payload:             payload,
@@ -297,6 +305,9 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			GameSlug:            canonicalSegment(gameInfo.Name, "unknown-game"),
 			TrustedHelperSystem: strings.TrimSpace(formValue("system")) != "",
 		}
+		if declaredSystem == nativePortSystemSlug && hasPortMeta {
+			input = applyNativePortInput(input, portMeta)
+		}
 		if helperCtx.IsHelper && isProjectionCapableSystem(declaredSystem) && declaredSystem != "psx" && declaredSystem != "ps2" {
 			if runtimeProfile == "" {
 				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper uploads", StatusCode: http.StatusBadRequest})
@@ -308,7 +319,7 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
 				return
 			}
-		} else if runtimeProfile != "" && !isProjectionCapableSystem(declaredSystem) {
+		} else if runtimeProfile != "" && !isProjectionCapableSystem(declaredSystem) && declaredSystem != nativePortSystemSlug {
 			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is only valid for projection-capable saves", StatusCode: http.StatusBadRequest})
 			return
 		}

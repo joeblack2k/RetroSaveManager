@@ -67,4 +67,36 @@ describe("saveRows", () => {
       "/saves/download?id=save-42&psLogicalKey=ps2%3A%3ABASLUS-21050%3A%3Aburnout+3%3A%3AUS&revisionId=rev-7&runtimeProfile=ps2%2Fpcsx2"
     );
   });
+
+  it("keeps native port slots as separate Ports rows", () => {
+    const basePort = makeSave({
+      systemSlug: "ports",
+      game: {
+        id: 900030,
+        name: "The Legend of Zelda: Ocarina of Time (Ship of Harkinian)",
+        displayTitle: "The Legend of Zelda: Ocarina of Time (Ship of Harkinian)",
+        regionCode: "UNKNOWN",
+        regionFlag: "unknown",
+        languageCodes: [],
+        coverArtUrl: undefined,
+        boxart: null,
+        boxartThumb: null,
+        hasParser: true,
+        system: { id: 900030, name: "Ports", slug: "ports", manufacturer: "Native Ports" }
+      },
+      displayTitle: "The Legend of Zelda: Ocarina of Time (Ship of Harkinian) - File 1",
+      portId: "ship-of-harkinian",
+      runtimeProfile: "port/ship-of-harkinian",
+      filename: "file1.sav",
+      format: "sav"
+    });
+
+    const rows = buildSaveRows([
+      { ...basePort, id: "save-file1", slotId: "file1", relativePath: "Save/file1.sav" },
+      { ...basePort, id: "save-global", displayTitle: "The Legend of Zelda: Ocarina of Time (Ship of Harkinian) - Global", slotId: "save-global", relativePath: "Save/global.sav" }
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.systemSlug === "ports")).toBe(true);
+  });
 });

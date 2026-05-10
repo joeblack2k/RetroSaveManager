@@ -129,7 +129,13 @@ const RUNTIME_PROFILE_OPTIONS: Array<{ system: string; value: string; label: str
   { system: "saturn", value: "saturn/yabasanshiro", label: "YabaSanshiro" },
   { system: "psx", value: "psx/mister", label: "MiSTer PSX" },
   { system: "psx", value: "psx/retroarch", label: "RetroArch PSX" },
-  { system: "ps2", value: "ps2/pcsx2", label: "PCSX2" }
+  { system: "ps2", value: "ps2/pcsx2", label: "PCSX2" },
+  { system: "ports", value: "port/ship-of-harkinian", label: "Ship of Harkinian" },
+  { system: "ports", value: "port/starship", label: "Starship" },
+  { system: "ports", value: "port/spaghettikart", label: "SpaghettiKart" },
+  { system: "ports", value: "port/super-metroid-native", label: "Super Metroid Native" },
+  { system: "ports", value: "port/sonic1-forever", label: "Sonic 1 Forever" },
+  { system: "ports", value: "port/sonic3-air", label: "Sonic 3 A.I.R." }
 ];
 
 export function runtimeProfileOptionsForSystem(systemSlug: string): Array<{ value: string; label: string }> {

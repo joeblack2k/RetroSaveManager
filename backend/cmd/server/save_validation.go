@@ -177,6 +177,26 @@ func (a *app) previewMultipartUpload(filename string, payload []byte, formValue 
 	if declaredSystem == "unknown-system" && wiiTitleCode != "" && strings.EqualFold(safeFilename(filename), "data.bin") {
 		declaredSystem = "wii"
 	}
+	runtimeProfile := requestedRuntimeProfileFromForm(formValue, declaredSystem)
+	portMeta, hasPortMeta := nativePortMetadataFromForm(formValue, runtimeProfile)
+	if declaredSystem == nativePortSystemSlug && hasPortMeta {
+		metadata = mergeRSMMetadata(metadata, "nativePort", map[string]any{
+			"portId":           portMeta.PortID,
+			"portName":         portMeta.PortName,
+			"originSystemSlug": portMeta.OriginSystemSlug,
+			"portSaveKind":     portMeta.PortSaveKind,
+			"relativePath":     portMeta.RelativePath,
+			"rootRelativePath": portMeta.RootRelativePath,
+			"slotId":           portMeta.SlotID,
+			"runtimeProfile":   portMeta.RuntimeProfile,
+			"displayTitle":     portMeta.DisplayTitle,
+		})
+		if strings.TrimSpace(portMeta.DisplayTitle) != "" {
+			gameInfo.Name = portMeta.DisplayTitle
+			gameInfo.DisplayTitle = portMeta.DisplayTitle
+		}
+		gameInfo.System = supportedSystemFromSlug(nativePortSystemSlug)
+	}
 	return []saveUploadPreviewItem{
 		a.previewOneUpload(filename, "", payload, gameInfo, declaredSystem, metadata, formValue, false),
 	}, nil
@@ -202,6 +222,11 @@ func (a *app) previewOneUpload(filename, sourcePath string, payload []byte, game
 			input = normalized
 		} else {
 			return rejectedPreviewItem(filename, sourcePath, payload, declaredSystem, inferSaveFormat(filename), runtimeProfile, err.Error())
+		}
+	}
+	if declaredSystem == nativePortSystemSlug {
+		if portMeta, ok := nativePortMetadataFromForm(formValue, runtimeProfile); ok {
+			input = applyNativePortInput(input, portMeta)
 		}
 	}
 

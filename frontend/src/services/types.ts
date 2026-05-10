@@ -373,6 +373,13 @@ export type SaveSummary = {
   saturn?: Record<string, unknown> | null;
   inspection?: SaveInspection | null;
   runtimeProfile?: string;
+  portId?: string;
+  portName?: string;
+  originSystemSlug?: string;
+  portSaveKind?: string;
+  relativePath?: string;
+  rootRelativePath?: string;
+  slotId?: string;
   cardSlot?: string;
   projectionId?: string;
   sourceImportId?: string;

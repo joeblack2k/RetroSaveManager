@@ -10,6 +10,7 @@ export type DeviceManageCommand = "sync" | "scan" | "deep_scan" | "config_change
 export const SOURCE_KIND_OPTIONS = [
   { value: "custom", label: "Custom" },
   { value: "retroarch", label: "RetroArch" },
+  { value: "ports", label: "Ports" },
   { value: "mister-fpga", label: "MiSTer FPGA" },
   { value: "steamdeck", label: "Steam Deck" },
   { value: "windows", label: "Windows" },
@@ -143,7 +144,15 @@ const SYSTEM_PROFILE_OPTIONS: Record<string, Array<{ value: string; label: strin
     { value: "mister", label: "MiSTer" },
     { value: "retroarch", label: "RetroArch" }
   ],
-  ps2: [{ value: "pcsx2", label: "PCSX2" }]
+  ps2: [{ value: "pcsx2", label: "PCSX2" }],
+  ports: [
+    { value: "ship-of-harkinian", label: "Ship of Harkinian" },
+    { value: "starship", label: "Starship" },
+    { value: "spaghettikart", label: "SpaghettiKart" },
+    { value: "sonic1-forever", label: "Sonic 1 Forever" },
+    { value: "sonic3-air", label: "Sonic 3 A.I.R." },
+    { value: "generic", label: "Generic Ports" }
+  ]
 };
 
 export function cloneSource(source: DeviceConfigSource): DeviceConfigSource {
@@ -196,6 +205,9 @@ export function recommendedKindForProfile(profile: string): string {
   }
   if (profile.startsWith("retroarch")) {
     return "retroarch";
+  }
+  if (["ship-of-harkinian", "starship", "spaghettikart", "sonic1-forever", "sonic3-air"].includes(profile)) {
+    return "ports";
   }
   return "custom";
 }

@@ -28,6 +28,15 @@ var runtimeProfileDefinitions = []runtimeProfileDefinition{
 	{ID: "psx/retroarch", SystemSlug: "psx", Label: "RetroArch", TargetExtension: ".mcr", Note: "PlayStation memory card image"},
 	{ID: "ps2/pcsx2", SystemSlug: "ps2", Label: "PCSX2", TargetExtension: ".ps2", Note: "PlayStation 2 memory card image"},
 
+	{ID: "port/ship-of-harkinian", SystemSlug: "ports", Label: "Ship of Harkinian", Note: "Native port progress save"},
+	{ID: "port/starship", SystemSlug: "ports", Label: "Starship", Note: "Native port progress save"},
+	{ID: "port/spaghettikart", SystemSlug: "ports", Label: "SpaghettiKart", Note: "Native port progress save"},
+	{ID: "port/super-metroid-native", SystemSlug: "ports", Label: "Super Metroid Native", Note: "Native port progress save"},
+	{ID: "port/sonic1-forever", SystemSlug: "ports", Label: "Sonic 1 Forever", Note: "Native port progress save"},
+	{ID: "port/sonic3-air", SystemSlug: "ports", Label: "Sonic 3 A.I.R.", Note: "Native port progress save"},
+	{ID: "port/opengoal-jak1", SystemSlug: "ports", Label: "OpenGOAL Jak 1", Note: "Dormant native port profile"},
+	{ID: "port/opengoal-jak2", SystemSlug: "ports", Label: "OpenGOAL Jak 2", Note: "Dormant native port profile"},
+
 	{ID: n64ProfileMister, SystemSlug: "n64", Label: "MiSTer", Note: "Nintendo 64 save projection"},
 	{ID: n64ProfileRetroArch, SystemSlug: "n64", Label: "RetroArch", TargetExtension: ".srm", Note: "Nintendo 64 SRM projection"},
 	{ID: n64ProfileProject64, SystemSlug: "n64", Label: "Project64", Note: "Nintendo 64 emulator projection"},
@@ -227,6 +236,8 @@ func canonicalRuntimeProfile(systemSlug, requested string) string {
 
 func profileFamilyPrefix(systemSlug string) string {
 	switch canonicalSegment(systemSlug, "") {
+	case "ports":
+		return "port/"
 	case "master-system":
 		return "sms/"
 	case "game-gear":

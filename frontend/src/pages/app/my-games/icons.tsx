@@ -22,6 +22,7 @@ export function SystemGlyph({ systemSlug, fallbackLabel }: { systemSlug: string;
     case "gameboy":
     case "gba":
     case "wii":
+    case "ports":
     case "atari-lynx":
     case "wonderswan":
       return <Gamepad2 className="treegrid-system-glyph" aria-hidden="true" />;

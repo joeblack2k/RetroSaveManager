@@ -49,6 +49,8 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateStrictSegaRawSave(input, detection, systemSlug)
 	case "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do":
 		return validateLegacyRawSave(input, detection, systemSlug)
+	case nativePortSystemSlug:
+		return validateNativePortSave(input, detection)
 	default:
 		return consoleValidationResult{}
 	}
