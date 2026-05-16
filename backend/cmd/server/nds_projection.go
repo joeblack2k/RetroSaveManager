@@ -18,21 +18,29 @@ const (
 	noGBASaveSRAMID     = "SRAM"
 )
 
-var ndsRawSaveSizes = map[int]struct{}{
-	512:          {},
-	8 * 1024:     {},
-	32 * 1024:    {},
-	64 * 1024:    {},
-	256 * 1024:   {},
-	512 * 1024:   {},
-	1024 * 1024:  {},
-	2048 * 1024:  {},
-	4096 * 1024:  {},
-	8192 * 1024:  {},
-	16384 * 1024: {},
-	32768 * 1024: {},
-	65536 * 1024: {},
+var ndsRawSaveSizeOrder = []int{
+	512,
+	8 * 1024,
+	32 * 1024,
+	64 * 1024,
+	256 * 1024,
+	512 * 1024,
+	1024 * 1024,
+	2048 * 1024,
+	4096 * 1024,
+	8192 * 1024,
+	16384 * 1024,
+	32768 * 1024,
+	65536 * 1024,
 }
+
+var ndsRawSaveSizes = func() map[int]struct{} {
+	out := make(map[int]struct{}, len(ndsRawSaveSizeOrder))
+	for _, size := range ndsRawSaveSizeOrder {
+		out[size] = struct{}{}
+	}
+	return out
+}()
 
 type ndsSaveType struct {
 	Size     int
@@ -55,6 +63,14 @@ var ndsDesmumeSaveTypes = []ndsSaveType{
 	{Size: 32768 * 1024, Type: 12, AddrSize: 3},
 	{Size: 65536 * 1024, Type: 13, AddrSize: 3},
 }
+
+var ndsDesmumeSaveTypesBySize = func() map[int]ndsSaveType {
+	out := make(map[int]ndsSaveType, len(ndsDesmumeSaveTypes))
+	for _, saveType := range ndsDesmumeSaveTypes {
+		out[saveType.Size] = saveType
+	}
+	return out
+}()
 
 func normalizeNDSProjectionUpload(input saveCreateInput, requestedProfile string) (saveCreateInput, error) {
 	profile := canonicalRuntimeProfile("nds", requestedProfile)
@@ -161,6 +177,8 @@ func normalizeStoredNDSPayload(summary saveSummary, payload []byte) ([]byte, str
 }
 
 func splitDeSmuMEDSV(payload []byte) ([]byte, error) {
+	// DeSmuME stores the raw backup first and appends a text marker plus a
+	// 40-byte binary footer. The raw payload is the only canonical data.
 	if len(payload) < desmumeFooterSize {
 		return nil, fmt.Errorf("DeSmuME DSV is too small")
 	}
@@ -207,15 +225,13 @@ func buildDeSmuMEDSV(canonical []byte) ([]byte, error) {
 }
 
 func ndsDesmumeSaveTypeForSize(size int) (ndsSaveType, bool) {
-	for _, saveType := range ndsDesmumeSaveTypes {
-		if saveType.Size == size {
-			return saveType, true
-		}
-	}
-	return ndsSaveType{}, false
+	saveType, ok := ndsDesmumeSaveTypesBySize[size]
+	return saveType, ok
 }
 
 func splitNoGBANDSContainer(payload []byte) ([]byte, bool, error) {
+	// No$GBA .sav files can be a small header followed by raw SRAM or a compact
+	// RLE stream. Returning ok=false lets ordinary raw .sav files flow through.
 	if len(payload) < 0x50 {
 		return nil, false, nil
 	}
@@ -283,8 +299,10 @@ func unpackNoGBARLE(packed []byte, unpackedSize int) ([]byte, error) {
 			value := packed[pos]
 			count := int(binary.LittleEndian.Uint16(packed[pos+1 : pos+3]))
 			pos += 3
-			for i := 0; i < count; i++ {
-				out = append(out, value)
+			var err error
+			out, err = appendRepeatedByte(out, value, count, unpackedSize)
+			if err != nil {
+				return nil, err
 			}
 		case code > 0x80:
 			if pos >= len(packed) {
@@ -293,23 +311,37 @@ func unpackNoGBARLE(packed []byte, unpackedSize int) ([]byte, error) {
 			count := int(code - 0x80)
 			value := packed[pos]
 			pos++
-			for i := 0; i < count; i++ {
-				out = append(out, value)
+			var err error
+			out, err = appendRepeatedByte(out, value, count, unpackedSize)
+			if err != nil {
+				return nil, err
 			}
 		default:
 			count := int(code)
 			if pos+count > len(packed) {
 				return nil, fmt.Errorf("No$GBA literal run is truncated")
 			}
+			if len(out)+count > unpackedSize {
+				return nil, fmt.Errorf("No$GBA unpacked payload exceeds declared size")
+			}
 			out = append(out, packed[pos:pos+count]...)
 			pos += count
-		}
-		if len(out) > unpackedSize {
-			return nil, fmt.Errorf("No$GBA unpacked payload exceeds declared size")
 		}
 	}
 	if len(out) != unpackedSize {
 		return nil, fmt.Errorf("No$GBA unpacked size %d does not match declared %d", len(out), unpackedSize)
+	}
+	return out, nil
+}
+
+func appendRepeatedByte(out []byte, value byte, count, limit int) ([]byte, error) {
+	if len(out)+count > limit {
+		return nil, fmt.Errorf("No$GBA unpacked payload exceeds declared size")
+	}
+	start := len(out)
+	out = append(out, make([]byte, count)...)
+	for i := start; i < len(out); i++ {
+		out[i] = value
 	}
 	return out, nil
 }
@@ -326,21 +358,7 @@ func buildNoGBANDSContainer(canonical []byte) []byte {
 }
 
 func padNDSRawSave(payload []byte) ([]byte, error) {
-	for _, size := range []int{
-		512,
-		8 * 1024,
-		32 * 1024,
-		64 * 1024,
-		256 * 1024,
-		512 * 1024,
-		1024 * 1024,
-		2048 * 1024,
-		4096 * 1024,
-		8192 * 1024,
-		16384 * 1024,
-		32768 * 1024,
-		65536 * 1024,
-	} {
+	for _, size := range ndsRawSaveSizeOrder {
 		if len(payload) <= size {
 			out := bytes.Repeat([]byte{0xFF}, size)
 			copy(out, payload)

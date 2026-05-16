@@ -602,7 +602,6 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	dev.LastImportedArtifact = importID
 	state.DeviceLines[deviceKey] = dev
 
-	line.LatestProjectionID = line.LatestProjectionID
 	state.ProjectionLines[lineKey] = line
 
 	if !changed {

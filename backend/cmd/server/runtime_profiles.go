@@ -296,13 +296,18 @@ func applyProjectionUploadMetadata(input saveCreateInput, runtimeProfile string)
 	return input
 }
 
+func saveCreateInputSystemSlug(input saveCreateInput) string {
+	if strings.TrimSpace(input.SystemSlug) != "" {
+		return input.SystemSlug
+	}
+	if input.Game.System != nil {
+		return input.Game.System.Slug
+	}
+	return ""
+}
+
 func normalizeProjectionUpload(input saveCreateInput, requestedProfile string) (saveCreateInput, error) {
-	systemSlug := canonicalSegment(firstNonEmpty(input.SystemSlug, func() string {
-		if input.Game.System != nil {
-			return input.Game.System.Slug
-		}
-		return ""
-	}()), "")
+	systemSlug := canonicalSegment(saveCreateInputSystemSlug(input), "")
 	profile := canonicalRuntimeProfile(systemSlug, requestedProfile)
 	if profile == "" {
 		return input, fmt.Errorf("runtimeProfile is required for %s helper uploads", systemSlug)
@@ -333,12 +338,7 @@ func downloadProfilesForSummary(summary saveSummary) []downloadProfile {
 	if strings.TrimSpace(summary.LogicalKey) != "" && canonicalSegment(summary.SystemSlug, "") != "n64" {
 		return []downloadProfile{originalDownloadProfile(summary)}
 	}
-	systemSlug := canonicalSegment(firstNonEmpty(summary.SystemSlug, func() string {
-		if summary.Game.System != nil {
-			return summary.Game.System.Slug
-		}
-		return ""
-	}()), "")
+	systemSlug := canonicalSegment(saveSummarySystemSlug(summary), "")
 	if !isProjectionCapableSystem(systemSlug) {
 		if systemSlug != nativePortSystemSlug {
 			return []downloadProfile{originalDownloadProfile(summary)}
@@ -361,12 +361,7 @@ func downloadProfilesForSummary(summary saveSummary) []downloadProfile {
 }
 
 func compatibleDownloadProfiles(summary saveSummary) []runtimeProfileDefinition {
-	systemSlug := canonicalSegment(firstNonEmpty(summary.SystemSlug, func() string {
-		if summary.Game.System != nil {
-			return summary.Game.System.Slug
-		}
-		return ""
-	}()), "")
+	systemSlug := canonicalSegment(saveSummarySystemSlug(summary), "")
 	definitions := runtimeProfilesForSystem(systemSlug)
 	if storedProfile, ok := storedOriginNativePortProfile(summary); ok && systemSlug != "n64" {
 		definitions = nil
@@ -579,12 +574,7 @@ func (a *app) projectPlayStationProjectionPayload(record saveRecord, requestedPr
 }
 
 func projectIdentityRuntimePayload(summary saveSummary, payload []byte, requestedProfile string) (string, string, []byte, error) {
-	systemSlug := canonicalSegment(firstNonEmpty(summary.SystemSlug, func() string {
-		if summary.Game.System != nil {
-			return summary.Game.System.Slug
-		}
-		return ""
-	}()), "")
+	systemSlug := canonicalSegment(saveSummarySystemSlug(summary), "")
 	profile := canonicalRuntimeProfile(systemSlug, requestedProfile)
 	definition, ok := runtimeProfilesByID[profile]
 	if !ok || definition.SystemSlug != systemSlug {

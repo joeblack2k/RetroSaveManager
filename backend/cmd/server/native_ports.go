@@ -107,6 +107,14 @@ var nativePortManifests = map[string]nativePortManifest{
 	},
 }
 
+var nativePortManifestsByRuntimeProfile = func() map[string]nativePortManifest {
+	out := make(map[string]nativePortManifest, len(nativePortManifests))
+	for _, manifest := range nativePortManifests {
+		out[nativePortProfileKey(manifest.RuntimeProfile)] = manifest
+	}
+	return out
+}()
+
 func nativePortMetadataFromForm(formValue func(string) string, runtimeProfile string) (nativePortMetadata, bool) {
 	if formValue == nil {
 		return nativePortMetadata{}, false
@@ -125,24 +133,34 @@ func nativePortMetadataFromForm(formValue func(string) string, runtimeProfile st
 	return meta, meta.PortID != "" || meta.RuntimeProfile != ""
 }
 
+func completeNativePortMetadata(meta nativePortMetadata) nativePortMetadata {
+	if meta.PortID == "" && meta.RuntimeProfile == "" {
+		return meta
+	}
+	manifest, ok := nativePortManifestForMetadata(meta)
+	if !ok {
+		return meta
+	}
+	if meta.PortID == "" {
+		meta.PortID = manifest.ID
+	}
+	if meta.PortName == "" {
+		meta.PortName = manifest.Name
+	}
+	if meta.OriginSystemSlug == "" {
+		meta.OriginSystemSlug = manifest.OriginSystemSlug
+	}
+	if meta.RuntimeProfile == "" {
+		meta.RuntimeProfile = manifest.RuntimeProfile
+	}
+	return meta
+}
+
 func applyNativePortInput(input saveCreateInput, meta nativePortMetadata) saveCreateInput {
 	if meta.PortID == "" && meta.RuntimeProfile == "" {
 		return input
 	}
-	if manifest, ok := nativePortManifestForMetadata(meta); ok {
-		if meta.PortID == "" {
-			meta.PortID = manifest.ID
-		}
-		if meta.PortName == "" {
-			meta.PortName = manifest.Name
-		}
-		if meta.OriginSystemSlug == "" {
-			meta.OriginSystemSlug = manifest.OriginSystemSlug
-		}
-		if meta.RuntimeProfile == "" {
-			meta.RuntimeProfile = manifest.RuntimeProfile
-		}
-	}
+	meta = completeNativePortMetadata(meta)
 	input.PortID = meta.PortID
 	input.PortName = meta.PortName
 	input.OriginSystemSlug = meta.OriginSystemSlug
@@ -167,20 +185,7 @@ func attachNativePortMetadata(input saveCreateInput, meta nativePortMetadata) sa
 	if meta.PortID == "" && meta.RuntimeProfile == "" {
 		return input
 	}
-	if manifest, ok := nativePortManifestForMetadata(meta); ok {
-		if meta.PortID == "" {
-			meta.PortID = manifest.ID
-		}
-		if meta.PortName == "" {
-			meta.PortName = manifest.Name
-		}
-		if meta.OriginSystemSlug == "" {
-			meta.OriginSystemSlug = manifest.OriginSystemSlug
-		}
-		if meta.RuntimeProfile == "" {
-			meta.RuntimeProfile = manifest.RuntimeProfile
-		}
-	}
+	meta = completeNativePortMetadata(meta)
 	input.PortID = firstNonEmpty(input.PortID, meta.PortID)
 	input.PortName = firstNonEmpty(input.PortName, meta.PortName)
 	input.OriginSystemSlug = firstNonEmpty(input.OriginSystemSlug, meta.OriginSystemSlug)
@@ -269,34 +274,13 @@ func titleizeNativePortSlot(value string) string {
 }
 
 func validateNativePortSave(input saveCreateInput, detection saveSystemDetectionResult) consoleValidationResult {
-	if !detection.Evidence.HelperTrusted && !metadataHasTrustedSystemEvidence(input.Metadata) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: "native port saves must come from a trusted helper manifest",
-		}
-	}
 	meta := nativePortMetadataFromInput(input)
 	manifest, ok := nativePortManifestForMetadata(meta)
 	if !ok {
 		return consoleValidationResult{Rejected: true, RejectReason: "unknown native port manifest"}
 	}
-	if canonicalOptionalSegment(meta.PortSaveKind) != "progress" {
-		return consoleValidationResult{Rejected: true, RejectReason: "only native port progress saves are supported"}
-	}
-	if len(input.Payload) == 0 {
-		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is empty"}
-	}
-	if len(input.Payload) > 16*1024*1024 {
-		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is too large"}
-	}
-	if !nativePortPathAllowed(manifest, meta.RelativePath) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("native port path %q is not allowed for %s", meta.RelativePath, manifest.ID),
-		}
-	}
-	if meta.RootRelativePath != "" && !safePortRelativePath(meta.RootRelativePath) {
-		return consoleValidationResult{Rejected: true, RejectReason: "native port root-relative path is unsafe"}
+	if result, ok := validateNativePortEnvelope(input, detection, meta, manifest); !ok {
+		return result
 	}
 	return consoleValidationResult{
 		Inspection: &saveInspection{
@@ -335,30 +319,9 @@ func originNativePortManifestForInput(input saveCreateInput, systemSlug string) 
 }
 
 func validateOriginNativePortSave(input saveCreateInput, detection saveSystemDetectionResult, manifest nativePortManifest) consoleValidationResult {
-	if !detection.Evidence.HelperTrusted && !metadataHasTrustedSystemEvidence(input.Metadata) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: "native port saves must come from a trusted helper manifest",
-		}
-	}
 	meta := nativePortMetadataFromInput(input)
-	if canonicalOptionalSegment(meta.PortSaveKind) != "progress" {
-		return consoleValidationResult{Rejected: true, RejectReason: "only native port progress saves are supported"}
-	}
-	if len(input.Payload) == 0 {
-		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is empty"}
-	}
-	if len(input.Payload) > 16*1024*1024 {
-		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is too large"}
-	}
-	if !nativePortPathAllowed(manifest, meta.RelativePath) {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("native port path %q is not allowed for %s", meta.RelativePath, manifest.ID),
-		}
-	}
-	if meta.RootRelativePath != "" && !safePortRelativePath(meta.RootRelativePath) {
-		return consoleValidationResult{Rejected: true, RejectReason: "native port root-relative path is unsafe"}
+	if result, ok := validateNativePortEnvelope(input, detection, meta, manifest); !ok {
+		return result
 	}
 
 	title := strings.TrimSpace(manifest.OriginGameTitle)
@@ -390,6 +353,34 @@ func validateOriginNativePortSave(input saveCreateInput, detection saveSystemDet
 	}
 }
 
+func validateNativePortEnvelope(input saveCreateInput, detection saveSystemDetectionResult, meta nativePortMetadata, manifest nativePortManifest) (consoleValidationResult, bool) {
+	if !detection.Evidence.HelperTrusted && !metadataHasTrustedSystemEvidence(input.Metadata) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: "native port saves must come from a trusted helper manifest",
+		}, false
+	}
+	if canonicalOptionalSegment(meta.PortSaveKind) != "progress" {
+		return consoleValidationResult{Rejected: true, RejectReason: "only native port progress saves are supported"}, false
+	}
+	if len(input.Payload) == 0 {
+		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is empty"}, false
+	}
+	if len(input.Payload) > 16*1024*1024 {
+		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is too large"}, false
+	}
+	if !nativePortPathAllowed(manifest, meta.RelativePath) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("native port path %q is not allowed for %s", meta.RelativePath, manifest.ID),
+		}, false
+	}
+	if meta.RootRelativePath != "" && !safePortRelativePath(meta.RootRelativePath) {
+		return consoleValidationResult{Rejected: true, RejectReason: "native port root-relative path is unsafe"}, false
+	}
+	return consoleValidationResult{}, true
+}
+
 func nativePortMetadataFromInput(input saveCreateInput) nativePortMetadata {
 	return nativePortMetadata{
 		PortID:           strings.TrimSpace(input.PortID),
@@ -409,13 +400,7 @@ func nativePortManifestForMetadata(meta nativePortMetadata) (nativePortManifest,
 		manifest, ok := nativePortManifests[meta.PortID]
 		return manifest, ok
 	}
-	profile := strings.TrimSpace(meta.RuntimeProfile)
-	for _, manifest := range nativePortManifests {
-		if profile != "" && strings.EqualFold(manifest.RuntimeProfile, profile) {
-			return manifest, true
-		}
-	}
-	return nativePortManifest{}, false
+	return nativePortManifestForRuntimeProfile(meta.RuntimeProfile)
 }
 
 func nativePortPathAllowed(manifest nativePortManifest, relativePath string) bool {

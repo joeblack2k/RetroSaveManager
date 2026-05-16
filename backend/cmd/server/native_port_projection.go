@@ -19,6 +19,12 @@ type nativePortProjectionAdapter struct {
 	N64CanonicalToPort func(saveSummary, []byte) (string, []byte, error)
 }
 
+type nativePortOriginKey struct {
+	SystemSlug string
+	TitleKey   string
+	MediaType  string
+}
+
 var nativePortProjectionAdapters = []nativePortProjectionAdapter{
 	{
 		PortID:             "ship-of-harkinian",
@@ -74,34 +80,79 @@ var nativePortProjectionAdapters = []nativePortProjectionAdapter{
 	},
 }
 
-func nativePortManifestForRuntimeProfile(profile string) (nativePortManifest, bool) {
-	clean := strings.ToLower(strings.TrimSpace(profile))
-	for _, manifest := range nativePortManifests {
-		if strings.EqualFold(manifest.RuntimeProfile, clean) {
-			return manifest, true
+var nativePortProjectionAdaptersByProfile = func() map[string]nativePortProjectionAdapter {
+	out := make(map[string]nativePortProjectionAdapter, len(nativePortProjectionAdapters))
+	for _, adapter := range nativePortProjectionAdapters {
+		out[nativePortProfileKey(adapter.RuntimeProfile)] = adapter
+	}
+	return out
+}()
+
+var nativePortProjectionAdaptersByOrigin = func() map[nativePortOriginKey]nativePortProjectionAdapter {
+	out := make(map[nativePortOriginKey]nativePortProjectionAdapter, len(nativePortProjectionAdapters))
+	for _, adapter := range nativePortProjectionAdapters {
+		if adapter.OriginSystemSlug == "n64" {
+			out[nativePortOriginKeyForAdapter(adapter, adapter.CanonicalMediaType)] = adapter
+			continue
+		}
+		if adapter.OriginIdentity {
+			out[nativePortOriginKeyForAdapter(adapter, "")] = adapter
 		}
 	}
-	return nativePortManifest{}, false
+	return out
+}()
+
+func nativePortProfileKey(profile string) string {
+	return strings.ToLower(strings.TrimSpace(profile))
+}
+
+func nativePortRuntimeProfileFromID(portID string) string {
+	portID = canonicalOptionalSegment(portID)
+	if portID == "" {
+		return ""
+	}
+	return "port/" + portID
+}
+
+func nativePortOriginKeyForAdapter(adapter nativePortProjectionAdapter, mediaType string) nativePortOriginKey {
+	return nativePortOriginKey{
+		SystemSlug: canonicalSegment(adapter.OriginSystemSlug, ""),
+		TitleKey:   canonicalTrackTitleKey(adapter.OriginDisplayTitle),
+		MediaType:  canonicalOptionalSegment(mediaType),
+	}
+}
+
+func nativePortOriginKeyForSummary(summary saveSummary, mediaType string) nativePortOriginKey {
+	return nativePortOriginKey{
+		SystemSlug: canonicalSegment(saveSummarySystemSlug(summary), ""),
+		TitleKey:   canonicalTrackTitleKey(firstNonEmpty(summary.DisplayTitle, summary.Game.DisplayTitle, summary.Game.Name)),
+		MediaType:  canonicalOptionalSegment(mediaType),
+	}
+}
+
+func nativePortManifestForRuntimeProfile(profile string) (nativePortManifest, bool) {
+	manifest, ok := nativePortManifestsByRuntimeProfile[nativePortProfileKey(profile)]
+	return manifest, ok
 }
 
 func nativePortProjectionAdapterForProfile(profile string) (nativePortProjectionAdapter, bool) {
-	clean := strings.ToLower(strings.TrimSpace(profile))
-	for _, adapter := range nativePortProjectionAdapters {
-		if strings.EqualFold(adapter.RuntimeProfile, clean) {
-			return adapter, true
-		}
+	adapter, ok := nativePortProjectionAdaptersByProfile[nativePortProfileKey(profile)]
+	return adapter, ok
+}
+
+func nativePortProjectionAdapterForCandidates(runtimeProfile, portID string) (nativePortProjectionAdapter, bool) {
+	if adapter, ok := nativePortProjectionAdapterForProfile(runtimeProfile); ok {
+		return adapter, true
+	}
+	if adapter, ok := nativePortProjectionAdapterForProfile(nativePortRuntimeProfileFromID(portID)); ok {
+		return adapter, true
 	}
 	return nativePortProjectionAdapter{}, false
 }
 
 func nativePortProjectionAdapterForSummary(summary saveSummary) (nativePortProjectionAdapter, bool) {
-	for _, candidate := range []string{
-		summary.RuntimeProfile,
-		"port/" + summary.PortID,
-	} {
-		if adapter, ok := nativePortProjectionAdapterForProfile(candidate); ok {
-			return adapter, true
-		}
+	if adapter, ok := nativePortProjectionAdapterForCandidates(summary.RuntimeProfile, summary.PortID); ok {
+		return adapter, true
 	}
 	return nativePortProjectionAdapterForOriginSummary(summary)
 }
@@ -114,13 +165,8 @@ func nativePortProjectionAdapterForN64Summary(summary saveSummary) (nativePortPr
 	if !ok {
 		return nativePortProjectionAdapter{}, false
 	}
-	titleKey := canonicalTrackTitleKey(firstNonEmpty(summary.DisplayTitle, summary.Game.DisplayTitle, summary.Game.Name))
-	for _, adapter := range nativePortProjectionAdapters {
-		if adapter.OriginSystemSlug == "n64" && adapter.CanonicalMediaType == info.MediaType && canonicalTrackTitleKey(adapter.OriginDisplayTitle) == titleKey {
-			return adapter, true
-		}
-	}
-	return nativePortProjectionAdapter{}, false
+	adapter, ok := nativePortProjectionAdaptersByOrigin[nativePortOriginKeyForSummary(summary, info.MediaType)]
+	return adapter, ok
 }
 
 func nativePortProjectionAdapterForOriginSummary(summary saveSummary) (nativePortProjectionAdapter, bool) {
@@ -131,13 +177,8 @@ func nativePortProjectionAdapterForOriginSummary(summary saveSummary) (nativePor
 	if systemSlug == "" || systemSlug == nativePortSystemSlug {
 		return nativePortProjectionAdapter{}, false
 	}
-	titleKey := canonicalTrackTitleKey(firstNonEmpty(summary.DisplayTitle, summary.Game.DisplayTitle, summary.Game.Name))
-	for _, adapter := range nativePortProjectionAdapters {
-		if adapter.OriginSystemSlug == systemSlug && adapter.OriginIdentity && canonicalTrackTitleKey(adapter.OriginDisplayTitle) == titleKey {
-			return adapter, true
-		}
-	}
-	return nativePortProjectionAdapter{}, false
+	adapter, ok := nativePortProjectionAdaptersByOrigin[nativePortOriginKeyForSummary(summary, "")]
+	return adapter, ok
 }
 
 func nativePortRuntimeProfilesForSummary(summary saveSummary) []runtimeProfileDefinition {
@@ -197,17 +238,11 @@ func storedOriginNativePortProfile(summary saveSummary) (string, bool) {
 	if systemSlug == "" || systemSlug == nativePortSystemSlug {
 		return "", false
 	}
-	for _, candidate := range []string{
-		strings.TrimSpace(summary.RuntimeProfile),
-		"port/" + strings.TrimSpace(summary.PortID),
-	} {
-		manifest, ok := nativePortManifestForRuntimeProfile(candidate)
-		if !ok {
-			continue
-		}
-		if manifest.OriginSystemSlug == systemSlug {
-			return manifest.RuntimeProfile, true
-		}
+	if manifest, ok := nativePortManifestForRuntimeProfile(summary.RuntimeProfile); ok && manifest.OriginSystemSlug == systemSlug {
+		return manifest.RuntimeProfile, true
+	}
+	if manifest, ok := nativePortManifestForRuntimeProfile(nativePortRuntimeProfileFromID(summary.PortID)); ok && manifest.OriginSystemSlug == systemSlug {
+		return manifest.RuntimeProfile, true
 	}
 	return "", false
 }

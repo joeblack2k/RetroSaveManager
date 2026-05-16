@@ -18,22 +18,14 @@ type canonicalSaveTrack struct {
 }
 
 func canonicalSystemForSave(existing *system, fallbackSlug string) (string, *system) {
-	for _, candidate := range []string{
-		fallbackSlug,
-		func() string {
-			if existing == nil {
-				return ""
-			}
-			return existing.Slug
-		}(),
-		func() string {
-			if existing == nil {
-				return ""
-			}
-			return existing.Name
-		}(),
-	} {
-		if slug := supportedSystemSlugFromLabel(candidate); slug != "" {
+	if slug := supportedSystemSlugFromLabel(fallbackSlug); slug != "" {
+		return slug, supportedSystemFromSlug(slug)
+	}
+	if existing != nil {
+		if slug := supportedSystemSlugFromLabel(existing.Slug); slug != "" {
+			return slug, supportedSystemFromSlug(slug)
+		}
+		if slug := supportedSystemSlugFromLabel(existing.Name); slug != "" {
 			return slug, supportedSystemFromSlug(slug)
 		}
 	}
@@ -166,15 +158,11 @@ func canonicalNativePortTrack(track canonicalSaveTrack, runtimeProfile, portID, 
 }
 
 func canonicalNativePortManifest(runtimeProfile, portID string) (nativePortManifest, bool) {
-	for _, candidate := range []string{runtimeProfile, func() string {
-		if portID == "" {
-			return ""
-		}
-		return "port/" + portID
-	}()} {
-		if manifest, ok := nativePortManifestForRuntimeProfile(candidate); ok {
-			return manifest, true
-		}
+	if manifest, ok := nativePortManifestForRuntimeProfile(runtimeProfile); ok {
+		return manifest, true
+	}
+	if manifest, ok := nativePortManifestForRuntimeProfile(nativePortRuntimeProfileFromID(portID)); ok {
+		return manifest, true
 	}
 	return nativePortManifest{}, false
 }
@@ -214,18 +202,26 @@ func canonicalArtifactKeyForTrack(track canonicalSaveTrack) string {
 	if track.IsMemoryCard || systemSlug == nativePortSystemSlug || !canonicalTrackHasNativePortIdentity(track) {
 		return base
 	}
-	portID := canonicalOptionalSegment(firstNonEmpty(track.PortID, strings.TrimPrefix(track.RuntimeProfile, "port/")))
+	portID := canonicalNativePortID(track)
 	if portID == "" {
 		portID = "unknown-port"
 	}
 	return base + "::port::" + canonicalSegment(portID, "unknown-port") + "::slot::" + canonicalSegment(track.SlotID, "default")
 }
 
-func canonicalTrackHasNativePortIdentity(track canonicalSaveTrack) bool {
-	if canonicalOptionalSegment(track.PortID) != "" {
-		return true
+func canonicalNativePortID(track canonicalSaveTrack) string {
+	if portID := canonicalOptionalSegment(track.PortID); portID != "" {
+		return portID
 	}
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(track.RuntimeProfile)), "port/")
+	profile := strings.TrimSpace(track.RuntimeProfile)
+	if strings.HasPrefix(strings.ToLower(profile), "port/") {
+		return canonicalOptionalSegment(strings.TrimPrefix(profile, "port/"))
+	}
+	return ""
+}
+
+func canonicalTrackHasNativePortIdentity(track canonicalSaveTrack) bool {
+	return canonicalNativePortID(track) != ""
 }
 
 func canonicalGameSlugForTrack(track canonicalSaveTrack) string {
