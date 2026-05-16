@@ -87,16 +87,18 @@ func latestReadableSaveRecord(records []saveRecord, romSHA1, slotName string) (s
 	return latest, found
 }
 
-func latestReadableSaveRecordByTrackContext(records []saveRecord, filename, systemSlug, displayTitle, regionCode string) (saveRecord, bool) {
+func latestReadableSaveRecordByTrackContext(records []saveRecord, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
 	cleanFilename := strings.TrimSpace(filename)
 	if cleanFilename == "" || strings.TrimSpace(systemSlug) == "" {
 		return saveRecord{}, false
 	}
 	input := saveCreateInput{
-		Filename:     cleanFilename,
-		SystemSlug:   systemSlug,
-		DisplayTitle: displayTitle,
-		RegionCode:   regionCode,
+		Filename:       cleanFilename,
+		SystemSlug:     systemSlug,
+		DisplayTitle:   displayTitle,
+		RegionCode:     regionCode,
+		RuntimeProfile: strings.TrimSpace(runtimeProfile),
+		SlotName:       normalizedSlot(slotName),
 	}
 	trackKey := canonicalDuplicateTrackKeyForInput(input, cleanFilename)
 	if trackKey == "" {
@@ -173,6 +175,8 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			query.Get("system"),
 			query.Get("displayTitle"),
 			query.Get("regionCode"),
+			runtimeProfile,
+			slotName,
 		)
 	}
 	if ok {
@@ -305,19 +309,25 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			GameSlug:            canonicalSegment(gameInfo.Name, "unknown-game"),
 			TrustedHelperSystem: strings.TrimSpace(formValue("system")) != "",
 		}
+		if hasPortMeta {
+			input = attachNativePortMetadata(input, portMeta)
+		}
 		if declaredSystem == nativePortSystemSlug && hasPortMeta {
 			input = applyNativePortInput(input, portMeta)
 		}
 		if helperCtx.IsHelper && isProjectionCapableSystem(declaredSystem) && declaredSystem != "psx" && declaredSystem != "ps2" {
 			if runtimeProfile == "" {
-				writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper uploads", StatusCode: http.StatusBadRequest})
-				return
-			}
-			input, err = normalizeProjectionUpload(input, runtimeProfile)
-			if err != nil {
-				a.quarantineRejectedUpload(filename, "", payload, rejectedPreviewItem(filename, "", payload, declaredSystem, input.Format, runtimeProfile, err.Error()), deviceName)
-				writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
-				return
+				if requiresRuntimeProfileForHelper(declaredSystem, helperCtx.IsHelper) {
+					writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper uploads", StatusCode: http.StatusBadRequest})
+					return
+				}
+			} else {
+				input, err = normalizeProjectionUpload(input, runtimeProfile)
+				if err != nil {
+					a.quarantineRejectedUpload(filename, "", payload, rejectedPreviewItem(filename, "", payload, declaredSystem, input.Format, runtimeProfile, err.Error()), deviceName)
+					writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: err.Error(), StatusCode: http.StatusUnprocessableEntity})
+					return
+				}
 			}
 		} else if runtimeProfile != "" && !isProjectionCapableSystem(declaredSystem) && declaredSystem != nativePortSystemSlug {
 			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is only valid for projection-capable saves", StatusCode: http.StatusBadRequest})
@@ -917,7 +927,7 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
 			continue
 		}
-		if hasSourceRecord && !sameSaveHistoryTrack(record, sourceRecord) {
+		if hasSourceRecord && !sameSaveDetailTrack(record, sourceRecord) {
 			continue
 		}
 		s := a.summaryForRecord(record)
@@ -1009,6 +1019,13 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 
 func sameSaveHistoryTrack(candidate saveRecord, source saveRecord) bool {
 	return canonicalHistoryKeyForRecord(candidate) == canonicalHistoryKeyForRecord(source)
+}
+
+func sameSaveDetailTrack(candidate saveRecord, source saveRecord) bool {
+	if canonicalListKeyForRecord(source) != canonicalHistoryKeyForRecord(source) {
+		return canonicalListKeyForRecord(candidate) == canonicalListKeyForRecord(source)
+	}
+	return sameSaveHistoryTrack(candidate, source)
 }
 
 func canonicalOptionalSegment(value string) string {
@@ -1621,15 +1638,15 @@ func (a *app) latestReadableSaveRecord(romSHA1, slotName string) (saveRecord, bo
 	return latestReadableSaveRecord(a.saveRecords, romSHA1, slotName)
 }
 
-func (a *app) latestReadableSaveRecordByTrackContext(filename, systemSlug, displayTitle, regionCode string) (saveRecord, bool) {
+func (a *app) latestReadableSaveRecordByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if record, ok := a.saveIndex.latestReadableByTrackContext(filename, systemSlug, displayTitle, regionCode); ok {
+	if record, ok := a.saveIndex.latestReadableByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName); ok {
 		if saveRecordPayloadExists(record) {
 			return record, true
 		}
 	}
-	return latestReadableSaveRecordByTrackContext(a.saveRecords, filename, systemSlug, displayTitle, regionCode)
+	return latestReadableSaveRecordByTrackContext(a.saveRecords, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName)
 }
 
 func (a *app) deleteSaveRecordsByIDs(ids []string) (int, bool, error) {

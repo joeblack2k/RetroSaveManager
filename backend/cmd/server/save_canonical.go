@@ -89,13 +89,11 @@ func canonicalTrackFromInput(input saveCreateInput) canonicalSaveTrack {
 		track.DisplayTitle = track.MemoryCardName
 		track.RuntimeProfile = strings.TrimSpace(input.RuntimeProfile)
 	}
+	track = canonicalNativePortTrackFromInput(track, input)
 	if systemSlug == nativePortSystemSlug {
-		track.PortID = firstNonEmpty(canonicalOptionalSegment(input.PortID), canonicalOptionalSegment(strings.TrimPrefix(input.RuntimeProfile, "port/")))
-		track.SlotID = firstNonEmpty(canonicalOptionalSegment(input.SlotID), canonicalOptionalSegment(input.SlotName), "default")
 		if title := strings.TrimSpace(input.DisplayTitle); title != "" {
 			track.DisplayTitle = title
 		}
-		track.RuntimeProfile = strings.TrimSpace(input.RuntimeProfile)
 	}
 	return track
 }
@@ -123,19 +121,62 @@ func canonicalTrackFromSummary(summary saveSummary, fallbackSystemSlug string) c
 		track.DisplayTitle = track.MemoryCardName
 		track.RuntimeProfile = strings.TrimSpace(summary.RuntimeProfile)
 	}
+	track = canonicalNativePortTrackFromSummary(track, summary, "")
 	if systemSlug == nativePortSystemSlug {
-		track.PortID = firstNonEmpty(canonicalOptionalSegment(summary.PortID), canonicalOptionalSegment(strings.TrimPrefix(summary.RuntimeProfile, "port/")))
-		track.SlotID = firstNonEmpty(canonicalOptionalSegment(summary.SlotID), "default")
 		if title := strings.TrimSpace(summary.DisplayTitle); title != "" {
 			track.DisplayTitle = title
 		}
-		track.RuntimeProfile = strings.TrimSpace(summary.RuntimeProfile)
 	}
 	return track
 }
 
 func canonicalTrackFromRecord(record saveRecord) canonicalSaveTrack {
-	return canonicalTrackFromSummary(record.Summary, record.SystemSlug)
+	return canonicalNativePortTrackFromSummary(canonicalTrackFromSummary(record.Summary, record.SystemSlug), record.Summary, record.SlotName)
+}
+
+func canonicalNativePortTrackFromInput(track canonicalSaveTrack, input saveCreateInput) canonicalSaveTrack {
+	return canonicalNativePortTrack(track, input.RuntimeProfile, input.PortID, input.SlotID, input.SlotName, input.DisplayTitle)
+}
+
+func canonicalNativePortTrackFromSummary(track canonicalSaveTrack, summary saveSummary, fallbackSlotName string) canonicalSaveTrack {
+	return canonicalNativePortTrack(track, summary.RuntimeProfile, summary.PortID, summary.SlotID, fallbackSlotName, summary.DisplayTitle)
+}
+
+func canonicalNativePortTrack(track canonicalSaveTrack, runtimeProfile, portID, slotID, slotName, explicitTitle string) canonicalSaveTrack {
+	profile := strings.TrimSpace(runtimeProfile)
+	cleanPortID := canonicalOptionalSegment(portID)
+	manifest, hasManifest := canonicalNativePortManifest(profile, cleanPortID)
+	if !hasManifest && cleanPortID == "" && !strings.HasPrefix(strings.ToLower(profile), "port/") && canonicalSegment(track.SystemSlug, "") != nativePortSystemSlug {
+		return track
+	}
+	if hasManifest {
+		profile = manifest.RuntimeProfile
+		cleanPortID = manifest.ID
+		if canonicalSegment(track.SystemSlug, "") != nativePortSystemSlug && strings.TrimSpace(explicitTitle) == "" && strings.TrimSpace(manifest.OriginGameTitle) != "" {
+			track.DisplayTitle = manifest.OriginGameTitle
+		}
+	}
+	if profile == "" && cleanPortID != "" {
+		profile = "port/" + cleanPortID
+	}
+	track.RuntimeProfile = profile
+	track.PortID = firstNonEmpty(cleanPortID, canonicalOptionalSegment(strings.TrimPrefix(profile, "port/")))
+	track.SlotID = firstNonEmpty(canonicalOptionalSegment(slotID), canonicalOptionalSegment(slotName), "default")
+	return track
+}
+
+func canonicalNativePortManifest(runtimeProfile, portID string) (nativePortManifest, bool) {
+	for _, candidate := range []string{runtimeProfile, func() string {
+		if portID == "" {
+			return ""
+		}
+		return "port/" + portID
+	}()} {
+		if manifest, ok := nativePortManifestForRuntimeProfile(candidate); ok {
+			return manifest, true
+		}
+	}
+	return nativePortManifest{}, false
 }
 
 func canonicalTrackTitleKey(title string) string {
@@ -167,6 +208,26 @@ func canonicalTrackKey(track canonicalSaveTrack) string {
 	return systemSlug + "::" + canonicalTrackTitleKey(track.DisplayTitle) + "::" + normalizeRegionCode(track.RegionCode)
 }
 
+func canonicalArtifactKeyForTrack(track canonicalSaveTrack) string {
+	base := canonicalTrackKey(track)
+	systemSlug := canonicalSegment(track.SystemSlug, "unknown-system")
+	if track.IsMemoryCard || systemSlug == nativePortSystemSlug || !canonicalTrackHasNativePortIdentity(track) {
+		return base
+	}
+	portID := canonicalOptionalSegment(firstNonEmpty(track.PortID, strings.TrimPrefix(track.RuntimeProfile, "port/")))
+	if portID == "" {
+		portID = "unknown-port"
+	}
+	return base + "::port::" + canonicalSegment(portID, "unknown-port") + "::slot::" + canonicalSegment(track.SlotID, "default")
+}
+
+func canonicalTrackHasNativePortIdentity(track canonicalSaveTrack) bool {
+	if canonicalOptionalSegment(track.PortID) != "" {
+		return true
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(track.RuntimeProfile)), "port/")
+}
+
 func canonicalGameSlugForTrack(track canonicalSaveTrack) string {
 	if track.IsMemoryCard {
 		return canonicalSegment(track.MemoryCardName, "memory-card")
@@ -182,7 +243,7 @@ func canonicalGameIDForTrack(track canonicalSaveTrack) int {
 }
 
 func canonicalHistoryKeyForRecord(record saveRecord) string {
-	return canonicalTrackKey(canonicalTrackFromRecord(record))
+	return canonicalArtifactKeyForTrack(canonicalTrackFromRecord(record))
 }
 
 func canonicalListKeyForRecord(record saveRecord) string {
@@ -197,7 +258,7 @@ func canonicalListKeyForRecord(record saveRecord) string {
 		}
 		return canonicalSegment(systemSlug, "unknown-system") + "::card::" + canonicalSegment(cardSlot, "memory-card-1")
 	}
-	return canonicalHistoryKeyForRecord(record)
+	return canonicalTrackKey(canonicalTrackFromRecord(record))
 }
 
 func canonicalVersionKeyForRecord(record saveRecord) string {
@@ -214,5 +275,5 @@ func canonicalVersionKeyForInput(input saveCreateInput, filename string) string 
 	if strings.TrimSpace(input.Filename) == "" {
 		input.Filename = filename
 	}
-	return "track:" + canonicalTrackKey(canonicalTrackFromInput(input))
+	return "track:" + canonicalArtifactKeyForTrack(canonicalTrackFromInput(input))
 }

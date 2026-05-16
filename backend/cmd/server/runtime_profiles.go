@@ -28,12 +28,12 @@ var runtimeProfileDefinitions = []runtimeProfileDefinition{
 	{ID: "psx/retroarch", SystemSlug: "psx", Label: "RetroArch", TargetExtension: ".mcr", Note: "PlayStation memory card image"},
 	{ID: "ps2/pcsx2", SystemSlug: "ps2", Label: "PCSX2", TargetExtension: ".ps2", Note: "PlayStation 2 memory card image"},
 
-	{ID: "port/ship-of-harkinian", SystemSlug: "ports", Label: "Ship of Harkinian", Note: "Native port progress save"},
-	{ID: "port/starship", SystemSlug: "ports", Label: "Starship", Note: "Native port progress save"},
-	{ID: "port/spaghettikart", SystemSlug: "ports", Label: "SpaghettiKart", Note: "Native port progress save"},
-	{ID: "port/super-metroid-native", SystemSlug: "ports", Label: "Super Metroid Native", Note: "Native port progress save"},
-	{ID: "port/sonic1-forever", SystemSlug: "ports", Label: "Sonic 1 Forever", Note: "Native port progress save"},
-	{ID: "port/sonic3-air", SystemSlug: "ports", Label: "Sonic 3 A.I.R.", Note: "Native port progress save"},
+	{ID: "port/ship-of-harkinian", SystemSlug: "ports", Label: "Ship of Harkinian", TargetExtension: ".sav", Note: "Native port progress save"},
+	{ID: "port/starship", SystemSlug: "ports", Label: "Starship", TargetExtension: ".sav", Note: "Native port progress save"},
+	{ID: "port/spaghettikart", SystemSlug: "ports", Label: "SpaghettiKart", TargetExtension: ".sav", Note: "Native port progress save"},
+	{ID: "port/super-metroid-native", SystemSlug: "ports", Label: "Super Metroid Native", TargetExtension: ".srm", Note: "Native port progress save"},
+	{ID: "port/sonic1-forever", SystemSlug: "ports", Label: "Sonic 1 Forever", TargetExtension: ".txt", Note: "Native port progress save"},
+	{ID: "port/sonic3-air", SystemSlug: "ports", Label: "Sonic 3 A.I.R.", TargetExtension: ".sav", Note: "Native port progress save"},
 	{ID: "port/opengoal-jak1", SystemSlug: "ports", Label: "OpenGOAL Jak 1", Note: "Dormant native port profile"},
 	{ID: "port/opengoal-jak2", SystemSlug: "ports", Label: "OpenGOAL Jak 2", Note: "Dormant native port profile"},
 
@@ -68,12 +68,27 @@ var runtimeProfileDefinitions = []runtimeProfileDefinition{
 	{ID: "nes/retroarch-nestopia", SystemSlug: "nes", Label: "RetroArch (Nestopia)", TargetExtension: ".sav", Note: "Raw NES save RAM"},
 	{ID: "nes/retroarch-fceumm", SystemSlug: "nes", Label: "RetroArch (FCEUmm)", TargetExtension: ".sav", Note: "Raw NES save RAM"},
 
+	{ID: "gameboy/mister", SystemSlug: "gameboy", Label: "MiSTer", TargetExtension: ".sav", Note: "Raw Game Boy SRAM"},
+	{ID: "gameboy/gambatte", SystemSlug: "gameboy", Label: "Gambatte", TargetExtension: ".sav", Note: "Raw Game Boy SRAM"},
+	{ID: "gameboy/sameboy", SystemSlug: "gameboy", Label: "SameBoy", TargetExtension: ".sav", Note: "Raw Game Boy SRAM"},
+	{ID: "gameboy/bgb", SystemSlug: "gameboy", Label: "BGB", TargetExtension: ".sav", Note: "Raw Game Boy SRAM"},
+	{ID: "gameboy/mgba", SystemSlug: "gameboy", Label: "mGBA", TargetExtension: ".sav", Note: "Raw Game Boy SRAM"},
+	{ID: "gameboy/retroarch-gambatte", SystemSlug: "gameboy", Label: "RetroArch (Gambatte)", TargetExtension: ".srm", Note: "Raw Game Boy SRAM"},
+	{ID: "gameboy/retroarch-sameboy", SystemSlug: "gameboy", Label: "RetroArch (SameBoy)", TargetExtension: ".srm", Note: "Raw Game Boy SRAM"},
+
 	{ID: "gba/mgba", SystemSlug: "gba", Label: "mGBA", TargetExtension: ".sav", Note: "Raw Game Boy Advance save"},
 	{ID: "gba/vba-m", SystemSlug: "gba", Label: "VBA-M", TargetExtension: ".sav", Note: "Raw Game Boy Advance save"},
 	{ID: "gba/nocashgba", SystemSlug: "gba", Label: "No$GBA", TargetExtension: ".sav", Note: "Raw Game Boy Advance save"},
 	{ID: "gba/skyemu", SystemSlug: "gba", Label: "SkyEmu", TargetExtension: ".sav", Note: "Raw Game Boy Advance save"},
 	{ID: "gba/retroarch-mgba", SystemSlug: "gba", Label: "RetroArch (mGBA)", TargetExtension: ".sav", Note: "Raw Game Boy Advance save"},
 	{ID: "gba/retroarch-vbam", SystemSlug: "gba", Label: "RetroArch (VBA-M)", TargetExtension: ".sav", Note: "Raw Game Boy Advance save"},
+
+	{ID: "nds/raw", SystemSlug: "nds", Label: "Raw NDS", TargetExtension: ".sav", Note: "Raw Nintendo DS backup memory"},
+	{ID: "nds/melonds", SystemSlug: "nds", Label: "melonDS", TargetExtension: ".sav", Note: "Raw Nintendo DS backup memory"},
+	{ID: "nds/desmume", SystemSlug: "nds", Label: "DeSmuME", TargetExtension: ".dsv", Note: "DeSmuME DSV footer projection"},
+	{ID: "nds/nogba", SystemSlug: "nds", Label: "No$GBA", TargetExtension: ".sav", Note: "No$GBA save container projection"},
+	{ID: "nds/retroarch-melonds", SystemSlug: "nds", Label: "RetroArch (melonDS)", TargetExtension: ".srm", Note: "Raw libretro save RAM"},
+	{ID: "nds/retroarch-desmume", SystemSlug: "nds", Label: "RetroArch (DeSmuME)", TargetExtension: ".srm", Note: "Raw libretro save RAM"},
 
 	{ID: "sms/emulicious", SystemSlug: "master-system", Label: "Emulicious", TargetExtension: ".sav", Note: "Raw Master System SRAM"},
 	{ID: "sms/meka", SystemSlug: "master-system", Label: "MEKA", TargetExtension: ".sav", Note: "Raw Master System SRAM"},
@@ -173,7 +188,7 @@ func requestedRuntimeProfileFromForm(formValue func(string) string, systemSlug s
 
 func isProjectionCapableSystem(systemSlug string) bool {
 	switch canonicalSegment(systemSlug, "") {
-	case "psx", "ps2", "n64", "saturn", "snes", "nes", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
+	case "psx", "ps2", "n64", "saturn", "snes", "nes", "gameboy", "gba", "nds", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
 		return true
 	default:
 		return false
@@ -181,7 +196,13 @@ func isProjectionCapableSystem(systemSlug string) bool {
 }
 
 func requiresRuntimeProfileForHelper(systemSlug string, helper bool) bool {
-	return helper && isProjectionCapableSystem(systemSlug)
+	if !helper || !isProjectionCapableSystem(systemSlug) {
+		return false
+	}
+	// Game Boy saves are plain battery RAM across the supported runtimes. New
+	// helpers can send a profile for extension/UI targeting, but old helpers must
+	// keep syncing raw .sav/.srm payloads without a breaking API requirement.
+	return canonicalSegment(systemSlug, "") != "gameboy"
 }
 
 func runtimeProfilesForSystem(systemSlug string) []runtimeProfileDefinition {
@@ -202,6 +223,14 @@ func canonicalRuntimeProfile(systemSlug, requested string) string {
 		return ""
 	}
 	if systemSlug == "n64" {
+		if profile := canonicalN64Profile(clean); profile != "" {
+			return profile
+		}
+	}
+	if manifest, ok := nativePortManifestForRuntimeProfile(clean); ok && manifest.OriginSystemSlug == systemSlug {
+		return manifest.RuntimeProfile
+	}
+	if systemSlug == nativePortSystemSlug {
 		if profile := canonicalN64Profile(clean); profile != "" {
 			return profile
 		}
@@ -280,8 +309,20 @@ func normalizeProjectionUpload(input saveCreateInput, requestedProfile string) (
 	}
 	switch systemSlug {
 	case "n64":
+		if strings.HasPrefix(profile, "port/") {
+			return normalizeN64NativePortUpload(input, profile)
+		}
 		return normalizeN64ProjectionUpload(input, profile)
-	case "saturn", "snes", "nes", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
+	case "nds":
+		return normalizeNDSProjectionUpload(input, profile)
+	case "saturn", "snes", "nes", "gameboy", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
+		if strings.HasPrefix(profile, "port/") {
+			manifest, ok := nativePortManifestForRuntimeProfile(profile)
+			if !ok || manifest.OriginSystemSlug != systemSlug {
+				return input, fmt.Errorf("native port runtimeProfile %q is not supported for %s saves", requestedProfile, systemSlug)
+			}
+			return normalizeOriginNativePortUpload(input, manifest), nil
+		}
 		return applyProjectionUploadMetadata(input, profile), nil
 	default:
 		return input, fmt.Errorf("runtimeProfile is not supported for %s saves", systemSlug)
@@ -299,7 +340,9 @@ func downloadProfilesForSummary(summary saveSummary) []downloadProfile {
 		return ""
 	}()), "")
 	if !isProjectionCapableSystem(systemSlug) {
-		return []downloadProfile{originalDownloadProfile(summary)}
+		if systemSlug != nativePortSystemSlug {
+			return []downloadProfile{originalDownloadProfile(summary)}
+		}
 	}
 	definitions := compatibleDownloadProfiles(summary)
 	if len(definitions) == 0 {
@@ -325,12 +368,38 @@ func compatibleDownloadProfiles(summary saveSummary) []runtimeProfileDefinition 
 		return ""
 	}()), "")
 	definitions := runtimeProfilesForSystem(systemSlug)
+	if storedProfile, ok := storedOriginNativePortProfile(summary); ok && systemSlug != "n64" {
+		definitions = nil
+		if adapter, adapterOK := nativePortProjectionAdapterForProfile(storedProfile); adapterOK && adapter.OriginIdentity {
+			definitions = append(definitions, runtimeProfilesForSystem(systemSlug)...)
+		}
+		if definition, exists := runtimeProfilesByID[storedProfile]; exists {
+			definitions = append(definitions, definition)
+		}
+	} else {
+		definitions = append(definitions, nativePortRuntimeProfilesForSummary(summary)...)
+	}
+	if systemSlug == nativePortSystemSlug {
+		definitions = append(definitions, originRuntimeProfilesForNativePortSummary(summary)...)
+	}
 	if len(definitions) == 0 {
 		return nil
 	}
 	out := make([]runtimeProfileDefinition, 0, len(definitions))
 	for _, definition := range definitions {
 		switch systemSlug {
+		case "n64":
+			if strings.HasPrefix(definition.ID, "port/") {
+				if nativePortRuntimeProfileCompatible(summary, definition.ID) {
+					out = append(out, definition)
+				}
+				continue
+			}
+			out = append(out, definition)
+		case nativePortSystemSlug:
+			if nativePortRuntimeProfileCompatible(summary, definition.ID) {
+				out = append(out, definition)
+			}
 		case "dreamcast":
 			if dreamcastRuntimeProfileCompatible(summary, definition.ID) {
 				out = append(out, definition)
@@ -340,6 +409,12 @@ func compatibleDownloadProfiles(summary saveSummary) []runtimeProfileDefinition 
 				out = append(out, definition)
 			}
 		default:
+			if strings.HasPrefix(definition.ID, "port/") {
+				if nativePortRuntimeProfileCompatible(summary, definition.ID) {
+					out = append(out, definition)
+				}
+				continue
+			}
 			out = append(out, definition)
 		}
 	}
@@ -434,17 +509,30 @@ func projectPayloadForRuntime(a *app, record saveRecord, payload []byte, request
 	}
 	switch systemSlug {
 	case "n64":
+		if strings.HasPrefix(profile, "port/") {
+			return projectN64ToNativePortPayload(record.Summary, payload, profile)
+		}
 		if _, _, _, ok := n64ControllerPakProjectionInfoFromRecord(record); ok {
 			return a.projectN64ControllerPakProjectionPayload(record, profile)
 		}
 		return projectN64Payload(record.Summary, payload, profile)
+	case nativePortSystemSlug:
+		return projectNativePortPayload(record.Summary, payload, profile)
 	case "saturn":
 		return saturnDownloadPayload(record, payload, strings.TrimPrefix(profile, "saturn/"), saturnEntry)
 	case "psx", "ps2":
 		return a.projectPlayStationProjectionPayload(record, profile)
 	case "dreamcast":
 		return projectDreamcastPayload(record.Summary, payload, profile)
-	case "snes", "nes", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do":
+	case "nds":
+		return projectNDSPayload(record.Summary, payload, profile)
+	case "snes", "nes", "gameboy", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do":
+		if strings.HasPrefix(profile, "port/") {
+			if _, ok := storedOriginNativePortProfile(record.Summary); ok {
+				return projectStoredOriginNativePortPayload(record.Summary, payload, profile)
+			}
+			return projectOriginToNativePortPayload(record.Summary, payload, profile)
+		}
 		return projectIdentityRuntimePayload(record.Summary, payload, profile)
 	default:
 		return record.Summary.Filename, "application/octet-stream", payload, nil

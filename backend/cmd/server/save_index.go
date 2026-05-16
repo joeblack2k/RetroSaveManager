@@ -71,15 +71,17 @@ func (index saveRecordIndex) latestReadableByROMSlot(romSHA1, slotName string) (
 	return record, ok
 }
 
-func (index saveRecordIndex) latestReadableByTrackContext(filename, systemSlug, displayTitle, regionCode string) (saveRecord, bool) {
+func (index saveRecordIndex) latestReadableByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
 	if index.latestByTrack == nil {
 		return saveRecord{}, false
 	}
 	input := saveCreateInput{
-		Filename:     strings.TrimSpace(filename),
-		SystemSlug:   strings.TrimSpace(systemSlug),
-		DisplayTitle: strings.TrimSpace(displayTitle),
-		RegionCode:   strings.TrimSpace(regionCode),
+		Filename:       strings.TrimSpace(filename),
+		SystemSlug:     strings.TrimSpace(systemSlug),
+		DisplayTitle:   strings.TrimSpace(displayTitle),
+		RegionCode:     strings.TrimSpace(regionCode),
+		RuntimeProfile: strings.TrimSpace(runtimeProfile),
+		SlotName:       normalizedSlot(slotName),
 	}
 	if input.Filename == "" || input.SystemSlug == "" {
 		return saveRecord{}, false

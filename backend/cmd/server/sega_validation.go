@@ -34,6 +34,12 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return normalized.System.Slug
 	}(), input.SystemSlug, detection.Slug), "")
 
+	if systemSlug != "n64" {
+		if manifest, ok := originNativePortManifestForInput(input, systemSlug); ok {
+			return validateOriginNativePortSave(input, detection, manifest)
+		}
+	}
+
 	switch systemSlug {
 	case "dreamcast":
 		return validateDreamcastSave(input, normalized)

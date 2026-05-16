@@ -184,6 +184,8 @@ func rawSaveKind(systemSlug, ext string) string {
 		}
 	case "gba":
 		return "Game Boy Advance backup memory"
+	case "nds":
+		return "Nintendo DS backup memory"
 	case "nes":
 		return "NES cartridge SRAM"
 	case "snes":

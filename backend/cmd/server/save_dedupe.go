@@ -57,7 +57,7 @@ func canonicalDuplicateTrackKeyForRecord(record saveRecord) string {
 	if canonicalTrackTitleKey(track.DisplayTitle) == "unknown game" {
 		return ""
 	}
-	return canonicalTrackKey(track)
+	return canonicalArtifactKeyForTrack(track)
 }
 
 func canonicalDuplicateTrackKeyForInput(input saveCreateInput, filename string) string {
@@ -68,7 +68,7 @@ func canonicalDuplicateTrackKeyForInput(input saveCreateInput, filename string) 
 	if canonicalTrackTitleKey(track.DisplayTitle) == "unknown game" {
 		return ""
 	}
-	return canonicalTrackKey(track)
+	return canonicalArtifactKeyForTrack(track)
 }
 
 func saveRecordSortsAfter(left, right saveRecord) bool {
@@ -195,6 +195,9 @@ func saveRecordRevisionIdentity(record saveRecord) string {
 		return "rollback:" + id
 	}
 	if sha := strings.TrimSpace(record.Summary.SHA256); sha != "" {
+		if scope := nativePortRevisionScope(canonicalTrackFromRecord(record)); scope != "" {
+			return scope + "::sha:" + sha
+		}
 		return "sha:" + sha
 	}
 	return "id:" + id
@@ -206,9 +209,19 @@ func saveSummaryRevisionIdentity(summary saveSummary) string {
 		return "rollback:" + id
 	}
 	if sha := strings.TrimSpace(summary.SHA256); sha != "" {
+		if scope := nativePortRevisionScope(canonicalTrackFromSummary(summary, summary.SystemSlug)); scope != "" {
+			return scope + "::sha:" + sha
+		}
 		return "sha:" + sha
 	}
 	return "id:" + id
+}
+
+func nativePortRevisionScope(track canonicalSaveTrack) string {
+	if !canonicalTrackHasNativePortIdentity(track) {
+		return ""
+	}
+	return "native-port:" + canonicalArtifactKeyForTrack(track)
 }
 
 func dedupeSaveSummaryRevisions(summaries []saveSummary) []saveSummary {

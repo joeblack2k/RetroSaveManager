@@ -24,6 +24,7 @@ type nativePortMetadata struct {
 type nativePortManifest struct {
 	ID               string
 	Name             string
+	OriginGameTitle  string
 	OriginSystemSlug string
 	RuntimeProfile   string
 	AllowedPatterns  []string
@@ -33,13 +34,15 @@ var nativePortManifests = map[string]nativePortManifest{
 	"ship-of-harkinian": {
 		ID:               "ship-of-harkinian",
 		Name:             "The Legend of Zelda: Ocarina of Time (Ship of Harkinian)",
+		OriginGameTitle:  "The Legend of Zelda: Ocarina of Time",
 		OriginSystemSlug: "n64",
 		RuntimeProfile:   "port/ship-of-harkinian",
-		AllowedPatterns:  []string{"Save/global.sav", "Save/file*.sav", "portable_home/Save/global.sav", "portable_home/Save/file*.sav"},
+		AllowedPatterns:  []string{"Save/file*.sav", "portable_home/Save/file*.sav"},
 	},
 	"starship": {
 		ID:               "starship",
 		Name:             "Star Fox 64 (Starship)",
+		OriginGameTitle:  "Star Fox 64",
 		OriginSystemSlug: "n64",
 		RuntimeProfile:   "port/starship",
 		AllowedPatterns:  []string{"default.sav", "portable_home/default.sav"},
@@ -47,6 +50,7 @@ var nativePortManifests = map[string]nativePortManifest{
 	"spaghettikart": {
 		ID:               "spaghettikart",
 		Name:             "Mario Kart 64 (SpaghettiKart)",
+		OriginGameTitle:  "Mario Kart 64",
 		OriginSystemSlug: "n64",
 		RuntimeProfile:   "port/spaghettikart",
 		AllowedPatterns:  []string{"default.sav", "portable_home/default.sav"},
@@ -54,6 +58,7 @@ var nativePortManifests = map[string]nativePortManifest{
 	"super-metroid-native": {
 		ID:               "super-metroid-native",
 		Name:             "Super Metroid (Native Port)",
+		OriginGameTitle:  "Super Metroid",
 		OriginSystemSlug: "snes",
 		RuntimeProfile:   "port/super-metroid-native",
 		AllowedPatterns:  []string{"saves/*.srm", "portable_home/saves/*.srm"},
@@ -61,6 +66,7 @@ var nativePortManifests = map[string]nativePortManifest{
 	"sonic1-forever": {
 		ID:               "sonic1-forever",
 		Name:             "Sonic 1 Forever",
+		OriginGameTitle:  "Sonic the Hedgehog",
 		OriginSystemSlug: "genesis",
 		RuntimeProfile:   "port/sonic1-forever",
 		AllowedPatterns: []string{
@@ -73,6 +79,7 @@ var nativePortManifests = map[string]nativePortManifest{
 	"sonic3-air": {
 		ID:               "sonic3-air",
 		Name:             "Sonic 3 A.I.R.",
+		OriginGameTitle:  "Sonic 3 & Knuckles",
 		OriginSystemSlug: "genesis",
 		RuntimeProfile:   "port/sonic3-air",
 		AllowedPatterns: []string{
@@ -87,12 +94,14 @@ var nativePortManifests = map[string]nativePortManifest{
 	"opengoal-jak1": {
 		ID:               "opengoal-jak1",
 		Name:             "Jak and Daxter: The Precursor Legacy (OpenGOAL)",
+		OriginGameTitle:  "Jak and Daxter: The Precursor Legacy",
 		OriginSystemSlug: "ps2",
 		RuntimeProfile:   "port/opengoal-jak1",
 	},
 	"opengoal-jak2": {
 		ID:               "opengoal-jak2",
 		Name:             "Jak II (OpenGOAL)",
+		OriginGameTitle:  "Jak II",
 		OriginSystemSlug: "ps2",
 		RuntimeProfile:   "port/opengoal-jak2",
 	},
@@ -149,6 +158,47 @@ func applyNativePortInput(input saveCreateInput, meta nativePortMetadata) saveCr
 	if input.Game.Name == "" || input.Game.Name == strings.TrimSuffix(input.Filename, filepath.Ext(input.Filename)) {
 		input.Game.Name = input.DisplayTitle
 		input.Game.DisplayTitle = input.DisplayTitle
+	}
+	input.Metadata = mergeRSMMetadata(input.Metadata, "nativePort", nativePortMetadataMap(input))
+	return input
+}
+
+func attachNativePortMetadata(input saveCreateInput, meta nativePortMetadata) saveCreateInput {
+	if meta.PortID == "" && meta.RuntimeProfile == "" {
+		return input
+	}
+	if manifest, ok := nativePortManifestForMetadata(meta); ok {
+		if meta.PortID == "" {
+			meta.PortID = manifest.ID
+		}
+		if meta.PortName == "" {
+			meta.PortName = manifest.Name
+		}
+		if meta.OriginSystemSlug == "" {
+			meta.OriginSystemSlug = manifest.OriginSystemSlug
+		}
+		if meta.RuntimeProfile == "" {
+			meta.RuntimeProfile = manifest.RuntimeProfile
+		}
+	}
+	input.PortID = firstNonEmpty(input.PortID, meta.PortID)
+	input.PortName = firstNonEmpty(input.PortName, meta.PortName)
+	input.OriginSystemSlug = firstNonEmpty(input.OriginSystemSlug, meta.OriginSystemSlug)
+	input.PortSaveKind = firstNonEmpty(input.PortSaveKind, meta.PortSaveKind, "progress")
+	input.RelativePath = firstNonEmpty(input.RelativePath, meta.RelativePath)
+	input.RootRelativePath = firstNonEmpty(input.RootRelativePath, meta.RootRelativePath)
+	input.SlotID = firstNonEmpty(input.SlotID, meta.SlotID)
+	if strings.TrimSpace(input.DisplayTitle) == "" && strings.TrimSpace(meta.DisplayTitle) != "" {
+		input.DisplayTitle = meta.DisplayTitle
+		input.Game.Name = meta.DisplayTitle
+		input.Game.DisplayTitle = meta.DisplayTitle
+		input.GameSlug = canonicalSegment(meta.DisplayTitle, input.GameSlug)
+	}
+	if strings.TrimSpace(input.RuntimeProfile) == "" {
+		input.RuntimeProfile = meta.RuntimeProfile
+	}
+	if strings.TrimSpace(input.SourceArtifactProfile) == "" {
+		input.SourceArtifactProfile = meta.RuntimeProfile
 	}
 	input.Metadata = mergeRSMMetadata(input.Metadata, "nativePort", nativePortMetadataMap(input))
 	return input
@@ -259,6 +309,74 @@ func validateNativePortSave(input saveCreateInput, detection saveSystemDetection
 			Evidence: []string{
 				"trusted helper native port manifest",
 				"portId=" + manifest.ID,
+				"relativePath=" + meta.RelativePath,
+			},
+			PayloadSizeBytes: len(input.Payload),
+			SemanticFields: map[string]any{
+				"originSystemSlug": manifest.OriginSystemSlug,
+				"portSaveKind":     meta.PortSaveKind,
+				"slotId":           meta.SlotID,
+				"runtimeProfile":   manifest.RuntimeProfile,
+			},
+		},
+	}
+}
+
+func originNativePortManifestForInput(input saveCreateInput, systemSlug string) (nativePortManifest, bool) {
+	meta := nativePortMetadataFromInput(input)
+	manifest, ok := nativePortManifestForMetadata(meta)
+	if !ok {
+		return nativePortManifest{}, false
+	}
+	if manifest.OriginSystemSlug != canonicalSegment(systemSlug, "") {
+		return nativePortManifest{}, false
+	}
+	return manifest, true
+}
+
+func validateOriginNativePortSave(input saveCreateInput, detection saveSystemDetectionResult, manifest nativePortManifest) consoleValidationResult {
+	if !detection.Evidence.HelperTrusted && !metadataHasTrustedSystemEvidence(input.Metadata) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: "native port saves must come from a trusted helper manifest",
+		}
+	}
+	meta := nativePortMetadataFromInput(input)
+	if canonicalOptionalSegment(meta.PortSaveKind) != "progress" {
+		return consoleValidationResult{Rejected: true, RejectReason: "only native port progress saves are supported"}
+	}
+	if len(input.Payload) == 0 {
+		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is empty"}
+	}
+	if len(input.Payload) > 16*1024*1024 {
+		return consoleValidationResult{Rejected: true, RejectReason: "native port save payload is too large"}
+	}
+	if !nativePortPathAllowed(manifest, meta.RelativePath) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("native port path %q is not allowed for %s", meta.RelativePath, manifest.ID),
+		}
+	}
+	if meta.RootRelativePath != "" && !safePortRelativePath(meta.RootRelativePath) {
+		return consoleValidationResult{Rejected: true, RejectReason: "native port root-relative path is unsafe"}
+	}
+
+	title := strings.TrimSpace(manifest.OriginGameTitle)
+	if title == "" {
+		title = nativePortDisplayTitle(input)
+	}
+	return consoleValidationResult{
+		Inspection: &saveInspection{
+			ParserLevel:        saveParserLevelContainer,
+			ParserID:           "native-port-manifest",
+			ValidatedSystem:    manifest.OriginSystemSlug,
+			ValidatedGameID:    manifest.ID,
+			ValidatedGameTitle: title,
+			TrustLevel:         validationTrustLevel(saveParserLevelContainer),
+			Evidence: []string{
+				"trusted helper native port manifest",
+				"portId=" + manifest.ID,
+				"originSystemSlug=" + manifest.OriginSystemSlug,
 				"relativePath=" + meta.RelativePath,
 			},
 			PayloadSizeBytes: len(input.Payload),

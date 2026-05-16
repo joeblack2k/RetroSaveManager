@@ -8,8 +8,44 @@
       "downloadProfiles": [
         {
           "id": "<redacted>",
-          "label": "Original file",
-          "note": "Stored payload without projection",
+          "label": "MiSTer",
+          "note": "Raw Game Boy SRAM",
+          "targetExtension": ".sav"
+        },
+        {
+          "id": "<redacted>",
+          "label": "Gambatte",
+          "note": "Raw Game Boy SRAM",
+          "targetExtension": ".sav"
+        },
+        {
+          "id": "<redacted>",
+          "label": "SameBoy",
+          "note": "Raw Game Boy SRAM",
+          "targetExtension": ".sav"
+        },
+        {
+          "id": "<redacted>",
+          "label": "BGB",
+          "note": "Raw Game Boy SRAM",
+          "targetExtension": ".sav"
+        },
+        {
+          "id": "<redacted>",
+          "label": "mGBA",
+          "note": "Raw Game Boy SRAM",
+          "targetExtension": ".sav"
+        },
+        {
+          "id": "<redacted>",
+          "label": "RetroArch (Gambatte)",
+          "note": "Raw Game Boy SRAM",
+          "targetExtension": ".srm"
+        },
+        {
+          "id": "<redacted>",
+          "label": "RetroArch (SameBoy)",
+          "note": "Raw Game Boy SRAM",
           "targetExtension": ".srm"
         }
       ],

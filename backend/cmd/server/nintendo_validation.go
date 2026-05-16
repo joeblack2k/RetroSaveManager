@@ -113,7 +113,7 @@ func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectio
 		}
 		return result
 	case "nds":
-		return validateNintendoDSSave(input)
+		return validateNintendoDSSave(input, detection)
 	case "wii":
 		return validateWiiSave(input, detection)
 	default:
@@ -121,12 +121,12 @@ func validateNintendoRawSave(input saveCreateInput, detection saveSystemDetectio
 	}
 }
 
-func validateNintendoDSSave(input saveCreateInput) consoleValidationResult {
+func validateNintendoDSSave(input saveCreateInput, detection saveSystemDetectionResult) consoleValidationResult {
 	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(strings.TrimSpace(input.Filename))), ".")
-	if ext != "sav" && ext != "dsv" {
+	if ext != "sav" && ext != "srm" && ext != "dsv" {
 		return consoleValidationResult{
 			Rejected:     true,
-			RejectReason: "nds saves require .sav or .dsv payloads",
+			RejectReason: "nds saves require .sav, .srm, or .dsv payloads",
 		}
 	}
 	if len(input.Payload) == 0 {
@@ -147,14 +147,57 @@ func validateNintendoDSSave(input saveCreateInput) consoleValidationResult {
 			RejectReason: "payload looks like text/noise",
 		}
 	}
-	if !hasNewSuperMarioBrosNDSSignature(input.Payload) {
+	validationPayload := append([]byte(nil), input.Payload...)
+	container := "raw"
+	if ext == "dsv" {
+		raw, err := splitDeSmuMEDSV(input.Payload)
+		if err != nil {
+			return consoleValidationResult{Rejected: true, RejectReason: err.Error()}
+		}
+		validationPayload = raw
+		container = "desmume-dsv"
+	} else if raw, ok, err := splitNoGBANDSContainer(input.Payload); ok || err != nil {
+		if err != nil {
+			return consoleValidationResult{Rejected: true, RejectReason: err.Error()}
+		}
+		validationPayload = raw
+		container = "nogba-sav"
+	}
+	if _, ok := ndsRawSaveSizes[len(validationPayload)]; !ok {
 		return consoleValidationResult{
 			Rejected:     true,
-			RejectReason: "nds save is not a validated supported Nintendo DS profile",
+			RejectReason: fmt.Sprintf("nds raw save size %d is not recognized", len(validationPayload)),
+		}
+	}
+	if allBytesEqual(validationPayload, 0x00) || allBytesEqual(validationPayload, 0xFF) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: "nds raw save payload is blank",
 		}
 	}
 
-	signatureCount := bytesCount(input.Payload, []byte("Mario2d"))
+	signatureCount := bytesCount(validationPayload, []byte("Mario2d"))
+	if signatureCount == 0 {
+		rawInput := input
+		rawInput.Payload = validationPayload
+		rawInput.Filename = strings.TrimSuffix(input.Filename, filepath.Ext(input.Filename)) + ".sav"
+		result := validateStrictRawSaveClass(rawInput, detection, strictRawSaveValidationProfile{
+			SystemSlug:          "nds",
+			DisplayName:         "nds",
+			ParserID:            "nds-raw-backup",
+			AllowedExts:         map[string]struct{}{"sav": {}, "srm": {}},
+			AllowedSizes:        ndsRawSaveSizes,
+			RequireROMSHA1:      true,
+			RequireTrustedMatch: true,
+			RejectBlank:         true,
+			SparseWarningCutoff: 16,
+			Warning:             "No structural Nintendo DS save decoder is available yet for this raw backup payload",
+		})
+		if result.Inspection != nil {
+			result.Inspection.SemanticFields["sourceContainer"] = container
+		}
+		return result
+	}
 	inspection := &saveInspection{
 		ParserLevel:        saveParserLevelStructural,
 		ParserID:           "nds-new-super-mario-bros",
@@ -165,13 +208,15 @@ func validateNintendoDSSave(input saveCreateInput) consoleValidationResult {
 		Evidence: []string{
 			"validated Nintendo DS save profile",
 			"game=New Super Mario Bros.",
-			fmt.Sprintf("payloadSize=%d", len(input.Payload)),
+			fmt.Sprintf("payloadSize=%d", len(validationPayload)),
 			fmt.Sprintf("signatureCount=%d", signatureCount),
 		},
-		PayloadSizeBytes: len(input.Payload),
+		PayloadSizeBytes: len(validationPayload),
 		SemanticFields: map[string]any{
-			"signature":      "Mario2d",
-			"signatureCount": signatureCount,
+			"signature":        "Mario2d",
+			"signatureCount":   signatureCount,
+			"sourceContainer":  container,
+			"rawCanonicalSize": len(validationPayload),
 		},
 	}
 	return consoleValidationResult{Inspection: inspection}

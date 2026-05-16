@@ -24,7 +24,7 @@ func TestSaveRecordIndexLookupParity(t *testing.T) {
 	if got, ok := index.latestReadableByROMSlot("rom-a", "slot-1"); !ok || got.Summary.ID != "save-readable" {
 		t.Fatalf("latestReadableByROMSlot should skip missing payloads: ok=%v id=%q", ok, got.Summary.ID)
 	}
-	if got, ok := index.latestReadableByTrackContext("Pokemon Noise Loop.srm", "gameboy", "Pokemon Noise Loop", "US"); !ok || got.Summary.ID != "save-readable" {
+	if got, ok := index.latestReadableByTrackContext("Pokemon Noise Loop.srm", "gameboy", "Pokemon Noise Loop", "US", "", ""); !ok || got.Summary.ID != "save-readable" {
 		t.Fatalf("latestReadableByTrackContext should match canonical track: ok=%v id=%q", ok, got.Summary.ID)
 	}
 
