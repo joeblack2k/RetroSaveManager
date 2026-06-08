@@ -14,6 +14,7 @@ func newRouter(app *app) http.Handler {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Logger)
+	r.Use(app.requireAuth)
 	staticFrontend := newFrontendStaticHandler()
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {

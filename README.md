@@ -72,6 +72,10 @@ Maps host port `80` to container port `80`.
 
 Disables login requirements. This is the default and is intended for trusted internal networks.
 
+`TRUST_REMOTE_USER_HEADER: false`
+
+When `AUTH_MODE=enabled`, set `TRUST_REMOTE_USER_HEADER=true` ONLY if a reverse proxy (e.g. Authelia, Authentik, oauth2-proxy) sits in front of RSM and strips and re-sets the `Remote-User` header on every request. The default (`false`) prevents WAN spoofing — without a stripping proxy, any client could forge the header and bypass authentication.
+
 `SAVE_ROOT: /saves`
 
 The container stores all managed save data under `/saves`.

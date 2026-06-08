@@ -14,6 +14,25 @@ func authMode() string {
 	return mode
 }
 
+// trustRemoteUserHeader reports whether the Remote-User header should be
+// trusted as proof of authentication when AUTH_MODE=enabled.
+//
+// Default is FALSE — a deployment that exposes RSM directly to the WAN
+// without a stripping reverse proxy in front would otherwise be trivially
+// spoofable by any client that sets the header. Operators who DO have a
+// trusted forwardAuth proxy (Authelia, oauth2-proxy, Authentik, etc.) in
+// front and want SSO to work must opt in explicitly by setting
+// TRUST_REMOTE_USER_HEADER=true (or "yes" / "1").
+func trustRemoteUserHeader() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("TRUST_REMOTE_USER_HEADER")))
+	switch v {
+	case "true", "yes", "1":
+		return true
+	default:
+		return false
+	}
+}
+
 func baseURLForRequest(r *http.Request) string {
 	if env := strings.TrimSpace(os.Getenv("BASE_URL")); env != "" {
 		return strings.TrimRight(env, "/")
