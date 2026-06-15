@@ -104,13 +104,11 @@ func (a *app) requireAuth(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// Helper protocol: requests carrying both identity headers
-		// (X-RSM-Device-Type + X-RSM-Fingerprint) are deferred to the
-		// downstream handler (authorizeHelperSyncRequest in helper_auth.go),
-		// which enforces either app-password validation or the
-		// auto-enroll-window policy. Pre-empting that decision here would
-		// break the bootstrap flow where a fresh helper has no key yet.
-		if hasHelperIdentity(r) {
+		// Helper protocol: only endpoints that actually call
+		// authorizeHelperSyncRequest may defer auth to the downstream handler.
+		// Checking identity headers alone would let callers spoof those headers
+		// and bypass AUTH_MODE on unrelated API/static routes.
+		if isHelperProtocolRequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -126,10 +124,35 @@ func (a *app) requireAuth(next http.Handler) http.Handler {
 	})
 }
 
+// isHelperProtocolRequest reports whether r is one of the helper-facing routes
+// whose handler performs authorizeHelperSyncRequest. Identity headers alone are
+// not sufficient; non-helper routes must still require normal auth.
+func isHelperProtocolRequest(r *http.Request) bool {
+	if !hasHelperIdentity(r) {
+		return false
+	}
+	p := stripRoutePrefix(r.URL.Path)
+	switch r.Method {
+	case http.MethodGet:
+		if p == "/save/latest" ||
+			p == "/saves/download" ||
+			p == "/saves/download_many" ||
+			p == "/saves/download-many" {
+			return true
+		}
+		return strings.HasPrefix(p, "/saves/") && strings.HasSuffix(p, "/download")
+	case http.MethodPost:
+		return p == "/saves" ||
+			p == "/devices/config/report" ||
+			p == "/helpers/config/sync" ||
+			p == "/helpers/heartbeat"
+	default:
+		return false
+	}
+}
+
 // hasHelperIdentity reports whether r carries both helper-identity headers
-// (X-RSM-Device-Type + X-RSM-Fingerprint). The middleware uses this to
-// recognize the helper protocol and defer the auth decision to
-// authorizeHelperSyncRequest, which knows the auto-enroll-window policy.
+// (X-RSM-Device-Type + X-RSM-Fingerprint).
 func hasHelperIdentity(r *http.Request) bool {
 	dt := strings.TrimSpace(r.Header.Get("X-RSM-Device-Type"))
 	fp := strings.TrimSpace(r.Header.Get("X-RSM-Fingerprint"))

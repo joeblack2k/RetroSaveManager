@@ -217,6 +217,40 @@ func TestAuthMiddleware_Enabled_HelperHeadersValidKey_Allows(t *testing.T) {
 	assertStatus(t, rr, http.StatusOK)
 }
 
+func TestAuthMiddleware_Enabled_HelperHeadersOnProtectedListRoute_Rejects(t *testing.T) {
+	h := authMiddlewareHarness(t, true)
+	req := rawRequest(http.MethodGet, "/api/saves")
+	req.Header.Set("X-RSM-Device-Type", "linux-x86")
+	req.Header.Set("X-RSM-Fingerprint", "spoofed-helper-headers")
+	rr := h.do(req)
+	assertStatus(t, rr, http.StatusUnauthorized)
+}
+
+func TestAuthMiddleware_Enabled_HelperHeadersOnStaticRoute_Rejects(t *testing.T) {
+	h := staticFrontendHarness(t, true)
+	req := rawRequest(http.MethodGet, "/")
+	req.Header.Set("X-RSM-Device-Type", "linux-x86")
+	req.Header.Set("X-RSM-Fingerprint", "spoofed-helper-headers")
+	rr := h.do(req)
+	assertStatus(t, rr, http.StatusUnauthorized)
+}
+
+func TestAuthMiddleware_Enabled_HelperHeadersNoKey_AgentUpload_AutoEnrollOpen_Allows(t *testing.T) {
+	h := authMiddlewareHarness(t, true)
+	h.app.mu.Lock()
+	h.app.enableAutoAppPasswordWindowLocked(15 * time.Minute)
+	h.app.mu.Unlock()
+
+	req := helperMultipartSaveRequest(t, "linux-x86", "deck-middleware-agent-open", "")
+	req.URL.Path = "/api/saves"
+	req.RequestURI = "/api/saves"
+	rr := h.do(req)
+	assertStatus(t, rr, http.StatusOK)
+	if got := rr.Header().Get("X-RSM-Auto-App-Password"); got == "" {
+		t.Fatalf("expected auto-provisioned app password header on agent bootstrap; headers=%v", rr.Header())
+	}
+}
+
 // Regression test for the GET /api/saves + valid Bearer path. The empirical
 // repro that surfaced the bootstrap bug had an empty Bearer (enrollment had
 // failed), so this confirms the happy path independently.
