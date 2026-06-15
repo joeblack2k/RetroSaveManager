@@ -143,6 +143,17 @@ Inside each save folder you will typically see:
 - `payload.*`
 - `metadata.json`
 
+## Maintenance Rescan
+
+After upgrading from a release before `v0.1.12`, run a one-time save rescan if
+you have existing saves. This reapplies the current system detection rules to
+stored metadata and corrects known catalog mistakes, including `Defenders of
+Oasis` being moved from Genesis/Mega Drive to Game Gear.
+
+```bash
+docker compose run --rm retrosavemanager rescan-saves
+```
+
 ## Ports Used
 
 By default, RetroSaveManager uses:
