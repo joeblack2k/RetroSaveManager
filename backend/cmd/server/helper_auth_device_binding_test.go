@@ -24,7 +24,10 @@ func newHelperAuthTestApp() *app {
 // with the compact form a helper would present for authentication.
 func mintHelperAppPassword(t *testing.T, a *app, now time.Time) (string, string) {
 	t.Helper()
-	record, plain := a.createAppPasswordLocked("test-helper", now)
+	record, plain, err := a.createAppPasswordLocked("test-helper", now)
+	if err != nil {
+		t.Fatalf("create helper app password: %v", err)
+	}
 	_, compact, ok := normalizeAppPasswordInput(plain)
 	if !ok {
 		t.Fatalf("failed to normalize generated app password %q", plain)
@@ -124,9 +127,15 @@ func TestBindAppPasswordDeletesDisplacedOrphan(t *testing.T) {
 	a.devices[1] = device{ID: 1, DeviceType: "linux-x86", Fingerprint: "deck-1", LastSeenAt: now, SyncAll: true, CreatedAt: now}
 	a.nextDeviceID = 2
 
-	old, _ := a.createAppPasswordLocked("old", now)
+	old, _, err := a.createAppPasswordLocked("old", now)
+	if err != nil {
+		t.Fatalf("create old app password: %v", err)
+	}
 	a.bindAppPasswordToDeviceLocked(old.ID, a.devices[1])
-	fresh, _ := a.createAppPasswordLocked("fresh", now)
+	fresh, _, err := a.createAppPasswordLocked("fresh", now)
+	if err != nil {
+		t.Fatalf("create fresh app password: %v", err)
+	}
 
 	a.bindAppPasswordToDeviceLocked(fresh.ID, a.devices[1])
 
@@ -146,13 +155,19 @@ func TestBindAppPasswordDeletesDisplacedOrphan(t *testing.T) {
 func TestBindAppPasswordKeepsPasswordReferencedElsewhere(t *testing.T) {
 	a := newHelperAuthTestApp()
 	now := time.Now().UTC()
-	shared, _ := a.createAppPasswordLocked("shared", now)
+	shared, _, err := a.createAppPasswordLocked("shared", now)
+	if err != nil {
+		t.Fatalf("create shared app password: %v", err)
+	}
 	sharedID := shared.ID
 	a.devices[1] = device{ID: 1, DeviceType: "linux-x86", Fingerprint: "deck-1", BoundAppPasswordID: &sharedID, LastSeenAt: now, SyncAll: true, CreatedAt: now}
 	a.devices[2] = device{ID: 2, DeviceType: "linux-x86", Fingerprint: "deck-2", BoundAppPasswordID: &sharedID, LastSeenAt: now, SyncAll: true, CreatedAt: now}
 	a.nextDeviceID = 3
 
-	fresh, _ := a.createAppPasswordLocked("fresh", now)
+	fresh, _, err := a.createAppPasswordLocked("fresh", now)
+	if err != nil {
+		t.Fatalf("create fresh app password: %v", err)
+	}
 	a.bindAppPasswordToDeviceLocked(fresh.ID, a.devices[1])
 
 	if _, ok := a.appPasswords[sharedID]; !ok {

@@ -31,8 +31,11 @@ func authMiddlewareHarness(t *testing.T, enabled bool) *contractHarness {
 func mintAppPassword(t *testing.T, h *contractHarness) string {
 	t.Helper()
 	h.app.mu.Lock()
-	_, key := h.app.createAppPasswordLocked("middleware-test", time.Now().UTC())
+	_, key, err := h.app.createAppPasswordLocked("middleware-test", time.Now().UTC())
 	h.app.mu.Unlock()
+	if err != nil {
+		t.Fatalf("create app password: %v", err)
+	}
 	if _, _, ok := normalizeAppPasswordInput(key); !ok {
 		t.Fatalf("created app password has unexpected format: %q", key)
 	}
