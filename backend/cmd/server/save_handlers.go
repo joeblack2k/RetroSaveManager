@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -107,6 +108,13 @@ func latestReadableSaveRecordByTrackContext(records []saveRecord, filename, syst
 	return latestSaveRecordForKey(records, trackKey, canonicalDuplicateTrackKeyForRecord)
 }
 
+// saveRecordFormat returns the bare lowercase payload extension (for example
+// "rtc" or "srm"), or "" when unknown. Helpers use this to distinguish
+// co-slotted save components that share a slotName.
+func saveRecordFormat(rec saveRecord) string {
+	return strings.TrimPrefix(strings.ToLower(filepath.Ext(rec.PayloadFile)), ".")
+}
+
 func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
@@ -139,6 +147,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 						"sha256":  latest.Summary.SHA256,
 						"version": latest.Summary.Version,
 						"id":      latest.Summary.ID,
+						"format":  saveRecordFormat(latest),
 					})
 					return
 				}
@@ -154,6 +163,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 							"sha256":  latest.Summary.SHA256,
 							"version": latest.Summary.Version,
 							"id":      latest.Summary.ID,
+							"format":  saveRecordFormat(latest),
 						})
 						return
 					}
@@ -217,6 +227,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			"sha256":  shaValue,
 			"version": latest.Summary.Version,
 			"id":      latest.Summary.ID,
+			"format":  saveRecordFormat(latest),
 		})
 		return
 	}
