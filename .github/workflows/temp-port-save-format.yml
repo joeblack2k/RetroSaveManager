@@ -1,0 +1,86 @@
+name: Temporary port save format PR
+
+on:
+  push:
+    branches:
+      - agent/save-latest-format
+
+permissions:
+  contents: write
+
+jobs:
+  port-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/save-latest-format
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Port PR 20 onto current main
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('backend/cmd/server/save_handlers.go')
+          text = path.read_text()
+          if 'func saveRecordFormat(' not in text:
+              text = text.replace('\t"os"\n\t"sort"', '\t"os"\n\t"path/filepath"\n\t"sort"', 1)
+              anchor = '''func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
+          '''
+              helper = '''// saveRecordFormat returns the bare lowercase payload extension (for example
+          // "rtc" or "srm"), or "" when unknown. Helpers use this to distinguish
+          // co-slotted save components that share a slotName.
+          func saveRecordFormat(rec saveRecord) string {
+          \treturn strings.TrimPrefix(strings.ToLower(filepath.Ext(rec.PayloadFile)), ".")
+          }
+
+          '''
+              if anchor not in text:
+                  raise SystemExit('handleSaveLatest anchor not found')
+              text = text.replace(anchor, helper + anchor, 1)
+
+          # Add format to every exists:true latest-save response that returns
+          # the canonical save id/version/hash. Limit this to handleSaveLatest.
+          start = text.index('func (a *app) handleSaveLatest')
+          end_marker = '\nfunc '
+          end = text.find(end_marker, start + 10)
+          if end == -1:
+              end = len(text)
+          before, body, after = text[:start], text[start:end], text[end:]
+          if '"format":  saveRecordFormat(latest)' not in body:
+              needle = '"id":      latest.Summary.ID,\n'
+              count = body.count(needle)
+              if count != 3:
+                  raise SystemExit(f'expected three latest response id sites, found {count}')
+              body = body.replace(needle, needle + '\t\t\t"format":  saveRecordFormat(latest),\n')
+          path.write_text(before + body + after)
+
+          # Golden fixture is the contract for the normal latest-save response.
+          golden = Path('backend/cmd/server/testdata/golden/save_latest_success.json')
+          data = json.loads(golden.read_text())
+          data['format'] = 'eep'
+          golden.write_text(json.dumps(data, indent=2) + '\n')
+          PY
+          gofmt -w backend/cmd/server/save_handlers.go backend/cmd/server/save_format_test.go
+      - name: Backend tests
+        working-directory: backend
+        run: go test ./...
+      - name: Backend build
+        working-directory: backend
+        run: go build ./...
+      - name: Contract checks
+        working-directory: backend
+        run: ./scripts/verify-contract.sh && ./scripts/verify-contract-drift.sh
+      - name: Commit port
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/cmd/server/save_handlers.go backend/cmd/server/save_format_test.go backend/cmd/server/testdata/golden/save_latest_success.json
+          git commit -m 'feat(save/latest): expose payload format (based on #20 by @terafin)'
+          git push origin HEAD:agent/save-latest-format
