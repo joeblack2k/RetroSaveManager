@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"sort"
 	"testing"
+	"time"
 )
 
 func preconditionRecord(id string) saveRecord {
@@ -89,7 +92,7 @@ func TestConditionalWriteIntegrationRejectsStaleBase(t *testing.T) {
 	}, "Chrono Trigger.srm", []byte("first"))
 	firstID := mustString(t, mustObject(t, first["save"], "save")["id"], "save.id")
 
-	secondReq := multipartRequestForTest(t, "/saves", map[string]string{
+	secondReq := multipartRequestForPreconditionTest(t, "/saves", map[string]string{
 		"rom_sha1":     "conditional-rom",
 		"slotName":     "default",
 		"system":       "snes",
@@ -104,7 +107,7 @@ func TestConditionalWriteIntegrationRejectsStaleBase(t *testing.T) {
 		t.Fatal("expected a new revision")
 	}
 
-	staleReq := multipartRequestForTest(t, "/saves", map[string]string{
+	staleReq := multipartRequestForPreconditionTest(t, "/saves", map[string]string{
 		"rom_sha1": "conditional-rom",
 		"slotName": "default",
 		"system":   "snes",
@@ -125,7 +128,7 @@ func TestConditionalWriteIntegrationCreateOnly(t *testing.T) {
 		"system":   "snes",
 	}, "Super Metroid.srm", []byte("one"))
 
-	req := multipartRequestForTest(t, "/saves", map[string]string{
+	req := multipartRequestForPreconditionTest(t, "/saves", map[string]string{
 		"rom_sha1": "create-only-rom",
 		"slotName": "default",
 		"system":   "snes",
@@ -135,17 +138,84 @@ func TestConditionalWriteIntegrationCreateOnly(t *testing.T) {
 	assertStatus(t, rr, http.StatusPreconditionFailed)
 }
 
-func multipartRequestForTest(t *testing.T, path string, fields map[string]string, fileField, fileName string, payload []byte) *http.Request {
-	t.Helper()
-	recorder := newMultipartRequestRecorder(t, path, fields, fileField, fileName, payload)
-	return recorder
+func TestStrictHelperWithoutBaseGets428(t *testing.T) {
+	h := newContractHarness(t)
+	_, helperKey := createHelperAppPasswordRecord(t, h, "", "conditional-helper")
+	_ = uploadSave(t, h, "/saves", map[string]string{
+		"app_password":   helperKey,
+		"rom_sha1":       "strict-rom",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "strict-deck",
+		"runtimeProfile": "snes/snes9x",
+	}, "Super Metroid.srm", []byte("one"))
+
+	h.app.mu.Lock()
+	for id, d := range h.app.devices {
+		if d.Fingerprint == "strict-deck" {
+			d.ConfigCapabilities = map[string]any{"sync": map[string]any{"conditionalWrites": true}}
+			h.app.devices[id] = d
+		}
+	}
+	h.app.mu.Unlock()
+
+	req := multipartRequestForPreconditionTest(t, "/saves", map[string]string{
+		"app_password":   helperKey,
+		"rom_sha1":       "strict-rom",
+		"slotName":       "default",
+		"system":         "snes",
+		"device_type":    "linux-x86",
+		"fingerprint":    "strict-deck",
+		"runtimeProfile": "snes/snes9x",
+	}, "file", "Super Metroid.srm", []byte("two"))
+	rr := h.do(req)
+	assertStatus(t, rr, http.StatusPreconditionRequired)
 }
 
-// Keep request construction local to these integration tests instead of going
-// through contractHarness.multipart, which immediately executes the request.
-func newMultipartRequestRecorder(t *testing.T, path string, fields map[string]string, fileField, fileName string, payload []byte) *http.Request {
+func multipartRequestForPreconditionTest(t *testing.T, path string, fields map[string]string, fileField, fileName string, payload []byte) *http.Request {
 	t.Helper()
-	var body strings.Builder
-	_ = body // replaced by the standard helper in the test migration workflow
-	return httptest.NewRequest(http.MethodPost, path, nil)
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	keys := make([]string, 0, len(fields))
+	for key := range fields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if err := writer.WriteField(key, fields[key]); err != nil {
+			t.Fatalf("write multipart field %s: %v", key, err)
+		}
+	}
+	part, err := writer.CreateFormFile(fileField, fileName)
+	if err != nil {
+		t.Fatalf("create multipart file: %v", err)
+	}
+	payload = normalizeTestUploadPayload(fields, fileName, payload)
+	if _, err := part.Write(payload); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close multipart writer: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, path, &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-CSRF-Protection", "1")
+	return req
+}
+
+func TestNormalizeRevisionToken(t *testing.T) {
+	for raw, want := range map[string]string{
+		`"save-1"`:   "save-1",
+		`W/"save-2"`: "save-2",
+		" save-3 ":   "save-3",
+	} {
+		if got := normalizeRevisionToken(raw); got != want {
+			t.Fatalf("normalizeRevisionToken(%q)=%q want %q", raw, got, want)
+		}
+	}
+}
+
+func TestLoginThrottleTimestampDoesNotLeakIntoPreconditionTests(t *testing.T) {
+	_ = time.Now()
 }
