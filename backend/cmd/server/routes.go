@@ -11,10 +11,13 @@ import (
 func newRouter(app *app) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	if trustProxyHeaders() {
+		r.Use(middleware.RealIP)
+	}
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Logger)
 	r.Use(app.requireAuth)
+	r.Use(app.requireBrowserWriteProtection)
 	r.Use(limitMultipartRequestBody)
 	staticFrontend := newFrontendStaticHandler()
 
