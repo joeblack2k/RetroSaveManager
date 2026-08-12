@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { AlertTriangle, Database, FileWarning, Gamepad2, KeyRound, ListChecks, LogOut, MonitorSmartphone, ScrollText, Settings, Wand2 } from "lucide-react";
-import { clearFrontendAuthSession, isFrontendAuthRequired } from "../../services/authSession";
+import { isFrontendAuthRequired, logoutFrontendAuthSession } from "../../services/authSession";
 import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus, getRuntimeConfig } from "../../services/retrosaveApi";
 import type { RuntimeConfig } from "../../services/types";
 
@@ -40,8 +40,8 @@ export function AppLayout(): JSX.Element {
     };
   }, []);
 
-  function handleLogout(): void {
-    clearFrontendAuthSession();
+  async function handleLogout(): Promise<void> {
+    await logoutFrontendAuthSession();
     navigate("/login", { replace: true });
   }
 
@@ -77,7 +77,7 @@ export function AppLayout(): JSX.Element {
 
         {authRequired ? (
           <footer className="sidebar-user">
-            <button className="sidebar-logout" type="button" aria-label="Log out" title="Log out" onClick={handleLogout}>
+            <button className="sidebar-logout" type="button" aria-label="Log out" title="Log out" onClick={() => void handleLogout()}>
               <LogOut aria-hidden="true" />
               Log out
             </button>
