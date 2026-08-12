@@ -1,0 +1,89 @@
+name: Temporary auth test migration
+
+on:
+  push:
+    branches:
+      - agent/security-real-web-sessions
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/security-real-web-sessions
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Update obsolete auth assertions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('backend/cmd/server/auth_middleware_test.go')
+          text = path.read_text()
+          old_cookie = '''func TestAuthMiddleware_Enabled_AllowsNonEmptySessionCookie(t *testing.T) {
+          \th := authMiddlewareHarness(t, true)
+          \treq := rawRequest(http.MethodGet, "/api/saves")
+          \treq.AddCookie(&http.Cookie{Name: "session", Value: "anything"})
+          \trr := h.do(req)
+          \tassertStatus(t, rr, http.StatusOK)
+          }
+          '''
+          new_cookie = '''func TestAuthMiddleware_Enabled_RejectsArbitrarySessionCookie(t *testing.T) {
+          \th := authMiddlewareHarness(t, true)
+          \treq := rawRequest(http.MethodGet, "/api/saves")
+          \treq.AddCookie(&http.Cookie{Name: "session", Value: "anything"})
+          \trr := h.do(req)
+          \tassertStatus(t, rr, http.StatusUnauthorized)
+          }
+          '''
+          old_login = '''func TestAuthMiddleware_Enabled_AllowsAuthLoginWithoutAuth(t *testing.T) {
+          \th := authMiddlewareHarness(t, true)
+          \treq := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{}`))
+          \treq.Header.Set("Content-Type", "application/json")
+          \treq.Header.Set("X-CSRF-Protection", "1")
+          \trr := h.do(req)
+          \tassertStatus(t, rr, http.StatusOK)
+          }
+          '''
+          new_login = '''func TestAuthMiddleware_Enabled_AllowsCredentialedLoginWithoutExistingSession(t *testing.T) {
+          \th := authMiddlewareHarness(t, true)
+          \tt.Setenv("RSM_ADMIN_EMAIL", "admin@example.invalid")
+          \tt.Setenv("RSM_ADMIN_PASSWORD", "correct-horse-battery-staple")
+          \treq := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"admin@example.invalid","password":"correct-horse-battery-staple"}`))
+          \treq.Header.Set("Content-Type", "application/json")
+          \treq.Header.Set("X-CSRF-Protection", "1")
+          \trr := h.do(req)
+          \tassertStatus(t, rr, http.StatusOK)
+          }
+          '''
+          for old, new, label in [(old_cookie, new_cookie, 'session-cookie test'), (old_login, new_login, 'login test')]:
+              if old not in text:
+                  raise SystemExit(f'expected {label} block not found')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          gofmt -w backend/cmd/server/auth_middleware_test.go backend/cmd/server/auth_web_sessions.go backend/cmd/server/auth_web_sessions_test.go backend/cmd/server/auth_handlers.go backend/cmd/server/auth_middleware.go backend/cmd/server/main.go backend/cmd/server/routes.go
+      - name: Backend tests
+        working-directory: backend
+        run: go test ./...
+      - name: Backend build
+        working-directory: backend
+        run: go build ./...
+      - name: Commit migrated tests and formatting
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/cmd/server
+          if git diff --cached --quiet; then
+            echo 'No changes to commit'
+            exit 0
+          fi
+          git commit -m 'test(auth): migrate middleware expectations'
+          git push origin HEAD:agent/security-real-web-sessions
