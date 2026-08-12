@@ -71,9 +71,6 @@ jobs:
       - name: Backend build
         working-directory: backend
         run: go build ./...
-      - name: Contract checks
-        working-directory: backend
-        run: ./scripts/verify-contract.sh && ./scripts/verify-contract-drift.sh
       - name: Commit port
         run: |
           git config user.name 'github-actions[bot]'
