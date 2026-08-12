@@ -89,7 +89,9 @@ func buildCompatRequest(t *testing.T, h *contractHarness, prefix string, route c
 
 	switch route.Path {
 	case "/auth/login":
-		req.Body = jsonBody(t, map[string]any{"email": "internal@local", "password": "test", "device_type": "retroarch", "fingerprint": "seed-1"})
+		t.Setenv("RSM_ADMIN_EMAIL", "admin@example.invalid")
+		t.Setenv("RSM_ADMIN_PASSWORD", "correct-horse-battery-staple")
+		req.Body = jsonBody(t, map[string]any{"email": "admin@example.invalid", "password": "correct-horse-battery-staple", "device_type": "retroarch", "fingerprint": "seed-1"})
 		req.ContentType = "application/json"
 	case "/auth/token":
 		req.Body = jsonBody(t, map[string]any{"email": "internal@local", "password": "test"})

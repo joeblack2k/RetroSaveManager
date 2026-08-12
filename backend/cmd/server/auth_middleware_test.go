@@ -89,12 +89,12 @@ func TestAuthMiddleware_Enabled_AllowsRemoteUserHeader(t *testing.T) {
 	assertStatus(t, rr, http.StatusOK)
 }
 
-func TestAuthMiddleware_Enabled_AllowsNonEmptySessionCookie(t *testing.T) {
+func TestAuthMiddleware_Enabled_RejectsArbitrarySessionCookie(t *testing.T) {
 	h := authMiddlewareHarness(t, true)
 	req := rawRequest(http.MethodGet, "/api/saves")
 	req.AddCookie(&http.Cookie{Name: "session", Value: "anything"})
 	rr := h.do(req)
-	assertStatus(t, rr, http.StatusOK)
+	assertStatus(t, rr, http.StatusUnauthorized)
 }
 
 // --- AUTH_MODE=enabled — allowlist (bootstrap endpoints) ---
@@ -111,9 +111,11 @@ func TestAuthMiddleware_Enabled_AllowsRuntimeConfigWithoutAuth(t *testing.T) {
 	assertStatus(t, rr, http.StatusOK)
 }
 
-func TestAuthMiddleware_Enabled_AllowsAuthLoginWithoutAuth(t *testing.T) {
+func TestAuthMiddleware_Enabled_AllowsCredentialedLoginWithoutExistingSession(t *testing.T) {
 	h := authMiddlewareHarness(t, true)
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{}`))
+	t.Setenv("RSM_ADMIN_EMAIL", "admin@example.invalid")
+	t.Setenv("RSM_ADMIN_PASSWORD", "correct-horse-battery-staple")
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(`{"email":"admin@example.invalid","password":"correct-horse-battery-staple"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-CSRF-Protection", "1")
 	rr := h.do(req)
@@ -295,7 +297,9 @@ func TestAuthMiddleware_Enabled_AllowsAuthLoginPrefixVariants(t *testing.T) {
 	} {
 		t.Run(path, func(t *testing.T) {
 			h := authMiddlewareHarness(t, true)
-			req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+			t.Setenv("RSM_ADMIN_EMAIL", "admin@example.invalid")
+			t.Setenv("RSM_ADMIN_PASSWORD", "correct-horse-battery-staple")
+			req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"email":"admin@example.invalid","password":"correct-horse-battery-staple"}`))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("X-CSRF-Protection", "1")
 			rr := h.do(req)
