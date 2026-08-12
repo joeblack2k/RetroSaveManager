@@ -110,9 +110,39 @@ jobs:
           path.write_text(text)
           PY
           gofmt -w backend/cmd/server/save_handlers.go backend/cmd/server/save_preconditions.go backend/cmd/server/save_preconditions_test.go
-      - name: Backend tests
+      - name: Backend tests with focused diagnostics
         working-directory: backend
-        run: go test ./...
+        shell: bash
+        run: |
+          set +e
+          go test -json ./... > /tmp/rsm-go-test.json
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          events=[]
+          failed=set()
+          for raw in Path('/tmp/rsm-go-test.json').read_text(errors='replace').splitlines():
+              try: e=json.loads(raw)
+              except Exception: continue
+              events.append(e)
+              if e.get('Action') == 'fail' and e.get('Test'):
+                  failed.add(e['Test'])
+          out=['FAILED TESTS:'] + (sorted(failed) or ['<package-level failure>']) + ['']
+          for e in events:
+              s=e.get('Output','')
+              if e.get('Test') in failed or 'undefined:' in s or '_test.go:' in s or 'FAIL' in s or 'mismatch' in s.lower() or 'want ' in s.lower() or 'expected ' in s.lower():
+                  if s: out.append(f"[{e.get('Test') or 'package'}] {s.rstrip()}")
+          Path('../.github/TEMP_CONDITIONAL_REVISION_FAILURE.txt').write_text('\n'.join(out)+'\n')
+          PY
+            git -C .. config user.name 'github-actions[bot]'
+            git -C .. config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git -C .. add .github/TEMP_CONDITIONAL_REVISION_FAILURE.txt
+            git -C .. commit -m 'ci: capture temporary conditional revision failure'
+            git -C .. push origin HEAD:agent/save-conditional-revisions
+            exit "$status"
+          fi
       - name: Backend build
         working-directory: backend
         run: go build ./...
