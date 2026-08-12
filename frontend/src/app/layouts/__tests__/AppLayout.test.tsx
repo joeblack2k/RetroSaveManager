@@ -2,11 +2,12 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppLayout } from "../AppLayout";
+import { isFrontendAuthRequired, logoutFrontendAuthSession } from "../../../services/authSession";
 import { enableAutoAppPasswordEnrollment, getAutoAppPasswordEnrollmentStatus, getRuntimeConfig } from "../../../services/retrosaveApi";
 
 vi.mock("../../../services/authSession", () => ({
-  clearFrontendAuthSession: vi.fn(),
-  isFrontendAuthRequired: vi.fn(() => false)
+  isFrontendAuthRequired: vi.fn(() => false),
+  logoutFrontendAuthSession: vi.fn(() => Promise.resolve())
 }));
 
 vi.mock("../../../services/retrosaveApi", () => ({
@@ -18,6 +19,8 @@ vi.mock("../../../services/retrosaveApi", () => ({
 describe("AppLayout", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    vi.mocked(isFrontendAuthRequired).mockReturnValue(false);
+    vi.mocked(logoutFrontendAuthSession).mockResolvedValue(undefined);
     vi.mocked(getAutoAppPasswordEnrollmentStatus).mockResolvedValue({
       active: false,
       enabledUntil: null
@@ -76,6 +79,26 @@ describe("AppLayout", () => {
     expect(screen.getByText("My Saves content")).toBeInTheDocument();
     expect(await screen.findByText("LAN-only mode")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Add helper" })).toBeInTheDocument();
+  });
+
+  it("ends the backend session before navigating to login", async () => {
+    vi.mocked(isFrontendAuthRequired).mockReturnValue(true);
+
+    render(
+      <MemoryRouter initialEntries={["/app/my-games"]}>
+        <Routes>
+          <Route path="/app" element={<AppLayout />}>
+            <Route path="my-games" element={<div>My Saves content</div>} />
+          </Route>
+          <Route path="/login" element={<div>Login screen</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Log out" }));
+
+    expect(await screen.findByText("Login screen")).toBeInTheDocument();
+    expect(logoutFrontendAuthSession).toHaveBeenCalledTimes(1);
   });
 
   it("replaces Add helper with a live countdown timer after activation", async () => {
