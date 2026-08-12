@@ -21,6 +21,17 @@ func (a *app) handleAuthSignup(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) handleAuthLogout(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   -1,
+		Expires:  time.Unix(1, 0).UTC(),
+		SameSite: http.SameSiteLaxMode,
+	})
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"message": "Logged out",
