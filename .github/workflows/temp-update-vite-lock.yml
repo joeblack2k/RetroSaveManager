@@ -1,4 +1,4 @@
-name: Temporary Vite lockfile update
+name: Temporary frontend dependency lockfile update
 
 on:
   push:
@@ -26,9 +26,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Update Vite lockfile
+      - name: Update dependency lockfile
         working-directory: frontend
-        run: npm install --save-dev --save-exact vite@8.0.16 --package-lock-only
+        run: npm install --save-exact --package-lock-only --save-dev vite@8.0.16 && npm install --save-exact --package-lock-only react-router-dom@7.18.1
 
       - name: Verify install
         working-directory: frontend
@@ -55,5 +55,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add frontend/package.json frontend/package-lock.json
-          git commit -m 'chore(frontend): update Vite to 8.0.16'
+          git commit -m 'chore(frontend): update audited dependencies'
           git push origin HEAD:agent/chore-vite-8-0-16
