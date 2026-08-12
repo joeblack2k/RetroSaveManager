@@ -4,6 +4,10 @@ services:
     environment:
       PORT: ${PORT:-80}
       AUTH_MODE: ${AUTH_MODE:-disabled}
+      RSM_ADMIN_EMAIL: ${RSM_ADMIN_EMAIL:-}
+      RSM_ADMIN_PASSWORD: ${RSM_ADMIN_PASSWORD:-}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-}
+      TRUST_REMOTE_USER_HEADER: ${TRUST_REMOTE_USER_HEADER:-false}
       SAVE_ROOT: /saves
       STATE_ROOT: /config
       BASE_URL: ${BASE_URL:-}
