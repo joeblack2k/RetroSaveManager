@@ -31,6 +31,10 @@ func main() {
 		return
 	}
 
+	if err := validateAuthConfiguration(); err != nil {
+		log.Fatalf("invalid authentication configuration: %v", err)
+	}
+
 	app := newApp()
 	app.applyBootstrapDemoPolicy()
 	if err := app.initSaveStore(); err != nil {
