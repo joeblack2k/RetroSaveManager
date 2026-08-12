@@ -61,7 +61,7 @@ jobs:
 
           golden = Path('backend/cmd/server/testdata/golden/save_latest_success.json')
           data = json.loads(golden.read_text())
-          data['format'] = 'srm'
+          data['format'] = 'eep'
           golden.write_text(json.dumps(data, indent=2) + '\n')
           PY
           gofmt -w backend/cmd/server/save_handlers.go backend/cmd/server/save_format_test.go
