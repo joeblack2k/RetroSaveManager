@@ -65,7 +65,7 @@ func mountCompatRoutes(r chi.Router, app *app) {
 
 	r.Post("/auth/login", app.handleAuthLogin)
 	r.Post("/auth/signup", app.handleAuthSignup)
-	r.Post("/auth/logout", app.handleAuthLogout)
+	r.Post("/auth/logout", app.handleAuthLogoutAndRevoke)
 	r.Post("/auth/token", app.handleAuthToken)
 	r.Post("/auth/token/app-password", app.handleAuthTokenAppPassword)
 	r.Get("/auth/me", app.handleAuthMe)
