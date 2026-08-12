@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"sort"
 	"testing"
-	"time"
 )
 
 func preconditionRecord(id string) saveRecord {
@@ -89,7 +88,7 @@ func TestConditionalWriteIntegrationRejectsStaleBase(t *testing.T) {
 		"rom_sha1": "conditional-rom",
 		"slotName": "default",
 		"system":   "snes",
-	}, "Chrono Trigger.srm", []byte("first"))
+	}, "Chrono Trigger.srm", buildNonBlankPayload(2048, 0x21))
 	firstID := mustString(t, mustObject(t, first["save"], "save")["id"], "save.id")
 
 	secondReq := multipartRequestForPreconditionTest(t, "/saves", map[string]string{
@@ -97,7 +96,7 @@ func TestConditionalWriteIntegrationRejectsStaleBase(t *testing.T) {
 		"slotName":     "default",
 		"system":       "snes",
 		"baseRevision": firstID,
-	}, "file", "Chrono Trigger.srm", []byte("second"))
+	}, "file", "Chrono Trigger.srm", buildNonBlankPayload(2048, 0x22))
 	secondReq.Header.Set("If-Match", `"`+firstID+`"`)
 	second := h.do(secondReq)
 	assertStatus(t, second, http.StatusOK)
@@ -111,7 +110,7 @@ func TestConditionalWriteIntegrationRejectsStaleBase(t *testing.T) {
 		"rom_sha1": "conditional-rom",
 		"slotName": "default",
 		"system":   "snes",
-	}, "file", "Chrono Trigger.srm", []byte("stale-third"))
+	}, "file", "Chrono Trigger.srm", buildNonBlankPayload(2048, 0x23))
 	staleReq.Header.Set("If-Match", `"`+firstID+`"`)
 	stale := h.do(staleReq)
 	assertStatus(t, stale, http.StatusPreconditionFailed)
@@ -126,13 +125,13 @@ func TestConditionalWriteIntegrationCreateOnly(t *testing.T) {
 		"rom_sha1": "create-only-rom",
 		"slotName": "default",
 		"system":   "snes",
-	}, "Super Metroid.srm", []byte("one"))
+	}, "Super Metroid.srm", buildNonBlankPayload(2048, 0x31))
 
 	req := multipartRequestForPreconditionTest(t, "/saves", map[string]string{
 		"rom_sha1": "create-only-rom",
 		"slotName": "default",
 		"system":   "snes",
-	}, "file", "Super Metroid.srm", []byte("two"))
+	}, "file", "Super Metroid.srm", buildNonBlankPayload(2048, 0x32))
 	req.Header.Set("If-None-Match", "*")
 	rr := h.do(req)
 	assertStatus(t, rr, http.StatusPreconditionFailed)
@@ -149,7 +148,7 @@ func TestStrictHelperWithoutBaseGets428(t *testing.T) {
 		"device_type":    "linux-x86",
 		"fingerprint":    "strict-deck",
 		"runtimeProfile": "snes/snes9x",
-	}, "Super Metroid.srm", []byte("one"))
+	}, "Super Metroid.srm", buildNonBlankPayload(2048, 0x41))
 
 	h.app.mu.Lock()
 	for id, d := range h.app.devices {
@@ -168,7 +167,7 @@ func TestStrictHelperWithoutBaseGets428(t *testing.T) {
 		"device_type":    "linux-x86",
 		"fingerprint":    "strict-deck",
 		"runtimeProfile": "snes/snes9x",
-	}, "file", "Super Metroid.srm", []byte("two"))
+	}, "file", "Super Metroid.srm", buildNonBlankPayload(2048, 0x42))
 	rr := h.do(req)
 	assertStatus(t, rr, http.StatusPreconditionRequired)
 }
@@ -191,7 +190,6 @@ func multipartRequestForPreconditionTest(t *testing.T, path string, fields map[s
 	if err != nil {
 		t.Fatalf("create multipart file: %v", err)
 	}
-	payload = normalizeTestUploadPayload(fields, fileName, payload)
 	if _, err := part.Write(payload); err != nil {
 		t.Fatalf("write payload: %v", err)
 	}
@@ -214,8 +212,4 @@ func TestNormalizeRevisionToken(t *testing.T) {
 			t.Fatalf("normalizeRevisionToken(%q)=%q want %q", raw, got, want)
 		}
 	}
-}
-
-func TestLoginThrottleTimestampDoesNotLeakIntoPreconditionTests(t *testing.T) {
-	_ = time.Now()
 }
