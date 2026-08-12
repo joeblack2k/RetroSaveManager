@@ -18,7 +18,17 @@ func (a *app) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now := time.Now().UTC()
+	if retryAfter := loginRetryAfter(r, req.Email, now); retryAfter > 0 {
+		writeLoginRateLimited(w, retryAfter)
+		return
+	}
+
 	if !authenticateConfiguredAdmin(req.Email, req.Password) {
+		if retryAfter := recordFailedLogin(r, req.Email, now); retryAfter > 0 {
+			writeLoginRateLimited(w, retryAfter)
+			return
+		}
 		writeJSON(w, http.StatusUnauthorized, apiError{
 			Error:      "Unauthorized",
 			Message:    "invalid email or password",
@@ -26,8 +36,8 @@ func (a *app) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	clearFailedLogins(r, req.Email)
 
-	now := time.Now().UTC()
 	sessionToken, expiresAt, err := createWebSession(req.Email, now)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, apiError{
