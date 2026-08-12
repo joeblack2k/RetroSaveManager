@@ -8,10 +8,35 @@ import (
 )
 
 func (a *app) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
-	principal := requestPrincipal(r)
-
 	var req loginRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, apiError{
+			Error:      "Bad Request",
+			Message:    "invalid login request",
+			StatusCode: http.StatusBadRequest,
+		})
+		return
+	}
+
+	if !authenticateConfiguredAdmin(req.Email, req.Password) {
+		writeJSON(w, http.StatusUnauthorized, apiError{
+			Error:      "Unauthorized",
+			Message:    "invalid email or password",
+			StatusCode: http.StatusUnauthorized,
+		})
+		return
+	}
+
+	now := time.Now().UTC()
+	sessionToken, expiresAt, err := createWebSession(req.Email, now)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{
+			Error:      "Internal Server Error",
+			Message:    "unable to create session",
+			StatusCode: http.StatusInternalServerError,
+		})
+		return
+	}
 
 	if req.DeviceType != "" && req.Fingerprint != "" {
 		a.upsertDevice(req.DeviceType, req.Fingerprint)
@@ -19,17 +44,19 @@ func (a *app) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session",
-		Value:    randomHex(32),
+		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
-		MaxAge:   7 * 24 * 60 * 60,
+		Secure:   sessionCookieSecure(r),
+		MaxAge:   int(webSessionLifetime / time.Second),
+		Expires:  expiresAt,
 		SameSite: http.SameSiteLaxMode,
 	})
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"message": "Login successful",
-		"user":    principal,
+		"user":    defaultUser(),
 	})
 }
 
