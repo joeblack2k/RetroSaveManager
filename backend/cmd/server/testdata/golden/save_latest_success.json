@@ -1,7 +1,9 @@
 {
+  "conditionalWrites": true,
   "exists": true,
   "format": "eep",
   "id": "<redacted>",
+  "revision": "<redacted>",
   "sha256": "3f6671369162fa5c22c904d7186544ffe930474b74cb7a1d094959d4c47c5f1b",
   "success": true,
   "version": 1

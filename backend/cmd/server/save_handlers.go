@@ -117,6 +117,7 @@ func saveRecordFormat(rec saveRecord) string {
 
 func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
+	w.Header().Set(conditionalWritesHeader, "supported")
 	helperCtx, ok := a.authorizeHelperSyncRequest(w, r, nil)
 	if !ok {
 		return
@@ -141,14 +142,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if found {
-					writeJSON(w, http.StatusOK, map[string]any{
-						"success": true,
-						"exists":  true,
-						"sha256":  latest.Summary.SHA256,
-						"version": latest.Summary.Version,
-						"id":      latest.Summary.ID,
-						"format":  saveRecordFormat(latest),
-					})
+					writeLatestSaveRecord(w, latest, latest.Summary.SHA256)
 					return
 				}
 			}
@@ -157,14 +151,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 				if saveID, exists := store.latestProjectionSaveRecord(n64ControllerPakSyncLineKey(romSHA1, slotName), runtimeProfile); exists {
 					latest, found := a.findSaveRecordByID(saveID)
 					if found && saveRecordPayloadExists(latest) {
-						writeJSON(w, http.StatusOK, map[string]any{
-							"success": true,
-							"exists":  true,
-							"sha256":  latest.Summary.SHA256,
-							"version": latest.Summary.Version,
-							"id":      latest.Summary.ID,
-							"format":  saveRecordFormat(latest),
-						})
+						writeLatestSaveRecord(w, latest, latest.Summary.SHA256)
 						return
 					}
 				}
@@ -221,14 +208,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			sum := sha256.Sum256(projected)
 			shaValue = hex.EncodeToString(sum[:])
 		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"success": true,
-			"exists":  true,
-			"sha256":  shaValue,
-			"version": latest.Summary.Version,
-			"id":      latest.Summary.ID,
-			"format":  saveRecordFormat(latest),
-		})
+		writeLatestSaveRecord(w, latest, shaValue)
 		return
 	}
 
@@ -274,6 +254,9 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		}
 
 		filename := header.Filename
+		if !a.enforceSaveWritePrecondition(w, r, helperCtx, formValue, filename) {
+			return
+		}
 		if expandedUploads, isArchive, expandErr := expandMultipartSaveUpload(filename, payload, formValue); isArchive {
 			if expandErr != nil {
 				a.appendSyncLog(syncLogInput{

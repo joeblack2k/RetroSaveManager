@@ -300,7 +300,7 @@ func normalizeForGolden(value any) any {
 					out[key] = "<redacted>"
 					continue
 				}
-			case "id":
+			case "id", "revision":
 				if _, ok := child.(string); ok {
 					out[key] = "<redacted>"
 					continue
