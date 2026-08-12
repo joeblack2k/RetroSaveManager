@@ -19,6 +19,7 @@ func newRouter(app *app) http.Handler {
 	r.Use(app.requireAuth)
 	r.Use(app.requireBrowserWriteProtection)
 	r.Use(limitMultipartRequestBody)
+	r.Use(app.enforceSaveUploadIdempotency)
 	staticFrontend := newFrontendStaticHandler()
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
