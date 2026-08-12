@@ -1,0 +1,125 @@
+name: Temporary conditional revision migration
+
+on:
+  push:
+    branches:
+      - agent/save-conditional-revisions
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/save-conditional-revisions
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Wire conditional revisions into save handlers
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('backend/cmd/server/save_handlers.go')
+          text = path.read_text()
+
+          anchor = '''func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
+          \t_ = requestPrincipal(r)
+          '''
+          replacement = '''func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
+          \t_ = requestPrincipal(r)
+          \tw.Header().Set(conditionalWritesHeader, "supported")
+          '''
+          if anchor not in text:
+              raise SystemExit('latest handler anchor not found')
+          text = text.replace(anchor, replacement, 1)
+
+          old_blocks = [
+          '''\t\t\t\tif found {
+          \t\t\t\t\twriteJSON(w, http.StatusOK, map[string]any{
+          \t\t\t\t\t\t"success": true,
+          \t\t\t\t\t\t"exists":  true,
+          \t\t\t\t\t\t"sha256":  latest.Summary.SHA256,
+          \t\t\t\t\t\t"version": latest.Summary.Version,
+          \t\t\t\t\t\t"id":      latest.Summary.ID,
+          \t\t\t\t\t\t"format":  saveRecordFormat(latest),
+          \t\t\t\t\t})
+          \t\t\t\t\treturn
+          \t\t\t\t}
+          ''',
+          '''\t\t\t\t\tif found && saveRecordPayloadExists(latest) {
+          \t\t\t\t\t\twriteJSON(w, http.StatusOK, map[string]any{
+          \t\t\t\t\t\t\t"success": true,
+          \t\t\t\t\t\t\t"exists":  true,
+          \t\t\t\t\t\t\t"sha256":  latest.Summary.SHA256,
+          \t\t\t\t\t\t\t"version": latest.Summary.Version,
+          \t\t\t\t\t\t\t"id":      latest.Summary.ID,
+          \t\t\t\t\t\t\t"format":  saveRecordFormat(latest),
+          \t\t\t\t\t\t})
+          \t\t\t\t\t\treturn
+          \t\t\t\t\t}
+          ''',
+          '''\t\twriteJSON(w, http.StatusOK, map[string]any{
+          \t\t\t"success": true,
+          \t\t\t"exists":  true,
+          \t\t\t"sha256":  shaValue,
+          \t\t\t"version": latest.Summary.Version,
+          \t\t\t"id":      latest.Summary.ID,
+          \t\t\t"format":  saveRecordFormat(latest),
+          \t\t})
+          \t\treturn
+          ''',
+          ]
+          new_blocks = [
+          '''\t\t\t\tif found {
+          \t\t\t\t\twriteLatestSaveRecord(w, latest, latest.Summary.SHA256)
+          \t\t\t\t\treturn
+          \t\t\t\t}
+          ''',
+          '''\t\t\t\t\tif found && saveRecordPayloadExists(latest) {
+          \t\t\t\t\t\twriteLatestSaveRecord(w, latest, latest.Summary.SHA256)
+          \t\t\t\t\t\treturn
+          \t\t\t\t\t}
+          ''',
+          '''\t\twriteLatestSaveRecord(w, latest, shaValue)
+          \t\treturn
+          ''',
+          ]
+          for old, new in zip(old_blocks, new_blocks):
+              if old not in text:
+                  raise SystemExit('expected latest response block not found')
+              text = text.replace(old, new, 1)
+
+          anchor = '''\t\tfilename := header.Filename
+          \t\tif expandedUploads, isArchive, expandErr := expandMultipartSaveUpload(filename, payload, formValue); isArchive {
+          '''
+          replacement = '''\t\tfilename := header.Filename
+          \t\tif !a.enforceSaveWritePrecondition(w, r, helperCtx, formValue, filename) {
+          \t\t\treturn
+          \t\t}
+          \t\tif expandedUploads, isArchive, expandErr := expandMultipartSaveUpload(filename, payload, formValue); isArchive {
+          '''
+          if anchor not in text:
+              raise SystemExit('upload filename anchor not found')
+          text = text.replace(anchor, replacement, 1)
+          path.write_text(text)
+          PY
+          gofmt -w backend/cmd/server/save_handlers.go backend/cmd/server/save_preconditions.go backend/cmd/server/save_preconditions_test.go
+      - name: Backend tests
+        working-directory: backend
+        run: go test ./...
+      - name: Backend build
+        working-directory: backend
+        run: go build ./...
+      - name: Commit migration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/cmd/server
+          git commit -m 'feat(sync): enforce conditional save revisions'
+          git push origin HEAD:agent/save-conditional-revisions
