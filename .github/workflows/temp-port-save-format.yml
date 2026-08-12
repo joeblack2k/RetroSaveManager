@@ -31,8 +31,7 @@ jobs:
           text = path.read_text()
           if 'func saveRecordFormat(' not in text:
               text = text.replace('\t"os"\n\t"sort"', '\t"os"\n\t"path/filepath"\n\t"sort"', 1)
-              anchor = '''func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
-          '''
+              anchor = 'func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {\n'
               helper = '''// saveRecordFormat returns the bare lowercase payload extension (for example
           // "rtc" or "srm"), or "" when unknown. Helpers use this to distinguish
           // co-slotted save components that share a slotName.
@@ -46,66 +45,33 @@ jobs:
               text = text.replace(anchor, helper + anchor, 1)
 
           start = text.index('func (a *app) handleSaveLatest')
-          end_marker = '\nfunc '
-          end = text.find(end_marker, start + 10)
+          end = text.find('\nfunc ', start + 10)
           if end == -1:
               end = len(text)
           before, body, after = text[:start], text[start:end], text[end:]
           if '"format":  saveRecordFormat(latest)' not in body:
               needle = '"id":      latest.Summary.ID,\n'
-              count = body.count(needle)
-              if count != 3:
-                  raise SystemExit(f'expected three latest response id sites, found {count}')
+              if body.count(needle) != 3:
+                  raise SystemExit(f'expected three latest response id sites, found {body.count(needle)}')
               body = body.replace(needle, needle + '\t\t\t"format":  saveRecordFormat(latest),\n')
           path.write_text(before + body + after)
 
           golden = Path('backend/cmd/server/testdata/golden/save_latest_success.json')
-          data = json.loads(golden.read_text())
-          data['format'] = 'eep'
-          golden.write_text(json.dumps(data, indent=2) + '\n')
+          old = json.loads(golden.read_text())
+          ordered = {
+              'exists': old['exists'],
+              'format': 'eep',
+              'id': old['id'],
+              'sha256': old['sha256'],
+              'success': old['success'],
+              'version': old['version'],
+          }
+          golden.write_text(json.dumps(ordered, indent=2) + '\n')
           PY
           gofmt -w backend/cmd/server/save_handlers.go backend/cmd/server/save_format_test.go
-      - name: Backend tests with focused diagnostics
+      - name: Backend tests
         working-directory: backend
-        shell: bash
-        run: |
-          set +e
-          go test -json ./... > /tmp/rsm-go-test.json
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            python3 - <<'PY'
-          import json
-          from pathlib import Path
-          src = Path('/tmp/rsm-go-test.json')
-          lines = []
-          failed_tests = set()
-          events = []
-          for raw in src.read_text(errors='replace').splitlines():
-              try:
-                  event = json.loads(raw)
-              except Exception:
-                  continue
-              events.append(event)
-              if event.get('Action') == 'fail' and event.get('Test'):
-                  failed_tests.add(event['Test'])
-          lines.append('FAILED TESTS:')
-          lines.extend(sorted(failed_tests) or ['<package-level failure>'])
-          lines.append('')
-          for event in events:
-              output = event.get('Output', '')
-              test = event.get('Test')
-              if test in failed_tests or ('FAIL' in output) or ('_test.go:' in output) or ('mismatch' in output.lower()) or ('want' in output.lower() and 'got' in output.lower()):
-                  if output:
-                      lines.append(f"[{test or 'package'}] {output.rstrip()}")
-          Path('../.github/TEMP_SAVE_FORMAT_TEST_FAILURE.txt').write_text('\n'.join(lines) + '\n')
-          PY
-            git -C .. config user.name 'github-actions[bot]'
-            git -C .. config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git -C .. add .github/TEMP_SAVE_FORMAT_TEST_FAILURE.txt
-            git -C .. commit -m 'ci: refine temporary save-format failure diagnostics'
-            git -C .. push origin HEAD:agent/save-latest-format
-            exit "$status"
-          fi
+        run: go test ./...
       - name: Backend build
         working-directory: backend
         run: go build ./...
