@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -41,9 +40,10 @@ type saveIdempotencyStateFile struct {
 var saveIdempotencyMu sync.Mutex
 
 type bufferedHTTPResponse struct {
-	header http.Header
-	body   bytes.Buffer
-	status int
+	header      http.Header
+	body        bytes.Buffer
+	status      int
+	wroteHeader bool
 }
 
 func newBufferedHTTPResponse() *bufferedHTTPResponse {
@@ -52,12 +52,18 @@ func newBufferedHTTPResponse() *bufferedHTTPResponse {
 
 func (w *bufferedHTTPResponse) Header() http.Header { return w.header }
 func (w *bufferedHTTPResponse) WriteHeader(status int) {
-	if w.status != http.StatusOK || w.body.Len() > 0 {
+	if w.wroteHeader {
 		return
 	}
 	w.status = status
+	w.wroteHeader = true
 }
-func (w *bufferedHTTPResponse) Write(p []byte) (int, error) { return w.body.Write(p) }
+func (w *bufferedHTTPResponse) Write(p []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.body.Write(p)
+}
 
 func saveIdempotencyStatePath() string {
 	return filepath.Join(stateRootDirFromEnv(), saveIdempotencyStateFileName)
@@ -95,6 +101,9 @@ func isIdempotentSaveUploadRequest(r *http.Request) bool {
 	return r != nil && r.Method == http.MethodPost && saveIdempotencyCanonicalPath(r) == "/saves"
 }
 
+// saveUploadRequestFingerprint hashes the semantic multipart request rather than
+// the raw MIME body. A retry can use a different multipart boundary or field
+// order and still identify the same operation.
 func saveUploadRequestFingerprint(r *http.Request) (string, error) {
 	if r == nil {
 		return "", fmt.Errorf("request is required")
@@ -255,12 +264,13 @@ func (a *app) enforceSaveUploadIdempotency(next http.Handler) http.Handler {
 			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: err.Error(), StatusCode: http.StatusBadRequest})
 			return
 		}
+		defer cleanupMultipartForm(r)
 		keyHash := idempotencyKeyHash(key)
 		now := time.Now().UTC()
 
-		// Serializing keyed upload execution behind this dedicated mutex avoids
-		// the race where two simultaneous requests with the same key both mutate
-		// storage before either result reaches the durable ledger.
+		// Serialize idempotent upload execution behind a dedicated mutex. This
+		// closes the race where simultaneous requests with the same key both
+		// mutate storage before either result reaches the durable ledger.
 		saveIdempotencyMu.Lock()
 		defer saveIdempotencyMu.Unlock()
 
@@ -302,12 +312,8 @@ func (a *app) enforceSaveUploadIdempotency(next http.Handler) http.Handler {
 	})
 }
 
-// multipart.FileHeader.Open can create temporary files through ParseMultipartForm.
-// The request owner removes them after the handler chain has consumed the form.
 func cleanupMultipartForm(r *http.Request) {
 	if r != nil && r.MultipartForm != nil {
 		_ = r.MultipartForm.RemoveAll()
 	}
 }
-
-var _ = multipart.ErrMessageTooLarge
