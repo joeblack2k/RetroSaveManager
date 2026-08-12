@@ -21,7 +21,7 @@ func (a *app) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subscriberID, events := a.subscribeEvents()
-	defer a.unsubscribeEvents(subscriberID)
+	defer a.detachEventSubscriber(subscriberID)
 
 	_, _ = fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
@@ -48,4 +48,15 @@ func (a *app) handleEvents(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+// detachEventSubscriber removes a disconnected SSE subscriber without closing
+// its channel. publishEvent snapshots subscriber channels before sending; a
+// concurrent close after that snapshot could otherwise panic with
+// "send on closed channel". The request context is the stream's lifecycle
+// signal, so closing this internal channel is unnecessary.
+func (a *app) detachEventSubscriber(id int) {
+	a.mu.Lock()
+	delete(a.eventSubscribers, id)
+	a.mu.Unlock()
 }
