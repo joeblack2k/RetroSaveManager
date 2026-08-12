@@ -1,0 +1,43 @@
+FAILED TESTS:
+TestConditionalWriteIntegrationRejectsStaleBase
+TestGoldenSaveLatestSuccess
+
+[TestGoldenSaveLatestSuccess] === RUN   TestGoldenSaveLatestSuccess
+[TestGoldenSaveLatestSuccess] 2026/08/12 17:05:48 [runnervmvrwv9/rpKQo2WIEg-000315] "POST http://example.com/saves HTTP/1.1" from 192.0.2.1:1234 - 200 147B in 2.814073ms
+[TestGoldenSaveLatestSuccess] 2026/08/12 17:05:48 [runnervmvrwv9/rpKQo2WIEg-000316] "GET http://example.com/save/latest?romSha1=golden-rom&slotName=default HTTP/1.1" from 192.0.2.1:1234 - 200 255B in 46.861µs
+[TestGoldenSaveLatestSuccess]     golden_test.go:28: golden mismatch for save_latest_success.json
+[TestGoldenSaveLatestSuccess]         --- got ---
+[TestGoldenSaveLatestSuccess]         {
+[TestGoldenSaveLatestSuccess]           "conditionalWrites": true,
+[TestGoldenSaveLatestSuccess]           "exists": true,
+[TestGoldenSaveLatestSuccess]           "format": "eep",
+[TestGoldenSaveLatestSuccess]           "id": "<redacted>",
+[TestGoldenSaveLatestSuccess]           "revision": "save-1786554348252072818-3f6671369162",
+[TestGoldenSaveLatestSuccess]           "sha256": "3f6671369162fa5c22c904d7186544ffe930474b74cb7a1d094959d4c47c5f1b",
+[TestGoldenSaveLatestSuccess]           "success": true,
+[TestGoldenSaveLatestSuccess]           "version": 1
+[TestGoldenSaveLatestSuccess]         }
+[TestGoldenSaveLatestSuccess] 
+[TestGoldenSaveLatestSuccess]         --- want ---
+[TestGoldenSaveLatestSuccess]         {
+[TestGoldenSaveLatestSuccess]           "exists": true,
+[TestGoldenSaveLatestSuccess]           "format": "eep",
+[TestGoldenSaveLatestSuccess]           "id": "<redacted>",
+[TestGoldenSaveLatestSuccess]           "sha256": "3f6671369162fa5c22c904d7186544ffe930474b74cb7a1d094959d4c47c5f1b",
+[TestGoldenSaveLatestSuccess]           "success": true,
+[TestGoldenSaveLatestSuccess]           "version": 1
+[TestGoldenSaveLatestSuccess]         }
+[TestGoldenSaveLatestSuccess] --- FAIL: TestGoldenSaveLatestSuccess (0.01s)
+[TestTask4PathSafetyEvidence]     path_safety_test.go:19: normal path=/tmp/TestTask4PathSafetyEvidence3949588835/001/gameboy/wario-land-ii/save-1
+[TestTask4PathSafetyEvidence]     path_safety_test.go:25: escape-parent error=path escapes save root
+[TestTask4PathSafetyEvidence]     path_safety_test.go:31: escape-nested error=path escapes save root
+[TestTask4PathSafetyEvidence]     path_safety_test.go:37: canonical bad system=snes-saves
+[TestTask4PathSafetyEvidence]     path_safety_test.go:43: canonical bad game=chrono-trigger
+[TestTask4PathSafetyEvidence]     path_safety_test.go:49: safe filename=slot1.srm
+[TestConditionalWriteIntegrationRejectsStaleBase] === RUN   TestConditionalWriteIntegrationRejectsStaleBase
+[TestConditionalWriteIntegrationRejectsStaleBase] 2026/08/12 17:05:52 [runnervmvrwv9/rpKQo2WIEg-000630] "POST http://example.com/saves HTTP/1.1" from 192.0.2.1:1234 - 200 147B in 2.785888ms
+[TestConditionalWriteIntegrationRejectsStaleBase] 2026/08/12 17:05:52 [runnervmvrwv9/rpKQo2WIEg-000631] "POST http://example.com/saves HTTP/1.1" from 192.0.2.1:1234 - 200 216B in 546.594µs
+[TestConditionalWriteIntegrationRejectsStaleBase]     save_preconditions_test.go:107: expected a new revision
+[TestConditionalWriteIntegrationRejectsStaleBase] --- FAIL: TestConditionalWriteIntegrationRejectsStaleBase (0.01s)
+[package] FAIL
+[package] FAIL	github.com/joeblack2k/RetroSaveManager/backend/cmd/server	8.080s
