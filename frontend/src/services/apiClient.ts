@@ -12,6 +12,11 @@ function toAbsolutePath(path: string): string {
   return `${API_BASE}${normalized}`;
 }
 
+function isUnsafeMethod(method: string | undefined): boolean {
+  const normalized = (method ?? "GET").toUpperCase();
+  return normalized === "POST" || normalized === "PUT" || normalized === "PATCH" || normalized === "DELETE";
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -28,7 +33,8 @@ export async function apiFetchJSON<T>(path: string, init?: RequestInit): Promise
     ...init,
     headers: {
       Accept: "application/json",
-      ...(init?.headers ?? {})
+      ...(init?.headers ?? {}),
+      ...(isUnsafeMethod(init?.method) ? { "X-CSRF-Protection": "1" } : {})
     }
   });
 
