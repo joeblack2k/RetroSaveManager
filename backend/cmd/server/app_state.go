@@ -69,7 +69,7 @@ type app struct {
 func newApp() *app {
 	now := time.Now().UTC()
 	seedCompact := "ASDK9P"
-	seedSalt := randomHex(16)
+	seedSalt := "bootstrap-demo-salt"
 	catalog := map[string]catalogGame{
 		"cat-1": {
 			ID:          "cat-1",

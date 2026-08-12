@@ -63,9 +63,14 @@ func (a *app) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleAuthToken(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 
+	token, err := randomHex(64)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: "unable to generate token", StatusCode: http.StatusInternalServerError})
+		return
+	}
 	writeJSON(w, http.StatusOK, tokenResponse{
 		Success:       true,
-		Token:         randomHex(64),
+		Token:         token,
 		ExpiresInDays: 7,
 	})
 }
@@ -94,9 +99,14 @@ func (a *app) handleAuthTokenAppPassword(w http.ResponseWriter, r *http.Request)
 	deviceType := firstNonEmpty(payload.DeviceType, payload.DeviceTypeAlt)
 	fingerprint := strings.TrimSpace(payload.Fingerprint)
 	if deviceType == "" && fingerprint == "" {
+		token, err := randomHex(64)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: "unable to generate token", StatusCode: http.StatusInternalServerError})
+			return
+		}
 		writeJSON(w, http.StatusOK, tokenResponse{
 			Success:       true,
-			Token:         randomHex(64),
+			Token:         token,
 			ExpiresInDays: 7,
 		})
 		return
@@ -134,15 +144,20 @@ func (a *app) handleAuthTokenAppPassword(w http.ResponseWriter, r *http.Request)
 		LastSeenIP:          requestClientIP(r),
 		LastSeenUserAgent:   strings.TrimSpace(r.Header.Get("User-Agent")),
 	}, now)
-	if existingKeyID, hasExistingKey := a.appPasswordIDForDeviceLocked(deviceRecord.ID); hasExistingKey {
-		delete(a.appPasswords, existingKeyID)
-	}
-
 	name := strings.TrimSpace(payload.Name)
 	if name == "" {
 		name = defaultDeviceDisplayName(deviceType, fingerprint)
 	}
-	createdRecord, plainTextKey := a.createAppPasswordLocked(name, now)
+	createdRecord, plainTextKey, err := a.createAppPasswordLocked(name, now)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: "unable to generate app password", StatusCode: http.StatusInternalServerError})
+		return
+	}
+	// Do not invalidate a device's existing credential until a replacement
+	// has been generated successfully.
+	if existingKeyID, hasExistingKey := a.appPasswordIDForDeviceLocked(deviceRecord.ID); hasExistingKey && existingKeyID != createdRecord.ID {
+		delete(a.appPasswords, existingKeyID)
+	}
 	a.bindAppPasswordToDeviceLocked(createdRecord.ID, deviceRecord)
 	publicRecord := a.publicAppPasswordLocked(a.appPasswords[createdRecord.ID])
 	_ = a.persistSecurityDeviceStateLocked()
@@ -177,9 +192,19 @@ func (a *app) handleAuthMe(w http.ResponseWriter, r *http.Request) {
 func (a *app) handleAuthDevice(w http.ResponseWriter, r *http.Request) {
 	_ = requestPrincipal(r)
 
-	userCode := strings.ToUpper(randomHex(2))
+	userCodeRaw, err := randomHex(2)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: "unable to generate device code", StatusCode: http.StatusInternalServerError})
+		return
+	}
+	deviceCode, err := randomHex(32)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: "unable to generate device code", StatusCode: http.StatusInternalServerError})
+		return
+	}
+	userCode := strings.ToUpper(userCodeRaw)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"deviceCode":       randomHex(32),
+		"deviceCode":       deviceCode,
 		"userCode":         userCode,
 		"verificationUri":  baseURLForRequest(r) + "/device/" + userCode,
 		"expiresInSeconds": 900,

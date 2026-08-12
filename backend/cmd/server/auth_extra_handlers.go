@@ -182,7 +182,13 @@ func (a *app) handleAuthAppPasswordsCreate(w http.ResponseWriter, r *http.Reques
 	record := appPassword{}
 
 	a.mu.Lock()
-	record, plainTextKey = a.createAppPasswordLocked(name, now)
+	var err error
+	record, plainTextKey, err = a.createAppPasswordLocked(name, now)
+	if err != nil {
+		a.mu.Unlock()
+		writeJSON(w, http.StatusInternalServerError, apiError{Error: "Internal Server Error", Message: "unable to generate app password", StatusCode: http.StatusInternalServerError})
+		return
+	}
 	publicRecord := a.publicAppPasswordLocked(record)
 	_ = a.persistSecurityDeviceStateLocked()
 	a.mu.Unlock()

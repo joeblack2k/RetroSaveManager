@@ -258,6 +258,8 @@ func (a *app) authorizeHelperSyncRequest(w http.ResponseWriter, r *http.Request,
 				errorLabel = "Bad Request"
 			} else if status == http.StatusForbidden {
 				errorLabel = "Forbidden"
+			} else if status == http.StatusInternalServerError {
+				errorLabel = "Internal Server Error"
 			}
 			writeJSON(w, status, apiError{Error: errorLabel, Message: msg, StatusCode: status})
 			return helperAuthContext{}, false
@@ -323,7 +325,10 @@ func (a *app) authenticateHelperWithoutKey(identity helperIdentity, metadata hel
 	}
 
 	name := defaultDeviceDisplayName(identity.DeviceType, identity.Fingerprint)
-	record, plainTextKey := a.createAppPasswordLocked(name, now)
+	record, plainTextKey, err := a.createAppPasswordLocked(name, now)
+	if err != nil {
+		return helperAuthContext{}, http.StatusInternalServerError, "unable to generate app password"
+	}
 	a.bindAppPasswordToDeviceLocked(record.ID, boundDevice)
 	_ = a.persistSecurityDeviceStateLocked()
 

@@ -6,7 +6,9 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -167,16 +169,23 @@ func normalizeAppPasswordInput(raw string) (formatted string, compact string, ok
 	return formatAppPasswordCompact(value), value, true
 }
 
-func generateAppPasswordCompact() string {
+func generateAppPasswordCompact() (string, error) {
+	return generateAppPasswordCompactFrom(rand.Reader)
+}
+
+func generateAppPasswordCompactFrom(reader io.Reader) (string, error) {
+	if reader == nil {
+		return "", fmt.Errorf("app-password random reader is required")
+	}
 	buf := make([]byte, 6)
-	if _, err := rand.Read(buf); err != nil {
-		return "ASDK9P"
+	if _, err := io.ReadFull(reader, buf); err != nil {
+		return "", fmt.Errorf("read app-password randomness: %w", err)
 	}
 	out := make([]byte, 6)
 	for i, value := range buf {
 		out[i] = appPasswordAlphabet[int(value)%len(appPasswordAlphabet)]
 	}
-	return string(out)
+	return string(out), nil
 }
 
 func hashAppPasswordCompact(salt, compact string) string {
@@ -539,9 +548,18 @@ func (a *app) enableAutoAppPasswordWindowLocked(duration time.Duration) time.Tim
 	return until
 }
 
-func (a *app) generateUniqueAppPasswordCompactLocked() (string, bool) {
+var errAppPasswordCollisionExhausted = errors.New("unable to generate a unique app password")
+
+func (a *app) generateUniqueAppPasswordCompactLocked() (string, error) {
+	return a.generateUniqueAppPasswordCompactLockedWithReader(rand.Reader)
+}
+
+func (a *app) generateUniqueAppPasswordCompactLockedWithReader(reader io.Reader) (string, error) {
 	for attempt := 0; attempt < 64; attempt++ {
-		candidateCompact := generateAppPasswordCompact()
+		candidateCompact, err := generateAppPasswordCompactFrom(reader)
+		if err != nil {
+			return "", err
+		}
 		exists := false
 		for _, existing := range a.appPasswords {
 			if verifyAppPasswordCompact(existing, candidateCompact) {
@@ -550,26 +568,35 @@ func (a *app) generateUniqueAppPasswordCompactLocked() (string, bool) {
 			}
 		}
 		if !exists {
-			return candidateCompact, true
+			return candidateCompact, nil
 		}
 	}
-	return "", false
+	return "", errAppPasswordCollisionExhausted
 }
 
-func (a *app) createAppPasswordLocked(name string, now time.Time) (appPassword, string) {
+func (a *app) createAppPasswordLocked(name string, now time.Time) (appPassword, string, error) {
+	return a.createAppPasswordLockedWithReader(name, now, rand.Reader)
+}
+
+func (a *app) createAppPasswordLockedWithReader(name string, now time.Time, reader io.Reader) (appPassword, string, error) {
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
 		trimmedName = "app-password"
 	}
 
+	compact, err := a.generateUniqueAppPasswordCompactLockedWithReader(reader)
+	if err != nil {
+		return appPassword{}, "", err
+	}
+	salt, err := randomHexFrom(reader, 16)
+	if err != nil {
+		return appPassword{}, "", fmt.Errorf("generate app-password salt: %w", err)
+	}
+
+	// Allocate the durable identity only after all credential material was
+	// generated successfully. Entropy/collision failures must not consume IDs.
 	id := a.nextAppPasswordID
 	a.nextAppPasswordID++
-
-	compact, ok := a.generateUniqueAppPasswordCompactLocked()
-	if !ok {
-		compact = "ASDK9P"
-	}
-	salt := randomHex(16)
 	record := appPassword{
 		ID:                 "app-password-" + strconv.Itoa(id),
 		Name:               trimmedName,
@@ -582,7 +609,7 @@ func (a *app) createAppPasswordLocked(name string, now time.Time) (appPassword, 
 		KeyHash:            hashAppPasswordCompact(salt, compact),
 	}
 	a.appPasswords[record.ID] = record
-	return record, formatAppPasswordCompact(compact)
+	return record, formatAppPasswordCompact(compact), nil
 }
 
 func (a *app) bindAppPasswordToDeviceLocked(passwordID string, d device) {
