@@ -32,6 +32,7 @@ func main() {
 	}
 
 	app := newApp()
+	app.applyBootstrapDemoPolicy()
 	if err := app.initSaveStore(); err != nil {
 		log.Fatalf("failed to initialize save storage: %v", err)
 	}
