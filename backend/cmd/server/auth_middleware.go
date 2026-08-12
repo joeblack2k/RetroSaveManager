@@ -124,6 +124,7 @@ func (a *app) isAuthenticatedRequest(r *http.Request) bool {
 			if found {
 				return true
 			}
+		}
 	}
 
 	return false
