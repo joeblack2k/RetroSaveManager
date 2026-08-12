@@ -45,8 +45,6 @@ jobs:
                   raise SystemExit('handleSaveLatest anchor not found')
               text = text.replace(anchor, helper + anchor, 1)
 
-          # Add format to every exists:true latest-save response that returns
-          # the canonical save id/version/hash. Limit this to handleSaveLatest.
           start = text.index('func (a *app) handleSaveLatest')
           end_marker = '\nfunc '
           end = text.find(end_marker, start + 10)
@@ -61,10 +59,9 @@ jobs:
               body = body.replace(needle, needle + '\t\t\t"format":  saveRecordFormat(latest),\n')
           path.write_text(before + body + after)
 
-          # Golden fixture is the contract for the normal latest-save response.
           golden = Path('backend/cmd/server/testdata/golden/save_latest_success.json')
           data = json.loads(golden.read_text())
-          data['format'] = 'eep'
+          data['format'] = 'srm'
           golden.write_text(json.dumps(data, indent=2) + '\n')
           PY
           gofmt -w backend/cmd/server/save_handlers.go backend/cmd/server/save_format_test.go
