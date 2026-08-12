@@ -28,7 +28,7 @@ jobs:
 
       - name: Update dependency lockfile
         working-directory: frontend
-        run: npm install --save-exact --package-lock-only --save-dev vite@8.0.16 && npm install --save-exact --package-lock-only react-router-dom@7.18.1
+        run: npm install --save-exact --package-lock-only --save-dev vite@8.0.16 && npm install --save-exact --package-lock-only react-router-dom@7.18.2
 
       - name: Verify install
         working-directory: frontend
