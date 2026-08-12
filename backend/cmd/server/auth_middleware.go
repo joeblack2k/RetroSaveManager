@@ -6,38 +6,16 @@ import (
 	"time"
 )
 
-// publicAuthPaths lists the canonical (un-prefixed) endpoint paths that must
-// remain reachable without authentication even when AUTH_MODE=enabled. These
-// are the bootstrap endpoints — without them a fresh client could never log
-// in, fetch runtime config, or complete a device-pairing flow.
-//
-// Paths are matched after stripping any of the well-known route prefixes
-// (/api/v1, /api, /v1) via stripRoutePrefix, so each entry needs to be listed
-// only once.
-//
-// NOTE: /healthz is intentionally NOT in this map. It is registered at the
-// router root only (NOT under any compat-mount prefix), so allowing
-// /api/healthz / /v1/healthz / etc. through the allowlist would let those
-// paths skip auth even though they have no real route — leaking 404s and,
-// worse, falling through to the static-frontend handler. /healthz is matched
-// as an exact path in isPublicAuthPath instead.
+// publicAuthPaths contains only bootstrap endpoints that genuinely need to be
+// reachable before a web/admin session exists. Placeholder account-management,
+// 2FA and verification endpoints are deliberately not public in self-hosted
+// authenticated mode.
 var publicAuthPaths = map[string]struct{}{
-	"/runtime-config":           {},
-	"/auth/login":               {},
-	"/auth/signup":              {},
-	"/auth/token":               {},
-	"/auth/token/app-password":  {},
-	"/auth/resend-verification": {},
-	"/auth/verify-email":        {},
-	"/auth/forgot-password":     {},
-	"/auth/reset-password":      {},
-	"/auth/device":              {},
-	"/auth/device/token":        {},
-	"/auth/device/verify":       {},
-	"/auth/device/confirm":      {},
-	"/auth/2fa/verify":          {},
-	"/auth/2fa/setup/totp":      {},
-	"/auth/2fa/verify-setup":    {},
+	"/runtime-config":          {},
+	"/auth/login":              {},
+	"/auth/token/app-password": {},
+	"/auth/device":             {},
+	"/auth/device/token":       {},
 }
 
 func stripRoutePrefix(p string) string {
@@ -146,7 +124,6 @@ func (a *app) isAuthenticatedRequest(r *http.Request) bool {
 			if found {
 				return true
 			}
-		}
 	}
 
 	return false
