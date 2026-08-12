@@ -1,0 +1,59 @@
+name: Temporary Vite lockfile update
+
+on:
+  push:
+    branches:
+      - agent/chore-vite-8-0-16
+
+permissions:
+  contents: write
+
+jobs:
+  update-lockfile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: agent/chore-vite-8-0-16
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Update Vite lockfile
+        working-directory: frontend
+        run: npm install --save-dev --save-exact vite@8.0.16 --package-lock-only
+
+      - name: Verify install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm run test
+
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Frontend audit
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
+
+      - name: Commit generated lockfile
+        run: |
+          if git diff --quiet -- frontend/package.json frontend/package-lock.json; then
+            echo 'No dependency changes generated'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/package.json frontend/package-lock.json
+          git commit -m 'chore(frontend): update Vite to 8.0.16'
+          git push origin HEAD:agent/chore-vite-8-0-16
