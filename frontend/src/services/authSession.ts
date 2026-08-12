@@ -1,3 +1,5 @@
+import { apiFetchJSON } from "./apiClient";
+
 const frontendAuthRequired = String(import.meta.env.VITE_AUTH_REQUIRED ?? "false").trim().toLowerCase() === "true";
 const sessionStorageKey = "retrosavemanager.frontend_session";
 
@@ -27,4 +29,20 @@ export function clearFrontendAuthSession(): void {
     return;
   }
   window.localStorage.removeItem(sessionStorageKey);
+}
+
+// Logout is best-effort from the UI's perspective. The backend call is needed
+// to expire its HttpOnly cookie, while local state must still be removed when
+// the server is temporarily unavailable.
+export async function logoutFrontendAuthSession(): Promise<void> {
+  try {
+    await apiFetchJSON<{ success: boolean; message?: string }>("/auth/logout", {
+      method: "POST"
+    });
+  } catch {
+    // The local session is cleared below so the user is never trapped in the
+    // authenticated UI because the server or network is unavailable.
+  } finally {
+    clearFrontendAuthSession();
+  }
 }
