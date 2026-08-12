@@ -263,3 +263,36 @@ func sessionCookieSecure(r *http.Request) bool {
 	}
 	return false
 }
+
+func expireWebSessionCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   sessionCookieSecure(r),
+		MaxAge:   -1,
+		Expires:  time.Unix(1, 0).UTC(),
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func (a *app) handleAuthLogoutAndRevoke(w http.ResponseWriter, r *http.Request) {
+	if cookie, err := r.Cookie("session"); err == nil && strings.TrimSpace(cookie.Value) != "" {
+		if err := revokeWebSession(cookie.Value, time.Now().UTC()); err != nil {
+			expireWebSessionCookie(w, r)
+			writeJSON(w, http.StatusInternalServerError, apiError{
+				Error:      "Internal Server Error",
+				Message:    "unable to revoke session",
+				StatusCode: http.StatusInternalServerError,
+			})
+			return
+		}
+	}
+
+	expireWebSessionCookie(w, r)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+		"message": "Logged out",
+	})
+}
