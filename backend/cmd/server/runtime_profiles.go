@@ -186,6 +186,34 @@ func requestedRuntimeProfileFromForm(formValue func(string) string, systemSlug s
 	))
 }
 
+// runtimeProfileMismatch explains a profile that was sent but does not belong
+// to the save's system. Without it the caller cannot tell "you sent nothing"
+// from "you sent the wrong thing", and reports both as an omission -- which is
+// what a client sees when the server has recorded a different system for the
+// game than the client declares.
+func runtimeProfileMismatch(systemSlug, requested, declared string) string {
+	clean := strings.ToLower(strings.TrimSpace(requested))
+	if clean == "" {
+		return ""
+	}
+	definition, known := runtimeProfilesByID[clean]
+	if !known {
+		return fmt.Sprintf("runtimeProfile %q is not a known profile", requested)
+	}
+	// The reader of this message is the client author, and the question they
+	// have is which side is theirs. Name all three when they differ: the
+	// profile's system, what the request declared, and what the save is
+	// recorded as.
+	message := fmt.Sprintf(
+		"runtimeProfile %q belongs to %s, but this save is recorded as %s",
+		requested, definition.SystemSlug, canonicalSegment(systemSlug, "an unknown system"),
+	)
+	if declaredSlug := canonicalSegment(declared, ""); declaredSlug != "" && declaredSlug != definition.SystemSlug {
+		message += fmt.Sprintf("; the request declares %s", declaredSlug)
+	}
+	return message
+}
+
 func isProjectionCapableSystem(systemSlug string) bool {
 	switch canonicalSegment(systemSlug, "") {
 	case "psx", "ps2", "n64", "saturn", "snes", "nes", "gameboy", "gba", "nds", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":

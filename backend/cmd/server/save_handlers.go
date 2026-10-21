@@ -191,7 +191,15 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 		recordSystem := saveRecordSystemSlug(latest)
 		runtimeProfile = requestedRuntimeProfile(r.URL.Query(), recordSystem)
 		if requiresRuntimeProfileForHelper(recordSystem, helperCtx.IsHelper) && runtimeProfile == "" {
-			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper latest checks", StatusCode: http.StatusBadRequest})
+			message := "runtimeProfile is required for projection-capable helper latest checks"
+			if mismatch := runtimeProfileMismatch(recordSystem, firstNonEmpty(
+				r.URL.Query().Get("runtimeProfile"),
+				r.URL.Query().Get("n64Profile"),
+				r.URL.Query().Get("saturnFormat"),
+			), r.URL.Query().Get("system")); mismatch != "" {
+				message = mismatch
+			}
+			writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: message, StatusCode: http.StatusBadRequest})
 			return
 		}
 		if runtimeProfile != "" {
@@ -312,7 +320,15 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		if helperCtx.IsHelper && isProjectionCapableSystem(declaredSystem) && declaredSystem != "psx" && declaredSystem != "ps2" {
 			if runtimeProfile == "" {
 				if requiresRuntimeProfileForHelper(declaredSystem, helperCtx.IsHelper) {
-					writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "runtimeProfile is required for projection-capable helper uploads", StatusCode: http.StatusBadRequest})
+					message := "runtimeProfile is required for projection-capable helper uploads"
+					if mismatch := runtimeProfileMismatch(declaredSystem, firstNonEmpty(
+						formValue("runtimeProfile"),
+						formValue("n64Profile"),
+						formValue("saturnFormat"),
+					), declaredSystem); mismatch != "" {
+						message = mismatch
+					}
+					writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: message, StatusCode: http.StatusBadRequest})
 					return
 				}
 			} else {
