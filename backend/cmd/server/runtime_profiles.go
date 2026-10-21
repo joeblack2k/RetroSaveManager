@@ -96,6 +96,7 @@ var runtimeProfileDefinitions = []runtimeProfileDefinition{
 	{ID: "sms/retroarch-gearsystem", SystemSlug: "master-system", Label: "RetroArch (Gearsystem)", TargetExtension: ".sav", Note: "Raw Master System SRAM"},
 	{ID: "sms/retroarch-genesis-plus-gx", SystemSlug: "master-system", Label: "RetroArch (Genesis Plus GX)", TargetExtension: ".sav", Note: "Raw Master System SRAM"},
 
+	{ID: "genesis/mister", SystemSlug: "genesis", Label: "MiSTer", TargetExtension: ".sav", Note: "Raw Genesis SRAM"},
 	{ID: "genesis/blastem", SystemSlug: "genesis", Label: "BlastEm", TargetExtension: ".srm", Note: "Raw Genesis SRAM"},
 	{ID: "genesis/genesis-plus-gx", SystemSlug: "genesis", Label: "Genesis Plus GX", TargetExtension: ".srm", Note: "Raw Genesis SRAM"},
 	{ID: "genesis/picodrive", SystemSlug: "genesis", Label: "PicoDrive", TargetExtension: ".srm", Note: "Raw Genesis SRAM"},

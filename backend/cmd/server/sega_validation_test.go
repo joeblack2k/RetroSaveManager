@@ -362,3 +362,36 @@ func writeSonicRegion(payload []byte, offset int, region []byte, integrity uint1
 	binary.BigEndian.PutUint16(region[len(region)-2:], sonicSRAMChecksum(region[:len(region)-2]))
 	copy(payload[offset:], region)
 }
+
+// A MiSTer writes Genesis battery saves as .sav, and none of the profile
+// definitions the Genesis family carried targeted .sav.  A helper therefore had
+// no honest value to send: every profile it could name was a .srm projection,
+// and the projection-capable gate rejected the request when it sent nothing.
+func TestContractGenesisMisterProfileUploadsAndLatestChecks(t *testing.T) {
+	h := newContractHarness(t)
+	helperKey := createHelperAppPassword(t, h, "", "genesis-mister-helper")
+
+	uploadSave(t, h, "/saves", map[string]string{
+		"app_password":   helperKey,
+		"rom_sha1":       "genesis-mister-rom",
+		"slotName":       "default",
+		"system":         "genesis",
+		"device_type":    "mister",
+		"fingerprint":    "genesis-mister-device",
+		"runtimeProfile": "genesis/mister",
+	}, "Sonic the Hedgehog.sav", buildNonBlankPayload(8192, 0x05))
+
+	latest := helperGET(
+		t,
+		h,
+		"/save/latest?romSha1=genesis-mister-rom&slotName=default&device_type=mister&fingerprint=genesis-mister-device&runtimeProfile=genesis/mister",
+		helperKey,
+	)
+	assertStatus(t, latest, http.StatusOK)
+	assertJSONContentType(t, latest)
+
+	body := decodeJSONMap(t, latest.Body)
+	if !mustBool(t, body["success"], "success") || !mustBool(t, body["exists"], "exists") {
+		t.Fatalf("expected a MiSTer latest check to succeed for a Genesis save: %s", prettyJSON(body))
+	}
+}
