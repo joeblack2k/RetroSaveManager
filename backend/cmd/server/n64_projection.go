@@ -252,6 +252,24 @@ func normalizeN64EEPROM(payload []byte) []byte {
 	return out
 }
 
+// A region holds a save when its bytes are neither a uniform 0x00 nor a
+// uniform 0xFF. Both are how an emulator leaves a region it never wrote: the
+// file starts zeroed and some cores fill unused media with 0xFF. Treating only
+// 0xFF as empty made a fresh Deck bundle look like it carried EEPROM, SRAM and
+// FlashRAM at once, and the split refused it as ambiguous.
+func n64RegionHoldsData(buf []byte) bool {
+	if len(buf) == 0 {
+		return false
+	}
+	first := buf[0]
+	for _, value := range buf[1:] {
+		if value != first {
+			return true
+		}
+	}
+	return first != 0x00 && first != 0xFF
+}
+
 func splitRetroArchN64SRM(payload []byte) ([]byte, n64MediaInfo, error) {
 	if len(payload) != n64RetroArchSRMSize {
 		return nil, n64MediaInfo{}, fmt.Errorf("retroarch N64 SRM must be %d bytes", n64RetroArchSRMSize)
@@ -264,7 +282,7 @@ func splitRetroArchN64SRM(payload []byte) ([]byte, n64MediaInfo, error) {
 	candidates := make([]candidate, 0, 4)
 
 	eeprom := payload[n64RetroArchEEPROMOffset : n64RetroArchEEPROMOffset+n64RetroArchEEPROMSize]
-	if !allBytesEqual(eeprom, 0xFF) {
+	if n64RegionHoldsData(eeprom) {
 		candidates = append(candidates, candidate{info: n64CanonicalMediaByType["eeprom"], payload: normalizeN64EEPROM(eeprom)})
 	}
 
@@ -284,13 +302,17 @@ func splitRetroArchN64SRM(payload []byte) ([]byte, n64MediaInfo, error) {
 	}
 
 	sram := payload[n64RetroArchSRAMOffset : n64RetroArchSRAMOffset+n64RetroArchSRAMSize]
-	if !allBytesEqual(sram, 0xFF) {
+	if n64RegionHoldsData(sram) {
 		candidates = append(candidates, candidate{info: n64CanonicalMediaByType["sram"], payload: n64Swap32Words(sram)})
 	}
 
 	flashram := payload[n64RetroArchFlashRAMOffset : n64RetroArchFlashRAMOffset+n64RetroArchFlashRAMSize]
-	if !allBytesEqual(flashram, 0xFF) {
-		candidates = append(candidates, candidate{info: n64CanonicalMediaByType["flashram"], payload: n64Swap32Words(flashram)})
+	if n64RegionHoldsData(flashram) {
+		// No verified sample pair exists for FlashRAM, so its word order is a
+		// guess. A wrong guess corrupts the save silently, on restore, on
+		// another device. Refuse instead: a game that uses FlashRAM does not
+		// sync from a RetroArch bundle until someone can verify the layout.
+		return nil, n64MediaInfo{}, fmt.Errorf("n64 FlashRAM in a RetroArch bundle is not supported yet (no verified layout)")
 	}
 
 	if len(candidates) == 0 {
@@ -357,8 +379,41 @@ func buildMergedMupenControllerPak(canonical []byte) []byte {
 	return out
 }
 
+// Where a controller pak's ID sector can begin.
+var n64ControllerPakIDOffsets = [4]int{0x0020, 0x0060, 0x0080, 0x00c0}
+
+// A formatted controller pak carries an ID sector whose checksum pair matches.
+// A note's location is derived from the bank count in that sector, so a pak
+// without one holds no note and therefore no save.
+func n64ControllerPakIsFormatted(buf []byte) bool {
+	for _, base := range n64ControllerPakIDOffsets {
+		if base+32 > len(buf) {
+			continue
+		}
+		sector := buf[base : base+32]
+		checksum1 := [2]byte{sector[28], sector[29]}
+		if n64ControllerChecksum1(sector) != checksum1 {
+			continue
+		}
+		if n64ControllerChecksum2(checksum1) != [2]byte{sector[30], sector[31]} {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 func n64ControllerPakIsEmpty(buf []byte) bool {
 	if len(buf) < 512 {
+		return true
+	}
+	// A pak that was never formatted holds no save, whatever bytes the
+	// emulator left in the region: mupen64plus-next writes four 32 KiB
+	// templates per game with a short sequential fill, and a zero-filled
+	// region is the same thing without the fill. Both counted as populated,
+	// so a real combined save was refused as "multiple populated controller
+	// paks".
+	if !n64ControllerPakIsFormatted(buf) {
 		return true
 	}
 	table := buf[256:512]
