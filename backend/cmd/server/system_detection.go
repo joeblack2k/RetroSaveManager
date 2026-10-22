@@ -233,6 +233,33 @@ func supportedSystemFromSlug(raw string) *system {
 	return &copyCandidate
 }
 
+// Display-name -> slug, derived from the system table so it cannot rot: a row
+// added there is a label here.
+var systemDisplayNameAliases = func() map[string]string {
+	out := make(map[string]string, len(supportedSystemsBySlug))
+	for slug, sys := range supportedSystemsBySlug {
+		if key := canonicalSystemLabelKey(sys.Name); key != "" {
+			out[key] = slug
+		}
+		// A display name that names two systems ("Sega Genesis/Mega Drive")
+		// is two labels. Registering the segments is what makes the short
+		// spelling a client actually sends -- "Sega Genesis" -- resolve.
+		for segment := range strings.SplitSeq(sys.Name, "/") {
+			if key := canonicalSystemLabelKey(segment); key != "" {
+				if _, taken := out[key]; !taken {
+					out[key] = slug
+				}
+			}
+		}
+	}
+	return out
+}()
+
+func canonicalSystemLabelKey(raw string) string {
+	label := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(raw), "/", " "))
+	return strings.Join(strings.Fields(label), " ")
+}
+
 func supportedSystemSlugFromLabel(raw string) string {
 	label := strings.ToLower(strings.TrimSpace(raw))
 	if label == "" {
@@ -243,6 +270,16 @@ func supportedSystemSlugFromLabel(raw string) string {
 	}
 	compact := strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(label, "-", ""), "_", ""), " ", "")
 	if slug, ok := systemLabelAliases[compact]; ok {
+		return slug
+	}
+	// A system's own display name is a label. Clients, and the store's own
+	// directory names, use it -- "Nintendo Super Nintendo Entertainment
+	// System", "Sega Genesis/Mega Drive". Without this those resolve to
+	// nothing, so a declared system is silently discarded and a
+	// lower-confidence rule decides instead: Defenders of Oasis, declared as
+	// "Sega Genesis" by a trusted helper, was stored as game-gear by the
+	// title override because the declaration scored zero.
+	if slug, ok := systemDisplayNameAliases[canonicalSystemLabelKey(raw)]; ok {
 		return slug
 	}
 	if isSupportedSystemSlug(label) {
