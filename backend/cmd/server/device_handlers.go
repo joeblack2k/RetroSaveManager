@@ -608,9 +608,10 @@ func helperConfigGlobal(req helperConfigSyncRequest) *deviceConfigGlobal {
 		StateDir:              req.Config.StateDir,
 		Watch:                 req.Config.Watch,
 		WatchInterval:         req.Config.WatchInterval,
-		ForceUpload:           req.Config.ForceUpload,
-		DryRun:                req.Config.DryRun,
-		RoutePrefix:           req.Config.RoutePrefix,
+		// ForceUpload and DryRun are policy, not device facts: copying the
+		// report here stores the device's own setting as the policy that
+		// governs it. That is how one --dry-run pass arms a device for good.
+		RoutePrefix: req.Config.RoutePrefix,
 	})
 }
 
@@ -625,9 +626,10 @@ func helperHeartbeatConfigGlobal(req helperHeartbeatRequest) *deviceConfigGlobal
 		StateDir:              firstNonEmpty(req.Helper.StateDir, req.Config.StateDir),
 		Watch:                 req.Config.Watch,
 		WatchInterval:         req.Config.WatchInterval,
-		ForceUpload:           req.Config.ForceUpload,
-		DryRun:                req.Config.DryRun,
-		RoutePrefix:           req.Config.RoutePrefix,
+		// ForceUpload and DryRun are policy, not device facts: copying the
+		// report here stores the device's own setting as the policy that
+		// governs it. That is how one --dry-run pass arms a device for good.
+		RoutePrefix: req.Config.RoutePrefix,
 	})
 }
 
