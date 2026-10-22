@@ -227,7 +227,70 @@ func applyNormalizedSaveToRecord(record saveRecord, normalized saveCreateInput) 
 		updated.Summary.Game.System = supportedSystemFromSlug(systemSlug)
 	}
 
+	// The normaliser trusts the stored system; when that resolves to the system
+	// the record already carries, the record keeps its own evidence. This runs
+	// here rather than at each caller so the read path and the rescan cannot
+	// diverge.
+	keepStoredSystemEvidence(&record, &updated)
 	return updated
+}
+
+// A rescan resolves a save's system from the store's own evidence rather than
+// from the helper that uploaded it. When that resolves to the system already
+// recorded, the normalised record differs only in the provenance label it
+// carries: the helper's declaration is replaced by "stored trusted", the
+// confidence drops, and every save in the store counts as updated. The system
+// did not change, so the evidence the record already holds stands.
+func keepStoredSystemEvidence(original, updated *saveRecord) {
+	if canonicalSegment(original.SystemSlug, "") != canonicalSegment(updated.SystemSlug, "") {
+		return
+	}
+	if canonicalSegment(original.Summary.SystemSlug, "") != canonicalSegment(updated.Summary.SystemSlug, "") {
+		return
+	}
+	// A record with no inspection, or one the normaliser derives differently,
+	// is a real change and is written. Only the same verdict, re-stamped with
+	// another provenance, is kept.
+	if original.Summary.Inspection == nil || updated.Summary.Inspection == nil {
+		return
+	}
+	if original.Summary.Inspection.ParserID != updated.Summary.Inspection.ParserID {
+		return
+	}
+	updated.Summary.Inspection = original.Summary.Inspection
+	updated.Summary.Metadata = preserveSystemDetection(original.Summary.Metadata, updated.Summary.Metadata)
+}
+
+// preserveSystemDetection keeps the recorded detection verdict while leaving the
+// rest of the normalised metadata alone.
+func preserveSystemDetection(recorded, normalized any) any {
+	detection, ok := systemDetectionMetadata(recorded)
+	if !ok {
+		return normalized
+	}
+	metadata, ok := normalized.(map[string]any)
+	if !ok {
+		return normalized
+	}
+	rsm, ok := metadata["rsm"].(map[string]any)
+	if !ok {
+		return normalized
+	}
+	rsm["systemDetection"] = detection
+	return metadata
+}
+
+func systemDetectionMetadata(metadata any) (any, bool) {
+	root, ok := metadata.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	rsm, ok := root["rsm"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	detection, ok := rsm["systemDetection"]
+	return detection, ok
 }
 
 func saveRecordChanged(before, after saveRecord) (bool, error) {
