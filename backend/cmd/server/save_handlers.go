@@ -748,7 +748,7 @@ func (a *app) handleListSaves(w http.ResponseWriter, r *http.Request) {
 		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
 			continue
 		}
-		summary := a.summaryForRecord(record)
+		summary := a.summaryForRecordWithoutCheats(record)
 		if !isSupportedSystemSlug(summary.SystemSlug) {
 			continue
 		}

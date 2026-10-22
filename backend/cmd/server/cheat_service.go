@@ -322,9 +322,13 @@ func cheatAvailableCount(pack cheatPack) int {
 	return count
 }
 
+// Reads the payload to resolve a cheat pack. A variable so tests can count
+// reads without timing anything.
+var cheatPayloadReader = os.ReadFile
+
 func (s *cheatService) resolve(record saveRecord) (*resolvedCheatPack, error) {
 	summary := canonicalSummaryForRecord(record)
-	payload, err := os.ReadFile(record.payloadPath)
+	payload, err := cheatPayloadReader(record.payloadPath)
 	if err != nil {
 		return nil, err
 	}

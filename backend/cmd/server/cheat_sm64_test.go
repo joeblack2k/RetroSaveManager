@@ -164,23 +164,34 @@ func TestSaveCheatApplyCreatesNewCurrentVersionOnRootAndV1(t *testing.T) {
 				t.Fatalf("expected cheat-applied save to become latest: %s", latest.Body.String())
 			}
 
+			// Cheat capability is detail-level: resolving it reads the payload,
+			// so a listing cannot carry it without paying a read per record.
 			list := h.request(http.MethodGet, prefix+"/saves?limit=20&offset=0", nil)
 			assertStatus(t, list, http.StatusOK)
-			listBody := decodeJSONMap(t, list.Body)
-			saves := mustArray(t, listBody["saves"], "saves")
-			foundCheatCap := false
-			for _, entry := range saves {
+			for _, entry := range mustArray(t, decodeJSONMap(t, list.Body)["saves"], "saves") {
 				item := mustObject(t, entry, "save")
 				if mustString(t, item["id"], "save.id") != newID {
 					continue
 				}
-				cheatCap := mustObject(t, item["cheats"], "save.cheats")
-				if mustBool(t, cheatCap["supported"], "save.cheats.supported") {
+				if cheats, ok := item["cheats"]; ok && cheats != nil {
+					t.Fatalf("a list summary must not carry cheat capability: %s", prettyJSON(item))
+				}
+			}
+
+			detail := h.request(http.MethodGet, "/api/saves/"+newID, nil)
+			assertStatus(t, detail, http.StatusOK)
+			foundCheatCap := false
+			for _, entry := range mustArray(t, decodeJSONMap(t, detail.Body)["versions"], "versions") {
+				item := mustObject(t, entry, "save")
+				if mustString(t, item["id"], "save.id") != newID {
+					continue
+				}
+				if mustBool(t, mustObject(t, item["cheats"], "save.cheats")["supported"], "save.cheats.supported") {
 					foundCheatCap = true
 				}
 			}
 			if !foundCheatCap {
-				t.Fatalf("expected list summary to expose cheat capability: %s", list.Body.String())
+				t.Fatalf("expected the detail view to expose cheat capability: %s", detail.Body.String())
 			}
 		})
 	}
@@ -223,7 +234,7 @@ func TestSaveCheatApplySM64Presets(t *testing.T) {
 	}
 }
 
-func TestSaveListCheatCapabilityReflectsRuntimePackStatus(t *testing.T) {
+func TestSaveDetailCheatCapabilityReflectsRuntimePackStatus(t *testing.T) {
 	h := newContractHarness(t)
 	body := uploadSave(t, h, "/saves", map[string]string{
 		"rom_sha1": "sm64-rom-canonical",
@@ -232,48 +243,38 @@ func TestSaveListCheatCapabilityReflectsRuntimePackStatus(t *testing.T) {
 	}, "Super Mario 64 (USA).eep", normalizeN64EEPROM(buildSM64FixturePayload()))
 	saveID := mustString(t, mustObject(t, body["save"], "save")["id"], "save.id")
 
-	assertSaveListCheatSupport(t, h, saveID, true)
+	assertSaveDetailCheatSupport(t, h, saveID, true)
 
 	disabled := h.request(http.MethodPost, "/api/cheats/packs/n64--super-mario-64/disable", nil)
 	assertStatus(t, disabled, http.StatusOK)
-	assertSaveListCheatSupport(t, h, saveID, false)
+	assertSaveDetailCheatSupport(t, h, saveID, false)
 
 	enabled := h.request(http.MethodPost, "/api/cheats/packs/n64--super-mario-64/enable", nil)
 	assertStatus(t, enabled, http.StatusOK)
-	assertSaveListCheatSupport(t, h, saveID, true)
+	assertSaveDetailCheatSupport(t, h, saveID, true)
 }
 
-func assertSaveListCheatSupport(t *testing.T, h *contractHarness, saveID string, want bool) {
+func assertSaveDetailCheatSupport(t *testing.T, h *contractHarness, saveID string, want bool) {
 	t.Helper()
-	list := h.request(http.MethodGet, "/saves?limit=20&offset=0", nil)
-	assertStatus(t, list, http.StatusOK)
-	body := decodeJSONMap(t, list.Body)
-	saves := mustArray(t, body["saves"], "saves")
-	for _, entry := range saves {
+	detail := h.request(http.MethodGet, "/api/saves/"+saveID, nil)
+	assertStatus(t, detail, http.StatusOK)
+	body := decodeJSONMap(t, detail.Body)
+	for _, entry := range mustArray(t, body["versions"], "versions") {
 		item := mustObject(t, entry, "save")
 		if mustString(t, item["id"], "save.id") != saveID {
 			continue
 		}
 		cheatsRaw, hasCheats := item["cheats"]
-		if !want {
-			if hasCheats {
-				cheatCap := mustObject(t, cheatsRaw, "save.cheats")
-				if mustBool(t, cheatCap["supported"], "save.cheats.supported") {
-					t.Fatalf("expected no active cheat capability for %s: %s", saveID, list.Body.String())
-				}
-			}
-			return
+		supported := false
+		if hasCheats && cheatsRaw != nil {
+			supported = mustBool(t, mustObject(t, cheatsRaw, "save.cheats")["supported"], "save.cheats.supported")
 		}
-		if !hasCheats {
-			t.Fatalf("expected active cheat capability for %s: %s", saveID, list.Body.String())
-		}
-		cheatCap := mustObject(t, cheatsRaw, "save.cheats")
-		if !mustBool(t, cheatCap["supported"], "save.cheats.supported") {
-			t.Fatalf("expected supported cheat capability for %s: %s", saveID, list.Body.String())
+		if supported != want {
+			t.Fatalf("cheat capability for %s is %v, want %v: %s", saveID, supported, want, detail.Body.String())
 		}
 		return
 	}
-	t.Fatalf("expected save %s in list: %s", saveID, list.Body.String())
+	t.Fatalf("expected save %s in the detail view: %s", saveID, detail.Body.String())
 }
 
 func mustLoadSM64CheatPack(t *testing.T) cheatPack {

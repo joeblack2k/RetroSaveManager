@@ -529,7 +529,7 @@ func (a *app) aggregatedSaveSummaries(romSHA1, romMD5 string, systemID int) []sa
 		if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
 			continue
 		}
-		summary := a.summaryForRecord(record)
+		summary := a.summaryForRecordWithoutCheats(record)
 		if !isSupportedSystemSlug(summary.SystemSlug) {
 			continue
 		}

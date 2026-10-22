@@ -251,6 +251,18 @@ func (a *app) summaryForRecord(record saveRecord) saveSummary {
 	return summary
 }
 
+// summaryForRecordWithoutCheats is the listing summary.
+//
+// Cheat availability is detail-level: resolving it reads the record's payload
+// (and Saturn records are parsed to find their entries), and each of those
+// reads is a disk round trip. Doing that for every record on every listing
+// made /api/saves and /api/systems cost O(records) file reads per request --
+// seconds on local disk, a timeout over NFS. The detail endpoint still
+// resolves it through summaryForRecord.
+func (a *app) summaryForRecordWithoutCheats(record saveRecord) saveSummary {
+	return canonicalSummaryForRecord(record)
+}
+
 func seedBootstrapEnabled() bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv("BOOTSTRAP_DEMO_DATA")))
 	switch value {

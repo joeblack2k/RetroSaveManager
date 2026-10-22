@@ -338,8 +338,5 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 	updated.payloadPath = record.payloadPath
 	updated.dirPath = record.dirPath
 	updated.PayloadFile = record.PayloadFile
-	if cheats := a.cheatService(); cheats != nil {
-		updated.Summary.Cheats = cheats.capabilityForRecord(updated)
-	}
 	*record = updated
 }

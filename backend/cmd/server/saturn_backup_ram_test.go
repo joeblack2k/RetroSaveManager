@@ -347,19 +347,33 @@ func TestSaturnEntryCheatsUseExtractedPayloadForYabaSanshiroImages(t *testing.T)
 				if mustString(t, item["id"], "save.id") != saveID {
 					continue
 				}
-				cheatCap := mustObject(t, item["cheats"], "save.cheats")
-				if !mustBool(t, cheatCap["supported"], "save.cheats.supported") {
-					t.Fatalf("expected Saturn entry cheat capability in list: %s", prettyJSON(item))
-				}
-				inspection := mustObject(t, item["inspection"], "save.inspection")
-				fields := mustObject(t, inspection["semanticFields"], "save.inspection.semanticFields")
-				if got := mustNumber(t, fields["health"], "health"); got != 100 {
-					t.Fatalf("expected Saturn module semantic field in list, got %s", prettyJSON(item))
+				// Cheat capability and the Saturn entry inspection are both
+				// derived from the payload, so a listing cannot carry them
+				// without a read per record. The detail check below covers them.
+				if cheats, ok := item["cheats"]; ok && cheats != nil {
+					t.Fatalf("a list summary must not carry cheat capability: %s", prettyJSON(item))
 				}
 				foundListCheat = true
 			}
 			if !foundListCheat {
 				t.Fatalf("expected Saturn save in list: %s", list.Body.String())
+			}
+
+			detail := h.request(http.MethodGet, "/api/saves/"+saveID, nil)
+			assertStatus(t, detail, http.StatusOK)
+			for _, entry := range mustArray(t, decodeJSONMap(t, detail.Body)["versions"], "versions") {
+				item := mustObject(t, entry, "save")
+				if mustString(t, item["id"], "save.id") != saveID {
+					continue
+				}
+				inspection := mustObject(t, item["inspection"], "save.inspection")
+				fields := mustObject(t, inspection["semanticFields"], "save.inspection.semanticFields")
+				if got := mustNumber(t, fields["health"], "health"); got != 100 {
+					t.Fatalf("expected Saturn module semantic field on detail, got %s", prettyJSON(item))
+				}
+				if !mustBool(t, mustObject(t, item["cheats"], "save.cheats")["supported"], "save.cheats.supported") {
+					t.Fatalf("expected Saturn entry cheat capability on detail: %s", prettyJSON(item))
+				}
 			}
 
 			cheats := h.request(http.MethodGet, "/save/cheats?saveId="+url.QueryEscape(saveID)+"&saturnEntry=LOBOQUAKE__", nil)

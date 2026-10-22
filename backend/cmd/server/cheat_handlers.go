@@ -126,7 +126,7 @@ func (a *app) handleSaveCheatsApply(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"success":      true,
 				"sourceSaveId": record.Summary.ID,
-				"save":         newRecord.Summary,
+				"save":         a.summaryForRecord(newRecord),
 			})
 			return
 		}
@@ -223,7 +223,7 @@ func (a *app) handleSaveCheatsApply(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success":      true,
 		"sourceSaveId": record.Summary.ID,
-		"save":         newRecord.Summary,
+		"save":         a.summaryForRecord(newRecord),
 	})
 }
 
