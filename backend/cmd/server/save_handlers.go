@@ -903,6 +903,13 @@ func (a *app) handleSaveByGame(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// An id that names no record is not a request for the store. Answering it
+	// with every save makes one stale or mistyped id look like a save of its
+	// own, and hands the caller a record it never asked for.
+	if saveID != "" && !hasSourceRecord {
+		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Save not found", StatusCode: http.StatusNotFound})
+		return
+	}
 	if gameID == 0 && saveID == "" && systemSlug == "" && displayTitle == "" {
 		for _, record := range a.snapshotSaveRecords() {
 			if !isSupportedSystemSlug(saveRecordSystemSlug(record)) {
