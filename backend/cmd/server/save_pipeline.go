@@ -16,6 +16,13 @@ type normalizedSaveInputResult struct {
 
 type normalizeSaveInputOptions struct {
 	StoredSystemFallbackOnly bool
+	// PreserveStoredSystem marks a pass that enriches an existing record
+	// rather than deciding what it is. Decoration reads a record the server
+	// already wrote and re-derives its fields; a title override there does not
+	// correct anything, it silently files the save under a different system
+	// from the one on disk, and every later request is then judged against the
+	// system nobody stored.
+	PreserveStoredSystem bool
 }
 
 func (a *app) normalizeSaveInput(input saveCreateInput) saveCreateInput {
@@ -41,6 +48,7 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		TrustedHelperSystem:  input.TrustedHelperSystem,
 		DeclaredFallbackOnly: options.StoredSystemFallbackOnly,
 		TrustedStoredSystem:  metadataHasTrustedSystemEvidence(input.Metadata),
+		PreserveStoredSystem: options.PreserveStoredSystem,
 	})
 	input.Metadata = mergeSystemDetectionMetadata(input.Metadata, detection)
 
@@ -332,7 +340,7 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 		SourceImportID:        record.Summary.SourceImportID,
 		Portable:              record.Summary.Portable,
 		CreatedAt:             record.Summary.CreatedAt,
-	}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
+	}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true, PreserveStoredSystem: true})
 
 	updated := applyNormalizedSaveToRecord(*record, normalized.Input)
 	updated.payloadPath = record.payloadPath

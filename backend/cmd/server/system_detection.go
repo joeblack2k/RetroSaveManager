@@ -173,6 +173,9 @@ type saveSystemDetectionInput struct {
 	TrustedHelperSystem  bool
 	DeclaredFallbackOnly bool
 	TrustedStoredSystem  bool
+	// PreserveStoredSystem suppresses title overrides: the caller is
+	// describing a record that already exists, not classifying an upload.
+	PreserveStoredSystem bool
 }
 
 type saveDetectionEvidence struct {
@@ -375,7 +378,7 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 		}
 	}
 
-	if overrideSlug := knownSystemOverrideForTitle(displayTitle); overrideSlug != "" {
+	if overrideSlug := knownSystemOverrideForTitle(displayTitle); overrideSlug != "" && !input.PreserveStoredSystem {
 		setScore(overrideSlug, 93, "known title system override", func(candidate *detectionCandidate) {
 			candidate.declared = true
 			candidate.helperTrusted = input.TrustedHelperSystem
