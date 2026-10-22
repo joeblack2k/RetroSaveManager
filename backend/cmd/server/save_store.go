@@ -101,11 +101,32 @@ func (s *saveStore) isEmpty() (bool, error) {
 	return len(records) == 0, nil
 }
 
+// The store keeps its own state under `_rsm` -- quarantine, cheats, modules,
+// controller-pak and PlayStation bookkeeping. Quarantine entries carry a
+// metadata.json of their own with id and filename at the top level rather than
+// under summary, so indexing them yields records with a blank id and name; a
+// rescan then renames the blank to save.bin, flags it as generic noise, and
+// prunes the directory it was quarantined into. Nothing under this path is a
+// save record.
+func isStatePath(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "_rsm" || strings.HasPrefix(rel, "_rsm"+string(os.PathSeparator))
+}
+
 func (s *saveStore) load() ([]saveRecord, error) {
 	records := make([]saveRecord, 0)
 	err := filepath.WalkDir(s.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if isStatePath(s.root, path) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		if d.IsDir() || d.Name() != "metadata.json" {
 			return nil
