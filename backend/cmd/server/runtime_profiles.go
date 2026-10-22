@@ -104,9 +104,9 @@ var runtimeProfileDefinitions = []runtimeProfileDefinition{
 
 	{ID: "gamegear/emulicious", SystemSlug: "game-gear", Label: "Emulicious", TargetExtension: ".sav", Note: "Raw Game Gear SRAM"},
 	{ID: "gamegear/gearsystem", SystemSlug: "game-gear", Label: "Gearsystem", TargetExtension: ".sav", Note: "Raw Game Gear SRAM"},
-	{ID: "gamegear/genesis-plus-gx", SystemSlug: "game-gear", Label: "Genesis Plus GX", TargetExtension: ".sav", Note: "Raw Game Gear SRAM"},
-	{ID: "gamegear/retroarch-gearsystem", SystemSlug: "game-gear", Label: "RetroArch (Gearsystem)", TargetExtension: ".sav", Note: "Raw Game Gear SRAM"},
-	{ID: "gamegear/retroarch-genesis-plus-gx", SystemSlug: "game-gear", Label: "RetroArch (Genesis Plus GX)", TargetExtension: ".sav", Note: "Raw Game Gear SRAM"},
+	{ID: "gamegear/genesis-plus-gx", SystemSlug: "game-gear", Label: "Genesis Plus GX", TargetExtension: ".srm", Note: "Raw Game Gear SRAM"},
+	{ID: "gamegear/retroarch-gearsystem", SystemSlug: "game-gear", Label: "RetroArch (Gearsystem)", TargetExtension: ".srm", Note: "Raw Game Gear SRAM"},
+	{ID: "gamegear/retroarch-genesis-plus-gx", SystemSlug: "game-gear", Label: "RetroArch (Genesis Plus GX)", TargetExtension: ".srm", Note: "Raw Game Gear SRAM"},
 
 	{ID: "sega-cd/genesis-plus-gx", SystemSlug: "sega-cd", Label: "Genesis Plus GX", TargetExtension: ".brm", Note: "Raw Sega CD backup RAM"},
 	{ID: "sega-cd/picodrive", SystemSlug: "sega-cd", Label: "PicoDrive", TargetExtension: ".srm", Note: "Raw Sega CD backup RAM"},

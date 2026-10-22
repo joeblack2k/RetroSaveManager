@@ -152,6 +152,7 @@ func TestLegacyRuntimeProfilesExposeDownloadTargets(t *testing.T) {
 		{systemSlug: "colecovision", expectedProfile: "colecovision/gearcoleco", expectedExt: ".sav"},
 		{systemSlug: "atari-jaguar", expectedProfile: "atari-jaguar/bigpemu", expectedExt: ".eeprom"},
 		{systemSlug: "3do", expectedProfile: "3do/opera", expectedExt: ".srm"},
+		{systemSlug: "game-gear", expectedProfile: "gamegear/genesis-plus-gx", expectedExt: ".srm"},
 	}
 
 	for _, tc := range cases {
