@@ -112,6 +112,23 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 	}
 	signatureAdvisoryDowngraded := false
 	stats := analyzeRawSavePayload(input.Payload, profile.SparseWarningCutoff)
+	// Blankness is checked before the signature: a fresh save -- the file the
+	// emulator creates at first boot, before anything is written -- is a
+	// uniform run of 0x00 or 0xFF and carries no signature either. Answering it
+	// with "missing a validated payload signature" sends the reader looking for
+	// a signature problem when the file simply holds no save yet.
+	if profile.RejectBlank && stats.BlankZero {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0x00)", profile.DisplayName),
+		}
+	}
+	if profile.RejectBlank && stats.BlankFF {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
+		}
+	}
 	if profile.RequireSignature != nil && !profile.RequireSignature(input.Payload) {
 		// Optional escape hatch: if the profile allows the signature requirement
 		// to be advisory under sufficient trust, and ALL of the trust conditions
@@ -129,19 +146,6 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 			}
 		}
 		signatureAdvisoryDowngraded = true
-	}
-
-	if profile.RejectBlank && stats.BlankZero {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0x00)", profile.DisplayName),
-		}
-	}
-	if profile.RejectBlank && stats.BlankFF {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
-		}
 	}
 
 	evidence := []string{
