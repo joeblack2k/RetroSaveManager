@@ -186,7 +186,7 @@ func validateStrictSegaRawSave(input saveCreateInput, detection saveSystemDetect
 		DisplayName:          systemSlug,
 		ParserID:             "sega-raw-sram",
 		AllowedExts:          strictSegaRawExtensions(systemSlug),
-		AllowedSizes:         strictSegaRawSaveSizes,
+		AllowedSizesByExt:    strictSegaRawSizeRules(),
 		RequireROMSHA1:       true,
 		RequireDeclared:      true,
 		RequireHelperOrStore: true,
@@ -214,9 +214,19 @@ func strictSegaRawExtensions(systemSlug string) map[string]struct{} {
 	return extensions
 }
 
-func isPlausibleStrictSegaRawSaveSize(size int) bool {
-	_, ok := strictSegaRawSaveSizes[size]
-	return ok
+// A cartridge's SRAM is whatever the cart carries: 8188 bytes on a Master
+// System cart with a short header, 2114 and 16128 on Genesis carts. Only a
+// power-of-two table called those unrecognised, and a save the client can read
+// perfectly well was refused as an unknown format.
+func strictSegaRawSizeRules() map[string]func(int) bool {
+	inRange := func(n int) bool { return n >= 64 && n <= 131_072 }
+	return map[string]func(int) bool{
+		"sav": inRange,
+		"srm": inRange,
+		"ram": inRange,
+		"brm": inRange,
+		"bkr": inRange,
+	}
 }
 
 func isStrictSegaRawExtension(ext string) bool {

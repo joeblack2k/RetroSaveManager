@@ -77,8 +77,7 @@ func normalizeNDSProjectionUpload(input saveCreateInput, requestedProfile string
 	if profile == "" {
 		return input, fmt.Errorf("runtimeProfile is required for Nintendo DS helper uploads")
 	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(strings.TrimSpace(input.Filename))), ".")
-	canonical, sourceContainer, err := normalizeNDSUploadPayload(profile, ext, input.Payload)
+	canonical, sourceContainer, err := normalizeNDSUploadPayload(profile, input.Payload)
 	if err != nil {
 		return input, err
 	}
@@ -101,14 +100,17 @@ func normalizeNDSProjectionUpload(input saveCreateInput, requestedProfile string
 	return input, nil
 }
 
-func normalizeNDSUploadPayload(profile, ext string, payload []byte) ([]byte, string, error) {
+func normalizeNDSUploadPayload(profile string, payload []byte) ([]byte, string, error) {
 	profile = canonicalRuntimeProfile("nds", profile)
+	// The footer decides, not the name: RetroDECK writes DeSmuME's container as
+	// a .sav, and the raw backup plus its footer is measured with the footer
+	// included unless the split happens first. The splitter validates the footer
+	// text, the cookie and the recorded size, so attempting it on any payload is
+	// safe -- a raw backup fails the check and falls through to the size table.
+	if raw, err := splitDeSmuMEDSV(payload); err == nil {
+		return raw, "desmume-dsv", nil
+	}
 	switch profile {
-	case "nds/desmume":
-		if ext == "dsv" {
-			raw, err := splitDeSmuMEDSV(payload)
-			return raw, "desmume-dsv", err
-		}
 	case "nds/nogba":
 		if raw, ok, err := splitNoGBANDSContainer(payload); ok || err != nil {
 			return raw, "nogba-sav", err
