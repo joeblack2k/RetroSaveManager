@@ -101,6 +101,18 @@ func (a *app) rescanSaves(options saveRescanOptions) (saveRescanResult, error) {
 			MediaType:             original.Summary.MediaType,
 			ProjectionCapable:     original.Summary.ProjectionCapable,
 			SourceArtifactProfile: original.Summary.SourceArtifactProfile,
+			RuntimeProfile:        original.Summary.RuntimeProfile,
+			PortID:                original.Summary.PortID,
+			PortName:              original.Summary.PortName,
+			OriginSystemSlug:      original.Summary.OriginSystemSlug,
+			PortSaveKind:          original.Summary.PortSaveKind,
+			RelativePath:          original.Summary.RelativePath,
+			RootRelativePath:      original.Summary.RootRelativePath,
+			SlotID:                original.Summary.SlotID,
+			CardSlot:              original.Summary.CardSlot,
+			ProjectionID:          original.Summary.ProjectionID,
+			SourceImportID:        original.Summary.SourceImportID,
+			Portable:              original.Summary.Portable,
 			CreatedAt:             original.Summary.CreatedAt,
 		}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
 
