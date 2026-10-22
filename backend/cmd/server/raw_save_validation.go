@@ -118,8 +118,12 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 		// hold (HelperTrusted + rom_sha1 present + non-blank payload), downgrade
 		// the rejection to a warning instead. The signature stays a hard reject
 		// for anonymous uploads or uploads without rom_sha1.
+		// Trust can also be on the record: a read or a rescan re-validates a
+		// payload with no helper flag on the request, so a save the write path
+		// accepted on helper trust would otherwise be rejected -- and, under a
+		// pruning rescan, deleted -- by the very pass that is meant to check it.
 		canDowngrade := profile.SignatureAdvisoryWithHelperTrust &&
-			detection.Evidence.HelperTrusted &&
+			(detection.Evidence.HelperTrusted || detection.Evidence.StoredTrusted) &&
 			strings.TrimSpace(input.ROMSHA1) != "" &&
 			!stats.BlankZero && !stats.BlankFF
 		if !canDowngrade {

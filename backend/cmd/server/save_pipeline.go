@@ -16,6 +16,13 @@ type normalizedSaveInputResult struct {
 
 type normalizeSaveInputOptions struct {
 	StoredSystemFallbackOnly bool
+	// PreserveStoredSystem marks a pass that enriches an existing record
+	// rather than deciding what it is. Decoration reads a record the server
+	// already wrote and re-derives its fields; a title override there does not
+	// correct anything, it silently files the save under a different system
+	// from the one on disk, and every later request is then judged against the
+	// system nobody stored.
+	PreserveStoredSystem bool
 }
 
 func (a *app) normalizeSaveInput(input saveCreateInput) saveCreateInput {
@@ -41,6 +48,7 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		TrustedHelperSystem:  input.TrustedHelperSystem,
 		DeclaredFallbackOnly: options.StoredSystemFallbackOnly,
 		TrustedStoredSystem:  metadataHasTrustedSystemEvidence(input.Metadata),
+		PreserveStoredSystem: options.PreserveStoredSystem,
 	})
 	input.Metadata = mergeSystemDetectionMetadata(input.Metadata, detection)
 
@@ -110,8 +118,10 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 		rejected = true
 		rejectReason = playStationRejectReason(normalized.System)
 	}
+	placeholderRejected := false
 	if placeholderReason := projectionPlaceholderRejectReason(input); placeholderReason != "" {
 		rejected = true
+		placeholderRejected = true
 		rejectReason = placeholderReason
 	}
 	consoleValidation := validateConsoleSpecificSave(input, detection, normalized)
@@ -187,6 +197,7 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 	}
 	if placeholderReason := projectionPlaceholderRejectReason(input); placeholderReason != "" {
 		rejected = true
+		placeholderRejected = true
 		rejectReason = placeholderReason
 	}
 
@@ -200,7 +211,12 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 			}
 		}
 	}
-	if rejected {
+	// A pass that preserves the stored system is describing a record that
+	// already exists and was accepted when it was written. Console validation
+	// runs again here with less evidence than the write had -- the helper's
+	// trust flag is not part of the record -- so a rejection must not relabel
+	// a stored record as unknown-system and make it invisible to the API.
+	if rejected && !(options.PreserveStoredSystem && !placeholderRejected) {
 		input.SystemSlug = "unknown-system"
 		input.Game.System = nil
 		input.MemoryCard = nil
@@ -332,7 +348,7 @@ func (a *app) decorateLoadedRecord(record *saveRecord) {
 		SourceImportID:        record.Summary.SourceImportID,
 		Portable:              record.Summary.Portable,
 		CreatedAt:             record.Summary.CreatedAt,
-	}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true})
+	}, normalizeSaveInputOptions{StoredSystemFallbackOnly: true, PreserveStoredSystem: true})
 
 	updated := applyNormalizedSaveToRecord(*record, normalized.Input)
 	updated.payloadPath = record.payloadPath

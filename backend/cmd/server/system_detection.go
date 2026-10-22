@@ -173,6 +173,9 @@ type saveSystemDetectionInput struct {
 	TrustedHelperSystem  bool
 	DeclaredFallbackOnly bool
 	TrustedStoredSystem  bool
+	// PreserveStoredSystem suppresses title overrides: the caller is
+	// describing a record that already exists, not classifying an upload.
+	PreserveStoredSystem bool
 }
 
 type saveDetectionEvidence struct {
@@ -375,7 +378,7 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 		}
 	}
 
-	if overrideSlug := knownSystemOverrideForTitle(displayTitle); overrideSlug != "" {
+	if overrideSlug := knownSystemOverrideForTitle(displayTitle); overrideSlug != "" && !input.PreserveStoredSystem {
 		setScore(overrideSlug, 93, "known title system override", func(candidate *detectionCandidate) {
 			candidate.declared = true
 			candidate.helperTrusted = input.TrustedHelperSystem
@@ -517,7 +520,11 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 		}
 	}
 
-	if bestSlug == "arcade" && !bestCandidate.payload && !bestCandidate.pathHint && !isDedicatedArcadeExtension(ext) {
+	// A trusted helper's declaration, and the accepted system of a record that
+	// already exists, are stronger evidence than the four arcade-specific
+	// extensions: a MAME tree stores its saves as <machine>/<file>, where the
+	// file name need not carry an arcade extension at all.
+	if bestSlug == "arcade" && !bestCandidate.payload && !bestCandidate.pathHint && !isDedicatedArcadeExtension(ext) && !bestCandidate.helperTrusted && !bestCandidate.storedTrusted {
 		return saveSystemDetectionResult{
 			Slug:       "unknown-system",
 			System:     nil,

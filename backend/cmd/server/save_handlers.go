@@ -281,6 +281,16 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		if declaredSystem == "unknown-system" && wiiTitleCode != "" && strings.EqualFold(safeFilename(filename), "data.bin") {
 			declaredSystem = "wii"
 		}
+		// Arcade saves are stored per machine (nvram/<machine>/<file>) and the
+		// file name is the machine's own filename, so the helper names the
+		// machine explicitly. Using it as the game name is what lets a restore
+		// land back in the directory the machine reads.
+		if declaredSystem == "arcade" {
+			if machine := strings.TrimSpace(formValue("machine")); machine != "" {
+				gameInfo.Name = machine
+				gameInfo.DisplayTitle = machine
+			}
+		}
 		runtimeProfile := requestedRuntimeProfileFromForm(formValue, declaredSystem)
 		portMeta, hasPortMeta := nativePortMetadataFromForm(formValue, runtimeProfile)
 		if declaredSystem == nativePortSystemSlug && hasPortMeta {
@@ -429,8 +439,9 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"success": true,
 				"save": map[string]any{
-					"id":     record.Summary.ID,
-					"sha256": record.Summary.SHA256,
+					"id":      record.Summary.ID,
+					"sha256":  record.Summary.SHA256,
+					"version": record.Summary.Version,
 				},
 			})
 			return
@@ -489,8 +500,9 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"success": true,
 				"save": map[string]any{
-					"id":     record.Summary.ID,
-					"sha256": record.Summary.SHA256,
+					"id":      record.Summary.ID,
+					"sha256":  record.Summary.SHA256,
+					"version": record.Summary.Version,
 				},
 			})
 			return
@@ -563,8 +575,9 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"success": true,
 			"save": map[string]any{
-				"id":     record.Summary.ID,
-				"sha256": record.Summary.SHA256,
+				"id":      record.Summary.ID,
+				"sha256":  record.Summary.SHA256,
+				"version": record.Summary.Version,
 			},
 		})
 		return
