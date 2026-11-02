@@ -164,6 +164,15 @@ func (a *app) handleValidationRescan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) previewMultipartUpload(filename string, payload []byte, formValue func(string) string) ([]saveUploadPreviewItem, error) {
+	pspBundle, isPSPBundle, pspErr := pspSaveDataBundleFromForm(payload, formValue)
+	if isPSPBundle {
+		if pspErr != nil {
+			return nil, pspErr
+		}
+		return []saveUploadPreviewItem{
+			a.previewOneUpload(filename, "", payload, pspGameFromBundle(pspBundle), "psp", pspUploadMetadata(nil, pspBundle), formValue, false),
+		}, nil
+	}
 	if expanded, isArchive, err := expandMultipartSaveUpload(filename, payload, formValue); isArchive {
 		if err != nil {
 			return nil, err
