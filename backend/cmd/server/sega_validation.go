@@ -57,6 +57,8 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateLegacyRawSave(input, detection, systemSlug)
 	case nativePortSystemSlug:
 		return validateNativePortSave(input, detection)
+	case "psp":
+		return validatePSPSave(input)
 	default:
 		return consoleValidationResult{}
 	}

@@ -165,6 +165,7 @@ var systemLabelAliases = map[string]string{
 }
 
 type saveSystemDetectionInput struct {
+	PSPSaveDataBundle    bool
 	Filename             string
 	DisplayTitle         string
 	Payload              []byte
@@ -269,7 +270,7 @@ func detectSaveSystem(input saveSystemDetectionInput) saveSystemDetectionResult 
 		}
 	}
 
-	if looksLikeExecutableOrArchivePayload(payload) {
+	if looksLikeExecutableOrArchivePayload(payload) && !input.PSPSaveDataBundle {
 		return saveSystemDetectionResult{
 			Slug:       "unknown-system",
 			System:     nil,

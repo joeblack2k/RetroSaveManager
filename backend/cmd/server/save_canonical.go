@@ -15,6 +15,7 @@ type canonicalSaveTrack struct {
 	RuntimeProfile string
 	PortID         string
 	SlotID         string
+	PSPSaveDir     string
 }
 
 func canonicalSystemForSave(existing *system, fallbackSlug string) (string, *system) {
@@ -81,6 +82,9 @@ func canonicalTrackFromInput(input saveCreateInput) canonicalSaveTrack {
 		track.DisplayTitle = track.MemoryCardName
 		track.RuntimeProfile = strings.TrimSpace(input.RuntimeProfile)
 	}
+	if systemSlug == "psp" {
+		track.PSPSaveDir = pspSaveDirFromMetadata(input.Metadata)
+	}
 	track = canonicalNativePortTrackFromInput(track, input)
 	if systemSlug == nativePortSystemSlug {
 		if title := strings.TrimSpace(input.DisplayTitle); title != "" {
@@ -112,6 +116,9 @@ func canonicalTrackFromSummary(summary saveSummary, fallbackSystemSlug string) c
 		track.MemoryCardName = canonicalMemoryCardName(summary.MemoryCard, "", summary.Filename)
 		track.DisplayTitle = track.MemoryCardName
 		track.RuntimeProfile = strings.TrimSpace(summary.RuntimeProfile)
+	}
+	if systemSlug == "psp" {
+		track.PSPSaveDir = pspSaveDirFromMetadata(summary.Metadata)
 	}
 	track = canonicalNativePortTrackFromSummary(track, summary, "")
 	if systemSlug == nativePortSystemSlug {
@@ -187,6 +194,9 @@ func canonicalTrackKey(track canonicalSaveTrack) string {
 			return systemSlug + "::" + runtimeProfile + "::memory-card::" + cardName
 		}
 		return systemSlug + "::memory-card::" + cardName
+	}
+	if systemSlug == "psp" && track.PSPSaveDir != "" {
+		return pspSaveDirTrackKeyPrefix + track.PSPSaveDir
 	}
 	if systemSlug == nativePortSystemSlug {
 		portID := canonicalSegment(track.PortID, "unknown-port")
