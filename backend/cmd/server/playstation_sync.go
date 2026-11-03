@@ -386,7 +386,26 @@ func playStationSystemSlugFromRuntimeProfile(runtimeProfile string) string {
 	}
 }
 
+// perGameCardSlotPrefix marks a card that belongs to one game: RetroArch's
+// Beetle PSX (without shared cards) and the MiSTer keep a card per game, named
+// after it. Each such card is its own line, so a card that lacks another game's
+// save is that game's card, not a deletion from a shared one.
+const perGameCardSlotPrefix = "Game: "
+
+// perGameCardName is the game a per-game card slot names, if it is one.
+func perGameCardName(cardSlot string) (string, bool) {
+	cardSlot = strings.TrimSpace(cardSlot)
+	if len(cardSlot) <= len(perGameCardSlotPrefix) || !strings.EqualFold(cardSlot[:len(perGameCardSlotPrefix)], perGameCardSlotPrefix) {
+		return "", false
+	}
+	name := strings.TrimSpace(cardSlot[len(perGameCardSlotPrefix):])
+	return name, name != ""
+}
+
 func deriveExplicitMemoryCardName(slotName, filename string) (string, bool) {
+	if name, ok := perGameCardName(slotName); ok {
+		return perGameCardSlotPrefix + name, true
+	}
 	candidates := []string{slotName, filename}
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
