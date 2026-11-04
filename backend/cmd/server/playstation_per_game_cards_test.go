@@ -221,7 +221,7 @@ func TestPlayStationLineCleanupRetiresVacatedLines(t *testing.T) {
 		if !ok {
 			t.Fatalf("line %s points at projection %s, which no longer exists", key, line.LatestProjectionID)
 		}
-		if !lineStillOwnsASave("psx", store.state.LogicalSaves, projection) {
+		if !lineStillOwnsASave("psx", store.state.LogicalSaves, line, projection) {
 			t.Fatalf("line %s survives but serves a save it does not own", key)
 		}
 	}
@@ -238,5 +238,68 @@ func TestPlayStationLineCleanupRetiresVacatedLines(t *testing.T) {
 				t.Fatalf("import %s still references projection %s", importID, id)
 			}
 		}
+	}
+}
+
+// A portable save is served by every profile's line for its slot, so the live
+// state has the one real save on a portable record whose sync key spans the
+// retroarch and mister lines. The planner must keep both of those lines and
+// retire the game-named lines still holding the save.
+func TestPlayStationLineCleanupKeepsThePortableSavesLines(t *testing.T) {
+	h := newContractHarness(t)
+	input := saveCreateInput{
+		Filename: "Tekken 3 (USA).srm",
+		Payload:  makeTestPS1Card(t, "SCUS_941.63", "Final Fantasy VII Save"),
+		Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+		Format:   "srm",
+		SlotName: "Game: Tekken 3 (USA)",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	if _, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx"); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+
+	store := h.app.playStationSyncStore()
+	store.mu.Lock()
+	// Make the save portable, the shape the live server has, and give it the
+	// stale game-named lines the pre-fix sync path left behind.
+	for key, logical := range store.state.LogicalSaves {
+		logical.Portable = true
+		store.state.LogicalSaves[key] = logical
+	}
+	var template psProjection
+	for _, line := range store.state.ProjectionLines {
+		if line.RuntimeProfile == "psx/retroarch" {
+			template = store.state.Projections[line.LatestProjectionID]
+		}
+	}
+	if template.ID == "" {
+		store.mu.Unlock()
+		t.Fatalf("fixture: no retroarch projection to copy")
+	}
+	for _, slot := range []string{"Game: Final Fantasy VII (USA) (Disc 1)", "Game: Xenogears (USA)"} {
+		key := projectionLineKey("psx/retroarch", slot)
+		stale := template
+		stale.ID = "ps-projection-stale-" + canonicalSegment(slot, "x")
+		stale.ProjectionLineKey = key
+		stale.CardSlot = slot
+		store.state.Projections[stale.ID] = stale
+		store.state.ProjectionLines[key] = psProjectionLine{
+			Key: key, SystemSlug: "psx", RuntimeProfile: "psx/retroarch",
+			CardSlot: slot, LatestProjectionID: stale.ID,
+		}
+	}
+	store.mu.Unlock()
+
+	dry, err := h.app.cleanupPlayStationLineHistory("psx", true)
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	kept := strings.Join(dry.KeptLines, " ")
+	if !strings.Contains(kept, "tekken-3-usa") {
+		t.Fatalf("the save's own lines are being retired; kept: %q", dry.KeptLines)
+	}
+	if len(dry.Lines) != 2 {
+		t.Fatalf("expected the two stale game-named lines to be retired, got %q", dry.Lines)
 	}
 }

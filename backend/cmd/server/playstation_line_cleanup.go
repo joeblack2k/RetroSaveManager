@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,13 +36,20 @@ type psLineRetirement struct {
 // belongs to the line the projection sits on. Unlike the sync path's check it
 // compares the line as well as the scope: a save whose scope names another
 // line is one this card no longer holds, however recently it was built.
-func lineStillOwnsASave(systemSlug string, logicals map[string]psLogicalSave, projection psProjection) bool {
+func lineStillOwnsASave(systemSlug string, logicals map[string]psLogicalSave, line psProjectionLine, projection psProjection) bool {
 	for _, entry := range projection.Manifest {
 		logical, ok := logicals[entry.LogicalKey]
 		if !ok || logical.SystemSlug != systemSlug {
 			continue
 		}
-		if projectionLineForLogical(logical) != projection.ProjectionLineKey {
+		// A portable save is served by every profile's line for its slot, so
+		// ownership is the sync key. A non-portable save belongs to the one
+		// projection line named in its own record.
+		if logical.Portable {
+			if strings.TrimSpace(line.SyncLineKey) != strings.TrimSpace(logical.SyncLineKey) {
+				continue
+			}
+		} else if strings.TrimSpace(line.Key) != strings.TrimSpace(logical.ProjectionLineKey) {
 			continue
 		}
 		if psScopeKey(logical.Portable, logical.SyncLineKey, logical.ProjectionLineKey) == entry.ScopeKey {
@@ -67,7 +75,7 @@ func (s *playStationStore) planPlayStationLineRetirement(systemSlug string, reco
 			plan.KeptLines = append(plan.KeptLines, key)
 			continue
 		}
-		if lineStillOwnsASave(systemSlug, s.state.LogicalSaves, projection) {
+		if lineStillOwnsASave(systemSlug, s.state.LogicalSaves, line, projection) {
 			plan.KeptLines = append(plan.KeptLines, key)
 			plan.KeptProjects = append(plan.KeptProjects, projection.ID)
 			continue
@@ -174,7 +182,7 @@ func reportPlayStationLineRetirement(plan psLineRetirement) string {
 // payload directories, then the save records. A record whose directory is
 // already gone is skipped rather than failed, so a re-run after a partial
 // removal finishes instead of stopping.
-func (a *app) applyPlayStationLineRetirement(store *playStationStore, plan psLineRetirement) (psLineRetirement, error) {
+func applyPlayStationLineRetirement(store *playStationStore, saves *saveStore, records map[string]saveRecord, plan psLineRetirement) (psLineRetirement, error) {
 	removed := make(map[string]struct{}, len(plan.Projections))
 	for _, id := range plan.Projections {
 		removed[id] = struct{}{}
@@ -206,10 +214,6 @@ func (a *app) applyPlayStationLineRetirement(store *playStationStore, plan psLin
 		return plan, fmt.Errorf("persist the retired lines: %w", err)
 	}
 
-	records := make(map[string]saveRecord)
-	for _, record := range a.snapshotSaveRecords() {
-		records[strings.TrimSpace(record.Summary.ID)] = record
-	}
 	for _, id := range plan.SaveRecords {
 		record, ok := records[id]
 		if !ok {
@@ -219,17 +223,12 @@ func (a *app) applyPlayStationLineRetirement(store *playStationStore, plan psLin
 			if err := os.RemoveAll(record.dirPath); err != nil {
 				return plan, fmt.Errorf("remove save record %s: %w", id, err)
 			}
-			cleanupEmptyParents(filepath.Dir(record.dirPath), a.saveStore.root)
+			cleanupEmptyParents(filepath.Dir(record.dirPath), saves.root)
 		}
 	}
 	for _, id := range plan.Projections {
 		if err := os.RemoveAll(filepath.Join(store.root, "projections", id)); err != nil {
 			return plan, fmt.Errorf("remove projection %s: %w", id, err)
-		}
-	}
-	if len(plan.SaveRecords) > 0 {
-		if err := a.reloadSavesFromDisk(); err != nil {
-			return plan, err
 		}
 	}
 	return plan, nil
@@ -249,5 +248,138 @@ func (a *app) cleanupPlayStationLineHistory(systemSlug string, dryRun bool) (psL
 	if dryRun {
 		return plan, nil
 	}
-	return a.applyPlayStationLineRetirement(store, plan)
+	applied, err := applyPlayStationLineRetirement(store, a.saveStore, records, plan)
+	if err != nil {
+		return applied, err
+	}
+	if len(plan.SaveRecords) > 0 {
+		if err := a.reloadSavesFromDisk(); err != nil {
+			return applied, err
+		}
+	}
+	return applied, nil
+}
+
+// RunPlayStationLineCleanup is the whole cleanup against a save root on disk,
+// with no server and no app: report when dryRun, carry it out otherwise. It
+// returns the report, and a non-empty string when the state would still hold a
+// line serving a save it does not own — the condition a rehearsal must gate
+// on.
+func RunPlayStationLineCleanup(saveRoot, systemSlug string, dryRun bool) (string, string, error) {
+	store, err := newPlayStationStore(saveRoot)
+	if err != nil {
+		return "", "", err
+	}
+	saves := &saveStore{root: saveRoot}
+	loaded, err := saves.load()
+	if err != nil {
+		return "", "", fmt.Errorf("load save records: %w", err)
+	}
+	records := make(map[string]saveRecord, len(loaded))
+	for _, record := range loaded {
+		records[strings.TrimSpace(record.Summary.ID)] = record
+	}
+
+	store.mu.Lock()
+	plan := store.planPlayStationLineRetirement(systemSlug, records)
+	store.mu.Unlock()
+
+	report := reportPlayStationLineRetirement(plan)
+	if dryRun {
+		return report, inconsistencyAfter(store, plan, systemSlug), nil
+	}
+
+	store.mu.Lock()
+	applied, err := applyPlayStationLineRetirement(store, saves, records, plan)
+	store.mu.Unlock()
+	if err != nil {
+		return report, "", err
+	}
+	store.load()
+	return reportPlayStationLineRetirement(applied), inconsistencyAfter(store, applied, systemSlug), nil
+}
+
+// inconsistencyAfter predicts whether a line would still serve a save it does
+// not own once the plan is applied. Checked against the plan's removals rather
+// than assuming the apply succeeded, so a dry run can gate a real one.
+func inconsistencyAfter(store *playStationStore, plan psLineRetirement, systemSlug string) string {
+	retiring := make(map[string]struct{}, len(plan.Lines))
+	for _, key := range plan.Lines {
+		retiring[key] = struct{}{}
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for key, line := range store.state.ProjectionLines {
+		if line.SystemSlug != systemSlug {
+			continue
+		}
+		if _, gone := retiring[key]; gone {
+			continue
+		}
+		projection, ok := store.state.Projections[strings.TrimSpace(line.LatestProjectionID)]
+		if !ok {
+			continue
+		}
+		if !lineStillOwnsASave(systemSlug, store.state.LogicalSaves, line, projection) {
+			return fmt.Sprintf("line %s would still serve a save it does not own", key)
+		}
+	}
+	return ""
+}
+
+// runPlayStationLineCleanup is the `cleanup-playstation-lines` subcommand. It
+// takes the save root the server would take, so it rehearses against a copy of
+// a live state with no server running.
+func runPlayStationLineCleanup(args []string) error {
+	fs := flag.NewFlagSet("cleanup-playstation-lines", flag.ContinueOnError)
+	system := fs.String("system", "psx", "system whose projection lines to retire")
+	dryRun := fs.Bool("dry-run", false, "report what would be retired without changing anything")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	a := newApp()
+	if err := a.initSaveStore(); err != nil {
+		return err
+	}
+	if a.playStationSyncStore() == nil {
+		return fmt.Errorf("playstation store is not initialized")
+	}
+
+	plan, err := a.cleanupPlayStationLineHistory(*system, *dryRun)
+	if err != nil {
+		return err
+	}
+	fmt.Print(reportPlayStationLineRetirement(plan))
+	if *dryRun {
+		fmt.Println("dry run: nothing changed; drop -dry-run to carry this out")
+	}
+	if problem := a.lineCleanupInconsistency(*system); problem != "" {
+		return fmt.Errorf("%s", problem)
+	}
+	return nil
+}
+
+// lineCleanupInconsistency asks the question a rehearsal gates on: does any
+// surviving line still serve a save it does not own?
+func (a *app) lineCleanupInconsistency(systemSlug string) string {
+	store := a.playStationSyncStore()
+	if store == nil {
+		return "playstation store is not initialized"
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for key, line := range store.state.ProjectionLines {
+		if line.SystemSlug != systemSlug {
+			continue
+		}
+		projection, ok := store.state.Projections[strings.TrimSpace(line.LatestProjectionID)]
+		if !ok {
+			continue
+		}
+		if !lineStillOwnsASave(systemSlug, store.state.LogicalSaves, line, projection) {
+			return fmt.Sprintf("line %s still serves a save it does not own", key)
+		}
+	}
+	return ""
 }
