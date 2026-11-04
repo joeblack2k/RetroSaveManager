@@ -354,7 +354,7 @@ func runPlayStationLineCleanup(args []string) error {
 	if *dryRun {
 		fmt.Println("dry run: nothing changed; drop -dry-run to carry this out")
 	}
-	if problem := a.lineCleanupInconsistency(*system); problem != "" {
+	if problem := a.lineCleanupInconsistency(*system, plan); problem != "" {
 		return fmt.Errorf("%s", problem)
 	}
 	return nil
@@ -362,15 +362,30 @@ func runPlayStationLineCleanup(args []string) error {
 
 // lineCleanupInconsistency asks the question a rehearsal gates on: does any
 // surviving line still serve a save it does not own?
-func (a *app) lineCleanupInconsistency(systemSlug string) string {
+func (a *app) lineCleanupInconsistency(systemSlug string, plan psLineRetirement) string {
 	store := a.playStationSyncStore()
 	if store == nil {
 		return "playstation store is not initialized"
 	}
+	// A dry run has changed nothing, so the lines the plan would retire are
+	// still present and would fail any test of the state as it stands. The
+	// question is what survives the plan, not what is there now.
+	retiring := make(map[string]struct{}, len(plan.Lines))
+	for _, key := range plan.Lines {
+		retiring[key] = struct{}{}
+	}
+	keys := make([]string, 0, len(store.state.ProjectionLines))
 	store.mu.Lock()
-	defer store.mu.Unlock()
-	for key, line := range store.state.ProjectionLines {
+	for key := range store.state.ProjectionLines {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		line := store.state.ProjectionLines[key]
 		if line.SystemSlug != systemSlug {
+			continue
+		}
+		if _, gone := retiring[key]; gone {
 			continue
 		}
 		projection, ok := store.state.Projections[strings.TrimSpace(line.LatestProjectionID)]
@@ -378,8 +393,10 @@ func (a *app) lineCleanupInconsistency(systemSlug string) string {
 			continue
 		}
 		if !lineStillOwnsASave(systemSlug, store.state.LogicalSaves, line, projection) {
-			return fmt.Sprintf("line %s still serves a save it does not own", key)
+			store.mu.Unlock()
+			return fmt.Sprintf("line %s would survive and serve a save it does not own", key)
 		}
 	}
+	store.mu.Unlock()
 	return ""
 }

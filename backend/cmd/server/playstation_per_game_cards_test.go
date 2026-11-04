@@ -303,3 +303,54 @@ func TestPlayStationLineCleanupKeepsThePortableSavesLines(t *testing.T) {
 		t.Fatalf("expected the two stale game-named lines to be retired, got %q", dry.Lines)
 	}
 }
+
+// The dry run is the gate a real run is rehearsed against, so a correct plan
+// must pass it. It may only fail on a line that would survive the plan and
+// still serve a save it does not own.
+func TestPlayStationLineCleanupDryRunAcceptsACorrectPlan(t *testing.T) {
+	h := newContractHarness(t)
+	input := saveCreateInput{
+		Filename: "Tekken 3 (USA).srm",
+		Payload:  makeTestPS1Card(t, "SCUS_941.63", "Tekken 3 Save"),
+		Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+		Format:   "srm",
+		SlotName: "Game: Tekken 3 (USA)",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	if _, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx"); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	store := h.app.playStationSyncStore()
+	store.mu.Lock()
+	for key, logical := range store.state.LogicalSaves {
+		logical.Portable = true
+		store.state.LogicalSaves[key] = logical
+	}
+	var template psProjection
+	for _, line := range store.state.ProjectionLines {
+		if line.RuntimeProfile == "psx/retroarch" {
+			template = store.state.Projections[line.LatestProjectionID]
+		}
+	}
+	for _, slot := range []string{"Game: Final Fantasy VII (USA) (Disc 1)", "Game: 007 Racing (USA)"} {
+		key := projectionLineKey("psx/retroarch", slot)
+		stale := template
+		stale.ID = "ps-projection-stale-" + canonicalSegment(slot, "x")
+		stale.ProjectionLineKey = key
+		stale.CardSlot = slot
+		store.state.Projections[stale.ID] = stale
+		store.state.ProjectionLines[key] = psProjectionLine{
+			Key: key, SystemSlug: "psx", RuntimeProfile: "psx/retroarch",
+			CardSlot: slot, LatestProjectionID: stale.ID,
+		}
+	}
+	store.mu.Unlock()
+
+	plan, err := h.app.cleanupPlayStationLineHistory("psx", true)
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	if problem := h.app.lineCleanupInconsistency("psx", plan); problem != "" {
+		t.Fatalf("a correct plan failed the dry-run gate: %s", problem)
+	}
+}
