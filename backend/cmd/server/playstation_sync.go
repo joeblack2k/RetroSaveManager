@@ -486,6 +486,14 @@ func projectionManifestStillHeld(systemSlug string, logicals map[string]psLogica
 	return false
 }
 
+// projectionLineForLogical is the line a save belongs to now.
+func projectionLineForLogical(logical psLogicalSave) string {
+	if logical.Portable {
+		return logical.SyncLineKey
+	}
+	return logical.ProjectionLineKey
+}
+
 func psScopeKey(portable bool, syncKey, projectionKey string) string {
 	if portable {
 		return syncKey

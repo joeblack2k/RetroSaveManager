@@ -138,3 +138,105 @@ func TestPS1PerGameCardLeavesTheLineItVacated(t *testing.T) {
 		}
 	}
 }
+
+// Lines spread by the pre-fix sync path keep serving a save they no longer
+// own, and a device restoring one of them writes the save onto that game's
+// card. The one-shot cleanup retires those lines and leaves nothing pointing
+// at what it removed.
+func TestPlayStationLineCleanupRetiresVacatedLines(t *testing.T) {
+	h := newContractHarness(t)
+	upload := func(filename, slot, productCode, title string) {
+		t.Helper()
+		input := saveCreateInput{
+			Filename: filename,
+			Payload:  makeTestPS1Card(t, productCode, title),
+			Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+			Format:   "srm",
+			SlotName: slot,
+		}
+		preview := h.app.normalizeSaveInputDetailed(input)
+		if _, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx"); err != nil {
+			t.Fatalf("upload %s: %v", filename, err)
+		}
+	}
+	// The fix stops the spread, so the live state is built directly: the
+	// save now belongs to Tekken's line, while other game-named lines still
+	// hold projections containing it.
+	upload("Tekken 3 (USA).srm", "Game: Tekken 3 (USA)", "SCUS_941.63", "Final Fantasy VII Save")
+	store := h.app.playStationSyncStore()
+	if store == nil {
+		t.Fatalf("fixture: no PlayStation store")
+	}
+	store.mu.Lock()
+	owner := projectionLineKey("psx/retroarch", "Game: Tekken 3 (USA)")
+	var template psProjection
+	for _, line := range store.state.ProjectionLines {
+		if line.Key == owner {
+			template = store.state.Projections[line.LatestProjectionID]
+		}
+	}
+	if template.ID == "" {
+		store.mu.Unlock()
+		t.Fatalf("fixture: Tekken's line holds no projection")
+	}
+	for _, slot := range []string{"Game: Final Fantasy VII (USA) (Disc 1)", "Game: Xenogears (USA)"} {
+		key := projectionLineKey("psx/retroarch", slot)
+		stale := template
+		stale.ID = "ps-projection-stale-" + canonicalSegment(slot, "x")
+		stale.ProjectionLineKey = key
+		stale.CardSlot = slot
+		store.state.Projections[stale.ID] = stale
+		store.state.ProjectionLines[key] = psProjectionLine{
+			Key: key, SystemSlug: "psx", RuntimeProfile: "psx/retroarch",
+			CardSlot: slot, LatestProjectionID: stale.ID,
+		}
+	}
+	store.mu.Unlock()
+
+	dry, err := h.app.cleanupPlayStationLineHistory("psx", true)
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	if len(dry.Lines) == 0 {
+		t.Fatalf("dry run found nothing to retire; the fixture does not reproduce the live state")
+	}
+	store.mu.Lock()
+	before := len(store.state.ProjectionLines)
+	store.mu.Unlock()
+	if before != len(dry.Lines)+len(dry.KeptLines) {
+		t.Fatalf("dry run accounted for %d lines, state holds %d", len(dry.Lines)+len(dry.KeptLines), before)
+	}
+
+	if _, err := h.app.cleanupPlayStationLineHistory("psx", false); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for key, line := range store.state.ProjectionLines {
+		if line.SystemSlug != "psx" || strings.TrimSpace(line.LatestProjectionID) == "" {
+			continue
+		}
+		projection, ok := store.state.Projections[line.LatestProjectionID]
+		if !ok {
+			t.Fatalf("line %s points at projection %s, which no longer exists", key, line.LatestProjectionID)
+		}
+		if !lineStillOwnsASave("psx", store.state.LogicalSaves, projection) {
+			t.Fatalf("line %s survives but serves a save it does not own", key)
+		}
+	}
+	for deviceKey, dev := range store.state.DeviceLines {
+		if id := strings.TrimSpace(dev.LastDownloadedProjection); id != "" {
+			if _, ok := store.state.Projections[id]; !ok {
+				t.Fatalf("device %s still references projection %s", deviceKey, id)
+			}
+		}
+	}
+	for importID, artifact := range store.state.Imports {
+		if id := strings.TrimSpace(artifact.BaselineProjection); id != "" {
+			if _, ok := store.state.Projections[id]; !ok {
+				t.Fatalf("import %s still references projection %s", importID, id)
+			}
+		}
+	}
+}
