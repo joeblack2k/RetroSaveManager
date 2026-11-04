@@ -354,3 +354,47 @@ func TestPlayStationLineCleanupDryRunAcceptsACorrectPlan(t *testing.T) {
 		t.Fatalf("a correct plan failed the dry-run gate: %s", problem)
 	}
 }
+
+// The live shape: a per-game card was synced while the server read it as
+// portable, so the save sits on memory-card-1. The device uploads the same
+// bytes on the game's own card again. The save belongs on that line now.
+func TestPS1PortableSaveRehomesWhenItsGameCardArrives(t *testing.T) {
+	h := newContractHarness(t)
+	upload := func(slot string) {
+		t.Helper()
+		input := saveCreateInput{
+			Filename: "Tekken 3 (USA).srm",
+			Payload:  makeTestPS1Card(t, "SLUS_004.02", "Tekken 3 Save"),
+			Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+			Format:   "srm",
+			SlotName: slot,
+		}
+		preview := h.app.normalizeSaveInputDetailed(input)
+		if _, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx"); err != nil {
+			t.Fatalf("upload on %q: %v", slot, err)
+		}
+	}
+	upload("Memory Card 1")
+	store := h.app.playStationSyncStore()
+	store.mu.Lock()
+	for key, logical := range store.state.LogicalSaves {
+		logical.Portable = true
+		logical.SyncLineKey = syncLineKey("psx", "Memory Card 1")
+		logical.ProjectionLineKey = projectionLineKey("psx/retroarch", "Memory Card 1")
+		store.state.LogicalSaves[key] = logical
+	}
+	store.mu.Unlock()
+
+	upload("Game: Tekken 3 (USA)")
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for _, logical := range store.state.LogicalSaves {
+		if !strings.Contains(strings.ToLower(logical.DisplayTitle), "tekken") {
+			continue
+		}
+		if logical.ProjectionLineKey != projectionLineKey("psx/retroarch", "Game: Tekken 3 (USA)") {
+			t.Fatalf("the save stayed on %q; a game card holding it does not re-home it", logical.ProjectionLineKey)
+		}
+	}
+}

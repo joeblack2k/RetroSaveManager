@@ -1865,6 +1865,54 @@ func (s *playStationStore) attachProjectionSaveRecord(projectionID, saveRecordID
 	return s.persistLocked()
 }
 
+// projectionLineSlot names the card a projection line is keyed on, in the
+// form a helper offers: "Game: <title>" for a per-game line, else "Memory Card 1".
+// It answers "which card does the server hold this save on", which the helper
+// cannot know from its own state after the save is re-homed server-side.
+func projectionLineSlot(projectionLine string) string {
+	key := strings.ToLower(strings.TrimSpace(projectionLine))
+	if idx := strings.Index(key, "::"); idx >= 0 {
+		key = key[idx+2:]
+	}
+	if strings.HasPrefix(key, "game-") {
+		slug := strings.TrimPrefix(key, "game-")
+		if slug != "" {
+			return "Game: " + slug
+		}
+	}
+	return ""
+}
+
+// logicalSaveCardSlot names the card the server holds a logical save on, so a
+// helper can tell that its own state is behind a server-side re-home. It reads
+// the projection the logical save currently lives on, not the line the helper
+// asked about, which is the distinction that matters here.
+func (s *playStationStore) logicalSaveCardSlot(runtimeProfile, cardSlot string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	line, ok := s.state.ProjectionLines[projectionLineKey(runtimeProfile, cardSlot)]
+	if !ok || strings.TrimSpace(line.LatestProjectionID) == "" {
+		return ""
+	}
+	projection, ok := s.state.Projections[line.LatestProjectionID]
+	if !ok {
+		return ""
+	}
+	for _, logical := range s.state.LogicalSaves {
+		if strings.TrimSpace(logical.SystemSlug) != strings.TrimSpace(line.SystemSlug) {
+			continue
+		}
+		if !projectionManifestContainsLogicalKey(projection.Manifest, logical.Key) {
+			continue
+		}
+		if current, found := s.currentProjectionForLogicalLocked(logical); found {
+			return projectionLineSlot(current.ProjectionLineKey)
+		}
+		return projectionLineSlot(logical.ProjectionLineKey)
+	}
+	return ""
+}
+
 func (s *playStationStore) latestProjectionSaveRecord(runtimeProfile, cardSlot string) (string, string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

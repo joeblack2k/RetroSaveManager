@@ -142,7 +142,8 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if found {
-					writeLatestSaveRecord(w, latest, latest.Summary.SHA256)
+					slot := a.playStationSyncStore().logicalSaveCardSlot(runtimeProfile, cardSlot)
+					writeLatestSaveRecordOnSlot(w, latest, latest.Summary.SHA256, slot)
 					return
 				}
 			}
