@@ -444,6 +444,48 @@ func deviceLineKey(runtimeProfile, cardSlot, fingerprint string) string {
 	return projectionLineKey(runtimeProfile, cardSlot) + "::" + strings.ToLower(strings.TrimSpace(fingerprint))
 }
 
+// retireVacatedProjectionLinesLocked empties any line whose latest projection
+// serves a save that has since moved to another line. Leaving the stale
+// projection in place means every device that restores that line gets a card
+// holding another game's save.
+func (s *playStationStore) retireVacatedProjectionLinesLocked(systemSlug string) {
+	for key, line := range s.state.ProjectionLines {
+		if line.SystemSlug != systemSlug || strings.TrimSpace(line.LatestProjectionID) == "" {
+			continue
+		}
+		projection, ok := s.state.Projections[strings.TrimSpace(line.LatestProjectionID)]
+		if !ok {
+			continue
+		}
+		if projectionManifestStillHeld(systemSlug, s.state.LogicalSaves, projection) {
+			continue
+		}
+		delete(s.state.Projections, projection.ID)
+		line.LatestProjectionID = ""
+		line.UpdatedAt = time.Now().UTC()
+		s.state.ProjectionLines[key] = line
+	}
+}
+
+// projectionManifestStillHeld reports whether any save the projection carries
+// is still owned by the line it was built for. A save that moved to another
+// line is no longer held here, and the projection must not keep serving it.
+func projectionManifestStillHeld(systemSlug string, logicals map[string]psLogicalSave, projection psProjection) bool {
+	for _, entry := range projection.Manifest {
+		logical, ok := logicals[entry.LogicalKey]
+		if !ok {
+			continue
+		}
+		if logical.SystemSlug != systemSlug {
+			continue
+		}
+		if psScopeKey(logical.Portable, logical.SyncLineKey, logical.ProjectionLineKey) == entry.ScopeKey {
+			return true
+		}
+	}
+	return false
+}
+
 func psScopeKey(portable bool, syncKey, projectionKey string) string {
 	if portable {
 		return syncKey
@@ -572,7 +614,8 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	}
 
 	for i, entry := range entries {
-		logical := state.LogicalSaves[entry.LogicalKey]
+		previous := state.LogicalSaves[entry.LogicalKey]
+		logical := previous
 		logical.Key = entry.LogicalKey
 		logical.SystemSlug = entry.SystemSlug
 		logical.SyncLineKey = entry.SyncLineKey
@@ -582,6 +625,16 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 		logical.RegionCode = entry.RegionCode
 		logical.ProductCode = entry.ProductCode
 		logical.Portable = entry.Portable
+		// A save that moves to another line changes which card serves it.
+		// That is a change even when its bytes are ones the server already
+		// holds, and skipping the rebuild on a byte match is how the line it
+		// left keeps serving it.
+		if previous.ProjectionLineKey != "" && previous.ProjectionLineKey != logical.ProjectionLineKey {
+			changed = true
+		}
+		if previous.SyncLineKey != "" && previous.SyncLineKey != logical.SyncLineKey {
+			changed = true
+		}
 		tombstoneKey := psTombstoneKey(entry.ScopeKey, entry.LogicalKey)
 		_, tombstoned := state.Tombstones[tombstoneKey]
 		if latest, ok := logical.latestRevision(); ok && latest.SHA256 == entry.SHA256 && !tombstoned {
@@ -640,6 +693,12 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	if err != nil {
 		return psImportResult{}, err
 	}
+	// A save that moved to another per-game line is still held by the
+	// projections of the line it left, and a device restoring that line
+	// would write it back onto the wrong game's card. The rebuild above only
+	// touches the line this upload arrived on, so sweep the rest once the
+	// save's new owner is recorded.
+	s.retireVacatedProjectionLinesLocked(req.SystemSlug)
 	if len(built) == 0 {
 		return psImportResult{}, fmt.Errorf("no PlayStation projections were generated")
 	}
