@@ -28,7 +28,7 @@ func (a *app) handleRomLookup(w http.ResponseWriter, r *http.Request) {
 	// that system's own; without it the key is the stem's, as before.
 	romKey := "rom:" + stem
 	if raw := strings.TrimSpace(r.URL.Query().Get("system")); raw != "" {
-		romKey = "rom:" + canonicalSegment(raw, raw) + ":" + stem
+		romKey = "rom:" + safeMultipartSystemSlug(raw, nil) + ":" + stem
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

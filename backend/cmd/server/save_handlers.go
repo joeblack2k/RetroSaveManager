@@ -194,7 +194,11 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 	// stem shared by several systems can lead a lookup to another system's
 	// ROM key, and that record's save written onto this system's file is the
 	// wrong game's save. Empty is the answer, not the other system's record.
-	if raw := strings.TrimSpace(query.Get("system")); ok && raw != "" && saveRecordSystemSlug(latest) != canonicalSegment(raw, raw) {
+	// The requested system is read the way the upload stores it
+	// (safeMultipartSystemSlug maps an alias such as "megadrive" to
+	// "genesis"), so a helper asking in the spelling it uploads with finds its
+	// own save.
+	if raw := strings.TrimSpace(query.Get("system")); ok && raw != "" && saveRecordSystemSlug(latest) != safeMultipartSystemSlug(raw, nil) {
 		ok = false
 	}
 	if ok {

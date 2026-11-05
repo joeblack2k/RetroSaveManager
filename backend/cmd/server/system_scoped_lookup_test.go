@@ -92,3 +92,34 @@ func TestRomLookupWithoutSystemIsUnchanged(t *testing.T) {
 		t.Fatalf("lookup without system changed its key: got %s want %s", got, want)
 	}
 }
+
+// A save uploaded through the real /saves path, then asked for by the
+// spellings a helper sends. The upload stores the system under its canonical
+// slug (an alias such as "megadrive" is stored as "genesis"), so /save/latest
+// has to read the requested system the same way or a helper's own save comes
+// back as not found.
+func TestSaveLatestReadsTheRequestedSystemTheWayTheUploadStoresIt(t *testing.T) {
+	h := newContractHarness(t)
+	helperKey := createHelperAppPassword(t, h, "", "genesis-helper")
+	const romSHA1 = "nba-jam-te-genesis-rom-sha1"
+	uploadSave(t, h, "/saves", map[string]string{
+		"app_password":   helperKey,
+		"rom_sha1":       romSHA1,
+		"slotName":       "default",
+		"system":         "megadrive",
+		"device_type":    "mister",
+		"fingerprint":    "genesis-device",
+		"runtimeProfile": "genesis/genesis-plus-gx",
+	}, "NBA Jam - Tournament Edition (World).srm", buildNonBlankPayload(8192, 0x21))
+
+	for _, spelling := range []string{"genesis", "megadrive", "Genesis"} {
+		if latestSHA(t, h, romSHA1, url.QueryEscape(spelling)) == "" {
+			t.Errorf("system=%q did not find the save uploaded with system=megadrive", spelling)
+		}
+	}
+	for _, other := range []string{"sega-32x", "32x", "game-gear"} {
+		if got := latestSHA(t, h, romSHA1, url.QueryEscape(other)); got != "" {
+			t.Errorf("system=%q was offered the Genesis save (sha256 %s)", other, got)
+		}
+	}
+}
