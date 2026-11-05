@@ -63,6 +63,7 @@ func mountAgentRoutes(r chi.Router, app *app) {
 	r.Post("/conflicts/report", app.handleConflictsReport)
 	r.Get("/conflicts/{id}", app.handleConflictsGet)
 	r.Post("/conflicts/{id}/resolve", app.handleConflictsResolve)
+	r.Post("/conflicts/{id}/applied", app.handleConflictsApplied)
 
 	r.Get("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoStatus)
 	r.Post("/helpers/auto-enroll", app.handleAuthAppPasswordsAutoEnable)

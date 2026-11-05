@@ -601,3 +601,32 @@ func TestContractBatchUploadRootAndV1AliasParity(t *testing.T) {
 	v1Body := normalizeForGolden(decodeJSONMap(t, v1Resp.Body))
 	assertEqualJSONValue(t, rootBody, v1Body, "batch upload alias parity")
 }
+
+func TestContractConflictItemCarriesBothHashes(t *testing.T) {
+	h := newContractHarness(t)
+
+	local := "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+	cloud := "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
+	report := h.multipart("/conflicts/report", map[string]string{
+		"romSha1":     "conflict-hash-rom",
+		"slotName":    "default",
+		"localSha256": local,
+		"cloudSha256": cloud,
+	}, "file", "Same Size (USA).srm", []byte("local-bytes"))
+	assertStatus(t, report, http.StatusOK)
+
+	list := h.request(http.MethodGet, "/conflicts", nil)
+	assertStatus(t, list, http.StatusOK)
+	body := decodeJSONMap(t, list.Body)
+	items, ok := body["conflicts"].([]any)
+	if !ok || len(items) != 1 {
+		t.Fatalf("expected one conflict: %s", prettyJSON(body))
+	}
+	item := mustObject(t, items[0], "conflicts[0]")
+	if got, _ := item["localSha256"].(string); got != local {
+		t.Fatalf("conflict item must carry the device's sha256 %q, got %q: %s", local, got, prettyJSON(item))
+	}
+	if got, _ := item["cloudSha256"].(string); got != cloud {
+		t.Fatalf("conflict item must carry the cloud sha256 %q, got %q: %s", cloud, got, prettyJSON(item))
+	}
+}

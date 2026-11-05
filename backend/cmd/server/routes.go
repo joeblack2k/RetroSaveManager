@@ -122,6 +122,7 @@ func mountCompatRoutes(r chi.Router, app *app) {
 	r.Get("/conflicts/count", app.handleConflictsCount)
 	r.Get("/conflicts/{id}", app.handleConflictsGet)
 	r.Post("/conflicts/{id}/resolve", app.handleConflictsResolve)
+	r.Post("/conflicts/{id}/applied", app.handleConflictsApplied)
 
 	r.Post("/games/lookup", app.handleGamesLookup)
 	r.Get("/games/library", app.handleGamesLibraryList)
