@@ -21,14 +21,23 @@ func (a *app) handleRomLookup(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(stem, "Wario Land II") {
 		gameID = 281
 	}
+	// A stem names a game on more than one system (NBA Jam - Tournament
+	// Edition is a Genesis, 32X and Game Gear game). Keyed on the stem alone,
+	// every system's save shares one ROM key and /save/latest offers one
+	// system's record to another. A caller that names its system gets a key of
+	// that system's own; without it the key is the stem's, as before.
+	romKey := "rom:" + stem
+	if raw := strings.TrimSpace(r.URL.Query().Get("system")); raw != "" {
+		romKey = "rom:" + safeMultipartSystemSlug(raw, nil) + ":" + stem
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success": true,
 		"count":   1,
 		"rom": map[string]any{
 			"id":       gameID,
-			"sha1":     deterministicSHA1Hex("rom:" + stem),
-			"md5":      deterministicMD5Hex("rom:" + stem),
+			"sha1":     deterministicSHA1Hex(romKey),
+			"md5":      deterministicMD5Hex(romKey),
 			"fileName": stem + ".srm",
 			"game": map[string]any{
 				"id":          gameID,

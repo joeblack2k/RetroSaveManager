@@ -164,17 +164,42 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	latest, ok := a.latestReadableSaveRecord(romSHA1, slotName)
-	if !ok {
-		query := r.URL.Query()
-		latest, ok = a.latestReadableSaveRecordByTrackContext(
-			query.Get("filename"),
-			query.Get("system"),
-			query.Get("displayTitle"),
-			query.Get("regionCode"),
-			runtimeProfile,
-			slotName,
-		)
+	query := r.URL.Query()
+	var latest saveRecord
+	if canonicalSegment(query.Get("system"), "") == "arcade" {
+		// Every component of a MAME machine is named after its device
+		// (eeprom, saveram, 29f016a.27h) and every machine uses the same
+		// names. A machine is only one save per component, so the component
+		// is part of the identity; without it a restore answers with
+		// whichever component was stored last and writes it over its
+		// siblings. The title fallback is worse still -- a record stored
+		// before uploads said which machine they came from is titled with
+		// the component name, so the fallback hands one machine another's
+		// save.
+		latest, ok = a.latestReadableSaveRecordForArcadeComponent(romSHA1, slotName, query.Get("filename"))
+	} else {
+		latest, ok = a.latestReadableSaveRecord(romSHA1, slotName)
+		if !ok {
+			latest, ok = a.latestReadableSaveRecordByTrackContext(
+				query.Get("filename"),
+				query.Get("system"),
+				query.Get("displayTitle"),
+				query.Get("regionCode"),
+				runtimeProfile,
+				slotName,
+			)
+		}
+	}
+	// A caller that names its system is offered only that system's record. A
+	// stem shared by several systems can lead a lookup to another system's
+	// ROM key, and that record's save written onto this system's file is the
+	// wrong game's save. Empty is the answer, not the other system's record.
+	// The requested system is read the way the upload stores it
+	// (safeMultipartSystemSlug maps an alias such as "megadrive" to
+	// "genesis"), so a helper asking in the spelling it uploads with finds its
+	// own save.
+	if raw := strings.TrimSpace(query.Get("system")); ok && raw != "" && saveRecordSystemSlug(latest) != safeMultipartSystemSlug(raw, nil) {
+		ok = false
 	}
 	if ok {
 		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(latest)) {
@@ -1630,6 +1655,62 @@ func (a *app) latestReadableSaveRecord(romSHA1, slotName string) (saveRecord, bo
 		}
 	}
 	return latestReadableSaveRecord(a.saveRecords, romSHA1, slotName)
+}
+
+// latestReadableSaveRecordForArcadeComponent resolves the save for one
+// component file of one MAME machine. The machine comes from the rom the
+// helper looked up and the component from the file it is about to write, so a
+// machine's components never resolve to each other, and a component name that
+// another machine also uses never resolves across machines.
+func (a *app) latestReadableSaveRecordForArcadeComponent(romSHA1, slotName, component string) (saveRecord, bool) {
+	componentName := strings.ToLower(strings.TrimSpace(filepath.Base(strings.ReplaceAll(component, "\\", "/"))))
+	if componentName == "" {
+		return saveRecord{}, false
+	}
+	targetROM := strings.TrimSpace(romSHA1)
+	targetSlot := normalizedSlot(slotName)
+
+	a.mu.Lock()
+	records := append([]saveRecord(nil), a.saveRecords...)
+	a.mu.Unlock()
+
+	var latest saveRecord
+	found := false
+	if record, ok := a.saveIndex.latestReadableByROMSlot(targetROM, targetSlot); ok {
+		records = append([]saveRecord{record}, records...)
+	}
+	for _, record := range records {
+		if targetROM == "" || record.ROMSHA1 != targetROM || normalizedSlot(record.SlotName) != targetSlot {
+			continue
+		}
+		if saveRecordSystemSlug(record) != "arcade" {
+			continue
+		}
+		if recordComponentName(record) != componentName {
+			continue
+		}
+		if !saveRecordPayloadExists(record) {
+			continue
+		}
+		if !found || saveRecordSortsAfter(record, latest) {
+			latest = record
+			found = true
+		}
+	}
+	return latest, found
+}
+
+func recordComponentName(record saveRecord) string {
+	name := strings.TrimSpace(record.Summary.Filename)
+	if name == "" {
+		name = strings.TrimSpace(record.PayloadFile)
+	}
+	if name == "" {
+		if idx := strings.LastIndex(record.payloadPath, string(filepath.Separator)); idx >= 0 {
+			name = record.payloadPath[idx+1:]
+		}
+	}
+	return strings.ToLower(name)
 }
 
 func (a *app) latestReadableSaveRecordByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
