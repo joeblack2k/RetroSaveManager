@@ -190,6 +190,13 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 			)
 		}
 	}
+	// A caller that names its system is offered only that system's record. A
+	// stem shared by several systems can lead a lookup to another system's
+	// ROM key, and that record's save written onto this system's file is the
+	// wrong game's save. Empty is the answer, not the other system's record.
+	if raw := strings.TrimSpace(query.Get("system")); ok && raw != "" && saveRecordSystemSlug(latest) != canonicalSegment(raw, raw) {
+		ok = false
+	}
 	if ok {
 		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(latest)) {
 			writeJSON(w, http.StatusOK, map[string]any{
