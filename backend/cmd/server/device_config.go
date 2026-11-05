@@ -219,7 +219,72 @@ func mergeHelperReportedConfigSources(reported []deviceConfigSource, existing []
 		indexByID[source.ID] = len(out)
 		out = append(out, source)
 	}
-	return normalizeDeviceConfigSources(out)
+	return dropAutoscanSourcesUnderConfigured(normalizeDeviceConfigSources(out))
+}
+
+// dropAutoscanSourcesUnderConfigured removes a helper-autoscanned source whose every save path is,
+// or sits inside, a save path of a configured source on the same device. The configured source owns
+// those saves; kept, the autoscanned copy is sent back to the helper in its runtime policy, the
+// helper's config writeback re-creates it, and its generic profile refuses saves the configured
+// source would sync (a gameboy save in gb/ and gbc/ with no SAVE_SUBDIR declared on it). If the
+// configured source goes, the next report keeps the autoscanned one again.
+func dropAutoscanSourcesUnderConfigured(sources []deviceConfigSource) []deviceConfigSource {
+	configured := make([]deviceConfigSource, 0, len(sources))
+	for _, source := range sources {
+		if !isAutoscanSource(source) {
+			configured = append(configured, source)
+		}
+	}
+	out := make([]deviceConfigSource, 0, len(sources))
+	for _, source := range sources {
+		if isAutoscanSource(source) && savePathsCoveredBy(source, configured) {
+			continue
+		}
+		out = append(out, source)
+	}
+	return out
+}
+
+func isAutoscanSource(source deviceConfigSource) bool {
+	return source.Managed && strings.HasPrefix(canonicalOptionalSegment(source.Origin), "autoscan")
+}
+
+func savePathsCoveredBy(source deviceConfigSource, configured []deviceConfigSource) bool {
+	if len(source.SavePaths) == 0 {
+		return false
+	}
+	for _, path := range source.SavePaths {
+		covered := false
+		for _, owner := range configured {
+			for _, root := range owner.SavePaths {
+				if pathWithinRoot(path, root) {
+					covered = true
+					break
+				}
+			}
+			if covered {
+				break
+			}
+		}
+		if !covered {
+			return false
+		}
+	}
+	return true
+}
+
+// pathWithinRoot compares two helper-reported directories with separators unified, trailing
+// separators dropped and case folded, so `/home/deck/saves/` and `/home/deck/saves` are one path.
+func pathWithinRoot(path, root string) bool {
+	norm := func(value string) string {
+		value = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(value), "\\", "/"))
+		return strings.TrimRight(value, "/")
+	}
+	p, r := norm(path), norm(root)
+	if p == "" || r == "" {
+		return false
+	}
+	return p == r || strings.HasPrefix(p, r+"/")
 }
 
 func markBackendPolicySources(raw []deviceConfigSource) []deviceConfigSource {
