@@ -121,7 +121,7 @@ func TestContractSaveLatestFallsBackToCanonicalTrackContext(t *testing.T) {
 		"rom_sha1": "pokemon-cloud-rom",
 		"slotName": "default",
 		"system":   "gameboy",
-	}, "Pokemon Noise Loop.srm", buildNonBlankPayload(8192, 0x23))
+	}, "Pokemon Noise Loop (USA).srm", buildNonBlankPayload(8192, 0x23))
 	saveObj := mustObject(t, upload["save"], "save")
 	wantID := mustString(t, saveObj["id"], "save.id")
 	wantSHA := mustString(t, saveObj["sha256"], "save.sha256")
@@ -136,7 +136,7 @@ func TestContractSaveLatestFallsBackToCanonicalTrackContext(t *testing.T) {
 	query := url.Values{}
 	query.Set("romSha1", "pokemon-local-rom")
 	query.Set("slotName", "default")
-	query.Set("filename", "Pokemon Noise Loop.srm")
+	query.Set("filename", "Pokemon Noise Loop (USA).srm")
 	query.Set("system", "gameboy")
 	withContext := h.request(http.MethodGet, "/save/latest?"+query.Encode(), nil)
 	assertStatus(t, withContext, http.StatusOK)

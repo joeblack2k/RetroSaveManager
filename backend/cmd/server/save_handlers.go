@@ -181,6 +181,7 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 		latest, ok = a.latestReadableSaveRecord(romSHA1, slotName)
 		if !ok {
 			latest, ok = a.latestReadableSaveRecordByTrackContext(
+				romSHA1,
 				query.Get("filename"),
 				query.Get("system"),
 				query.Get("displayTitle"),
@@ -1702,15 +1703,50 @@ func recordComponentName(record saveRecord) string {
 	return strings.ToLower(name)
 }
 
-func (a *app) latestReadableSaveRecordByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
+func (a *app) latestReadableSaveRecordByTrackContext(requestROMSHA1, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
+	regionCode = trackFallbackRequestRegion(regionCode, filename)
+	romSHA1 := strings.TrimSpace(requestROMSHA1)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if record, ok := a.saveIndex.latestReadableByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName); ok {
 		if saveRecordPayloadExists(record) {
-			return record, true
+			return servableByTrackFallback(record, romSHA1)
 		}
 	}
-	return latestReadableSaveRecordByTrackContext(a.saveRecords, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName)
+	record, ok := latestReadableSaveRecordByTrackContext(a.saveRecords, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName)
+	if !ok {
+		return saveRecord{}, false
+	}
+	return servableByTrackFallback(record, romSHA1)
+}
+
+// trackFallbackRequestRegion is the region a track-context lookup asks for: the
+// one the caller names, or else the one its No-Intro filename carries. Helpers
+// that send no regionCode still name the release in the filename.
+func trackFallbackRequestRegion(regionCode, filename string) string {
+	if region := normalizeRegionCode(regionCode); region != regionUnknown {
+		return region
+	}
+	_, region, _ := cleanupDisplayTitleRegionAndLanguages(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	return region
+}
+
+// servableByTrackFallback refuses a title-only match that belongs to another ROM
+// and says nothing about its release. The fallback runs after the ROM-sha1 lookup
+// missed, so a record with a different ROM sha1 is another dump; with its region
+// unknown, nothing says it is the same release, and its bytes would be written
+// onto this game's save. A (J) save was served to a USA ROM this way and uploaded
+// back as the USA track's newest version. Records without a ROM sha1 (native
+// ports) and requests without one are found only by track, so they still are.
+func servableByTrackFallback(record saveRecord, requestROMSHA1 string) (saveRecord, bool) {
+	recordROM := strings.TrimSpace(record.ROMSHA1)
+	if requestROMSHA1 == "" || recordROM == "" || strings.EqualFold(recordROM, requestROMSHA1) {
+		return record, true
+	}
+	if canonicalRegion(record.Summary.RegionCode, record.Summary.Game.RegionCode) == regionUnknown {
+		return saveRecord{}, false
+	}
+	return record, true
 }
 
 func (a *app) deleteSaveRecordsByIDs(ids []string) (int, bool, error) {
