@@ -637,10 +637,10 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 		// That is a change even when its bytes are ones the server already
 		// holds, and skipping the rebuild on a byte match is how the line it
 		// left keeps serving it.
-		if previous.ProjectionLineKey != "" && previous.ProjectionLineKey != logical.ProjectionLineKey {
-			changed = true
-		}
-		if previous.SyncLineKey != "" && previous.SyncLineKey != logical.SyncLineKey {
+		// The line a save is on is its scope: a portable save's slot, or a
+		// non-portable save's profile line. A portable save uploaded by
+		// another profile on the same slot has not moved.
+		if before := projectionLineForLogical(previous); before != "" && before != projectionLineForLogical(logical) {
 			changed = true
 		}
 		tombstoneKey := psTombstoneKey(entry.ScopeKey, entry.LogicalKey)
