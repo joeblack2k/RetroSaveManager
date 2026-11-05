@@ -707,6 +707,8 @@ export type Conflict = {
   deviceFilename: string;
   deviceFileSize: number;
   createdAt: string;
+  localSha256: string;
+  cloudSha256: string;
   cloudLatest: {
     filename: string;
     fileSize: number;

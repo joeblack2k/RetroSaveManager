@@ -258,7 +258,11 @@ func buildConflictItem(record conflictRecord, saveRecords []saveRecord) map[stri
 		"deviceFilename": fallbackConflictFilename(record.DeviceFilename),
 		"deviceFileSize": maxInt(record.DeviceFileSize, 0),
 		"createdAt":      record.CreatedAt,
-		"cloudLatest":    cloudLatest,
+		// Both sides' content hashes, as the helper reported them. Saves in conflict are
+		// often the same size, so the hashes are what tells an operator which is which.
+		"localSha256": record.LocalSHA256,
+		"cloudSha256": record.CloudSHA256,
+		"cloudLatest": cloudLatest,
 	}
 }
 

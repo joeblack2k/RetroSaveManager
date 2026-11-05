@@ -21,6 +21,11 @@ export function ConflictsPage(): JSX.Element {
               <p>{conflict.deviceFilename}</p>
               <p>Device: {conflict.deviceName ?? "unknown"}</p>
               <p>Size: {formatBytes(conflict.deviceFileSize)}</p>
+              <p>
+                Device sha256: <code title={conflict.localSha256}>{shortHash(conflict.localSha256)}</code>
+                {" · "}
+                Cloud sha256: <code title={conflict.cloudSha256}>{shortHash(conflict.cloudSha256)}</code>
+              </p>
               <small>{formatDate(conflict.createdAt)}</small>
             </li>
           ))}
@@ -28,4 +33,9 @@ export function ConflictsPage(): JSX.Element {
       ) : null}
     </SectionCard>
   );
+}
+
+// The first 12 hex characters; the full hash is the element's title, so it can be read or copied.
+function shortHash(hash: string): string {
+  return hash ? hash.slice(0, 12) : "unknown";
 }
