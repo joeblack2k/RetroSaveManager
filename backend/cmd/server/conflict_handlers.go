@@ -36,16 +36,52 @@ func (a *app) handleConflictsResolve(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, "id")
 	resolution := conflictResolutionFromRequest(r)
-	_, ok := a.resolveConflictByID(id)
-	if !ok {
-		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Conflict not found", StatusCode: http.StatusNotFound})
-		return
+	switch resolution {
+	case "keep_local", "keep_server":
+		// A decision for the helper to act on once; the conflict stays until it
+		// reports the decision applied for the same pair of hashes.
+		if _, ok := a.decideConflictByID(id, resolution); !ok {
+			writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Conflict not found", StatusCode: http.StatusNotFound})
+			return
+		}
+	default:
+		if _, ok := a.resolveConflictByID(id); !ok {
+			writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Conflict not found", StatusCode: http.StatusNotFound})
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"success":    true,
 		"conflictId": strings.TrimSpace(id),
 		"resolution": resolution,
 	})
+}
+
+// handleConflictsApplied is a helper's report that it acted on a decision. It
+// names the pair it acted on; a pair that no longer matches is stale (409) and
+// the conflict stays open with its decision dropped.
+func (a *app) handleConflictsApplied(w http.ResponseWriter, r *http.Request) {
+	_ = requestPrincipal(r)
+
+	var req struct {
+		LocalSHA256 string `json:"localSha256"`
+		CloudSHA256 string `json:"cloudSha256"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, apiError{Error: "Bad Request", Message: "localSha256 and cloudSha256 are required", StatusCode: http.StatusBadRequest})
+		return
+	}
+	id := chi.URLParam(r, "id")
+	applied, found := a.applyConflictDecision(id, req.LocalSHA256, req.CloudSHA256)
+	if !found {
+		writeJSON(w, http.StatusNotFound, apiError{Error: "Not Found", Message: "Conflict not found", StatusCode: http.StatusNotFound})
+		return
+	}
+	if !applied {
+		writeJSON(w, http.StatusConflict, apiError{Error: "Conflict", Message: "the decision was made for another pair of hashes; the conflict is open again", StatusCode: http.StatusConflict})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "conflictId": strings.TrimSpace(id)})
 }
 
 func (a *app) handleConflictsCheck(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +111,8 @@ func (a *app) handleConflictsCheck(w http.ResponseWriter, r *http.Request) {
 		"exists":       true,
 		"conflictId":   record.ConflictID,
 		"status":       record.Status,
+		"resolution":   record.Resolution,
+		"localSha256":  record.LocalSHA256,
 		"cloudSha256":  record.CloudSHA256,
 		"cloudVersion": record.CloudVersion,
 		"cloudSaveId":  record.CloudSaveID,

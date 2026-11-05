@@ -26,6 +26,10 @@ type conflictRecord struct {
 	DeviceName     string
 	DeviceFilename string
 	DeviceFileSize int
+	// Resolution is a one-shot "keep_local" or "keep_server" decision, valid only
+	// for the pair of hashes it was made for (LocalSHA256, CloudSHA256 at that
+	// moment). A helper acts on it once and reports back; any other pair is stale.
+	Resolution string
 }
 
 type authStateSnapshot struct {
@@ -428,6 +432,13 @@ func (a *app) reportConflict(romSHA1, slotName, localSHA256, cloudSHA256, device
 			record.CloudSHA256 = latest.Summary.SHA256
 		}
 	}
+	if prior, ok := a.conflicts[key]; ok && prior.Resolution != "" &&
+		prior.LocalSHA256 == record.LocalSHA256 && prior.CloudSHA256 == record.CloudSHA256 {
+		// The helper reports the same pair again while the decision waits to be
+		// acted on; keep it. A new pair means the decision no longer applies.
+		record.ConflictID = prior.ConflictID
+		record.Resolution = prior.Resolution
+	}
 	a.conflicts[key] = record
 	a.mu.Unlock()
 
@@ -548,6 +559,47 @@ func (a *app) resolveConflictByID(id string) (conflictRecord, bool) {
 		ConflictID: resolved.ConflictID,
 	})
 	return resolved, true
+}
+
+// decideConflictByID records a one-shot decision on an open conflict and keeps
+// the conflict until a helper reports it applied.
+func (a *app) decideConflictByID(id, resolution string) (conflictRecord, bool) {
+	targetID := strings.TrimSpace(id)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for key, record := range a.conflicts {
+		if record.ConflictID != targetID {
+			continue
+		}
+		record.Resolution = resolution
+		a.conflicts[key] = record
+		return record, true
+	}
+	return conflictRecord{}, false
+}
+
+// applyConflictDecision clears a conflict whose decision was acted on for exactly
+// the pair it was made for. Any other pair is stale: the decision is dropped and
+// the conflict stays open, so it is raised again rather than acted on.
+func (a *app) applyConflictDecision(id, localSHA256, cloudSHA256 string) (applied bool, found bool) {
+	targetID := strings.TrimSpace(id)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for key, record := range a.conflicts {
+		if record.ConflictID != targetID {
+			continue
+		}
+		if record.Resolution != "" &&
+			record.LocalSHA256 == strings.TrimSpace(localSHA256) &&
+			record.CloudSHA256 == strings.TrimSpace(cloudSHA256) {
+			delete(a.conflicts, key)
+			return true, true
+		}
+		record.Resolution = ""
+		a.conflicts[key] = record
+		return false, true
+	}
+	return false, false
 }
 
 func (a *app) resolveConflictForSave(record saveRecord) {
