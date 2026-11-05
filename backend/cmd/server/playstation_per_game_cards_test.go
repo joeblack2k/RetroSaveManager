@@ -398,3 +398,26 @@ func TestPS1PortableSaveRehomesWhenItsGameCardArrives(t *testing.T) {
 		}
 	}
 }
+
+// A device offers a per-game card under the name it writes ("Game: Tekken 3
+// (USA)") and compares it with the card /save/latest reports. Reporting the
+// line key's slug instead ("Game: tekken-3-usa") reads as a card move on every
+// pass, so the device re-sends unchanged bytes forever.
+func TestPS1LatestReportsTheCardNameTheDeviceOffers(t *testing.T) {
+	h := newContractHarness(t)
+	input := saveCreateInput{
+		Filename: "Tekken 3 (USA).srm",
+		Payload:  makeTestPS1Card(t, "SLUS_004.02", "Tekken 3 Save"),
+		Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+		Format:   "srm",
+		SlotName: "Game: Tekken 3 (USA)",
+	}
+	preview := h.app.normalizeSaveInputDetailed(input)
+	if _, _, err := h.app.createPlayStationProjectionSave(input, preview, "retroarch", "psx/retroarch", "deck-psx"); err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	got := h.app.playStationSyncStore().logicalSaveCardSlot("psx/retroarch", "Game: Tekken 3 (USA)")
+	if got != "Game: Tekken 3 (USA)" {
+		t.Fatalf("latest reports card %q; the device offers %q, so it reads a move on every pass", got, "Game: Tekken 3 (USA)")
+	}
+}

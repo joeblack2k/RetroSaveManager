@@ -1906,11 +1906,24 @@ func (s *playStationStore) logicalSaveCardSlot(runtimeProfile, cardSlot string) 
 			continue
 		}
 		if current, found := s.currentProjectionForLogicalLocked(logical); found {
-			return projectionLineSlot(current.ProjectionLineKey)
+			return s.projectionLineCardSlotLocked(current.ProjectionLineKey)
 		}
-		return projectionLineSlot(logical.ProjectionLineKey)
+		return s.projectionLineCardSlotLocked(logical.ProjectionLineKey)
 	}
 	return ""
+}
+
+// projectionLineCardSlotLocked is the card name a projection line was created
+// under, the name a device offers and compares with. The line key holds only a
+// lowercased slug of it ("game-tekken-3-usa"), which no device writes, so it is
+// used only for a line stored without its card name.
+func (s *playStationStore) projectionLineCardSlotLocked(projectionLine string) string {
+	if line, ok := s.state.ProjectionLines[projectionLine]; ok {
+		if name, isGameCard := perGameCardName(line.CardSlot); isGameCard {
+			return perGameCardSlotPrefix + name
+		}
+	}
+	return projectionLineSlot(projectionLine)
 }
 
 func (s *playStationStore) latestProjectionSaveRecord(runtimeProfile, cardSlot string) (string, string, bool) {
