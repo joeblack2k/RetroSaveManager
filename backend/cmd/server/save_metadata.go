@@ -23,12 +23,13 @@ const (
 )
 
 var (
-	trailingTagPattern     = regexp.MustCompile(`\s*\(([^)]*)\)\s*$`)
-	trailingCounterPattern = regexp.MustCompile(`(?i)(?:[_\.-]+|\s+(?:slot|save)\s+)#?([0-9]{1,3})$`)
-	cardNumberPattern      = regexp.MustCompile(`(?i)(memory[\s_-]*card|card)[\s_-]*([0-9]{1,2})`)
-	mcdNumberPattern       = regexp.MustCompile(`(?i)mcd0*([0-9]{1,2})`)
-	spacePattern           = regexp.MustCompile(`\s+`)
-	productCodePattern     = regexp.MustCompile(`\b([A-Z]{4}[-_][0-9]{3}\.[0-9]{2}|[A-Z]{4}[0-9]{5})\b`)
+	trailingTagPattern        = regexp.MustCompile(`\s*\(([^)]*)\)\s*$`)
+	parenthesisedGroupPattern = regexp.MustCompile(`\(([^)]*)\)`)
+	trailingCounterPattern    = regexp.MustCompile(`(?i)(?:[_\.-]+|\s+(?:slot|save)\s+)#?([0-9]{1,3})$`)
+	cardNumberPattern         = regexp.MustCompile(`(?i)(memory[\s_-]*card|card)[\s_-]*([0-9]{1,2})`)
+	mcdNumberPattern          = regexp.MustCompile(`(?i)mcd0*([0-9]{1,2})`)
+	spacePattern              = regexp.MustCompile(`\s+`)
+	productCodePattern        = regexp.MustCompile(`\b([A-Z]{4}[-_][0-9]{3}\.[0-9]{2}|[A-Z]{4}[0-9]{5})\b`)
 )
 
 var saveTitleAliasesBySystem = map[string]map[string]string{
@@ -169,7 +170,17 @@ func cleanupDisplayTitleRegionAndLanguages(raw string) (string, string, []string
 		return "Unknown Game", regionUnknown, nil
 	}
 
-	detectedRegion := detectRegionCode(raw)
+	// The region comes only from the name's parenthesised No-Intro tags. Read across
+	// the whole title, "Usagi Yojimbo (Japan)" was USA and "Palamedes" PAL. Every
+	// group counts, not just the trailing run the title cleanup strips: in
+	// "(USA, Europe) (SGB Enhanced) (GB Compatible)" the region tag is not last.
+	detectedRegion := regionUnknown
+	for _, group := range parenthesisedGroupPattern.FindAllStringSubmatch(raw, -1) {
+		if region := detectRegionCode(group[1]); region != regionUnknown {
+			detectedRegion = region
+			break
+		}
+	}
 	detectedLanguages := make([]string, 0, 4)
 	stripTrailingTags := func() {
 		for {

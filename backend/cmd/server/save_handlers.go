@@ -164,17 +164,32 @@ func (a *app) handleSaveLatest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	latest, ok := a.latestReadableSaveRecord(romSHA1, slotName)
-	if !ok {
-		query := r.URL.Query()
-		latest, ok = a.latestReadableSaveRecordByTrackContext(
-			query.Get("filename"),
-			query.Get("system"),
-			query.Get("displayTitle"),
-			query.Get("regionCode"),
-			runtimeProfile,
-			slotName,
-		)
+	query := r.URL.Query()
+	var latest saveRecord
+	if canonicalSegment(query.Get("system"), "") == "arcade" {
+		// Every component of a MAME machine is named after its device
+		// (eeprom, saveram, 29f016a.27h) and every machine uses the same
+		// names. A machine is only one save per component, so the component
+		// is part of the identity; without it a restore answers with
+		// whichever component was stored last and writes it over its
+		// siblings. The title fallback is worse still -- a record stored
+		// before uploads said which machine they came from is titled with
+		// the component name, so the fallback hands one machine another's
+		// save.
+		latest, ok = a.latestReadableSaveRecordForArcadeComponent(romSHA1, slotName, query.Get("filename"))
+	} else {
+		latest, ok = a.latestReadableSaveRecord(romSHA1, slotName)
+		if !ok {
+			latest, ok = a.latestReadableSaveRecordByTrackContext(
+				romSHA1,
+				query.Get("filename"),
+				query.Get("system"),
+				query.Get("displayTitle"),
+				query.Get("regionCode"),
+				runtimeProfile,
+				slotName,
+			)
+		}
 	}
 	if ok {
 		if helperCtx.IsHelper && !systemAllowedForDevice(helperCtx.Device, saveRecordSystemSlug(latest)) {
@@ -1632,15 +1647,109 @@ func (a *app) latestReadableSaveRecord(romSHA1, slotName string) (saveRecord, bo
 	return latestReadableSaveRecord(a.saveRecords, romSHA1, slotName)
 }
 
-func (a *app) latestReadableSaveRecordByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
+// latestReadableSaveRecordForArcadeComponent resolves the save for one
+// component file of one MAME machine. The machine comes from the rom the
+// helper looked up and the component from the file it is about to write, so a
+// machine's components never resolve to each other, and a component name that
+// another machine also uses never resolves across machines.
+func (a *app) latestReadableSaveRecordForArcadeComponent(romSHA1, slotName, component string) (saveRecord, bool) {
+	componentName := strings.ToLower(strings.TrimSpace(filepath.Base(strings.ReplaceAll(component, "\\", "/"))))
+	if componentName == "" {
+		return saveRecord{}, false
+	}
+	targetROM := strings.TrimSpace(romSHA1)
+	targetSlot := normalizedSlot(slotName)
+
+	a.mu.Lock()
+	records := append([]saveRecord(nil), a.saveRecords...)
+	a.mu.Unlock()
+
+	var latest saveRecord
+	found := false
+	if record, ok := a.saveIndex.latestReadableByROMSlot(targetROM, targetSlot); ok {
+		records = append([]saveRecord{record}, records...)
+	}
+	for _, record := range records {
+		if targetROM == "" || record.ROMSHA1 != targetROM || normalizedSlot(record.SlotName) != targetSlot {
+			continue
+		}
+		if saveRecordSystemSlug(record) != "arcade" {
+			continue
+		}
+		if recordComponentName(record) != componentName {
+			continue
+		}
+		if !saveRecordPayloadExists(record) {
+			continue
+		}
+		if !found || saveRecordSortsAfter(record, latest) {
+			latest = record
+			found = true
+		}
+	}
+	return latest, found
+}
+
+func recordComponentName(record saveRecord) string {
+	name := strings.TrimSpace(record.Summary.Filename)
+	if name == "" {
+		name = strings.TrimSpace(record.PayloadFile)
+	}
+	if name == "" {
+		if idx := strings.LastIndex(record.payloadPath, string(filepath.Separator)); idx >= 0 {
+			name = record.payloadPath[idx+1:]
+		}
+	}
+	return strings.ToLower(name)
+}
+
+func (a *app) latestReadableSaveRecordByTrackContext(requestROMSHA1, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName string) (saveRecord, bool) {
+	regionCode = trackFallbackRequestRegion(regionCode, filename)
+	romSHA1 := strings.TrimSpace(requestROMSHA1)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if record, ok := a.saveIndex.latestReadableByTrackContext(filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName); ok {
 		if saveRecordPayloadExists(record) {
-			return record, true
+			return servableByTrackFallback(record, romSHA1)
 		}
 	}
-	return latestReadableSaveRecordByTrackContext(a.saveRecords, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName)
+	record, ok := latestReadableSaveRecordByTrackContext(a.saveRecords, filename, systemSlug, displayTitle, regionCode, runtimeProfile, slotName)
+	if !ok {
+		return saveRecord{}, false
+	}
+	return servableByTrackFallback(record, romSHA1)
+}
+
+// trackFallbackRequestRegion is the region a track-context lookup asks for: the
+// one the caller names, or else the one its No-Intro filename carries. Helpers
+// that send no regionCode still name the release in the filename.
+func trackFallbackRequestRegion(regionCode, filename string) string {
+	if region := normalizeRegionCode(regionCode); region != regionUnknown {
+		return region
+	}
+	_, region, _ := cleanupDisplayTitleRegionAndLanguages(strings.TrimSuffix(filename, filepath.Ext(filename)))
+	return region
+}
+
+// servableByTrackFallback refuses a title-only match that belongs to another ROM
+// and says nothing about its release. The fallback runs after the ROM-sha1 lookup
+// missed, so a record with a different ROM sha1 is another dump; with its region
+// unknown, nothing says it is the same release, and its bytes would be written
+// onto this game's save. A (J) save was served to a USA ROM this way and uploaded
+// back as the USA track's newest version. Records without a ROM sha1 (native
+// ports) and requests without one are found only by track, so they still are.
+// servableByTrackFallback refuses a title-fallback hit that names a different
+// ROM from the request. A title match carries another ROM's bytes, and region
+// does not make that safe: a USA request was served the USA (Rev 1) record and
+// a device wrote it over its own save as an ordinary update. So a fallback hit
+// is served only when either side has no ROM sha1 or both name the same ROM; a
+// renamed or redumped ROM of the same release then gets nothing by title.
+func servableByTrackFallback(record saveRecord, requestROMSHA1 string) (saveRecord, bool) {
+	recordROM := strings.TrimSpace(record.ROMSHA1)
+	if requestROMSHA1 == "" || recordROM == "" || strings.EqualFold(recordROM, requestROMSHA1) {
+		return record, true
+	}
+	return saveRecord{}, false
 }
 
 func (a *app) deleteSaveRecordsByIDs(ids []string) (int, bool, error) {
