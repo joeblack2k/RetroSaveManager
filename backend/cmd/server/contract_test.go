@@ -133,11 +133,20 @@ func TestContractSaveLatestFallsBackToCanonicalTrackContext(t *testing.T) {
 		t.Fatalf("expected exact latest miss without track context: %s", prettyJSON(withoutBody))
 	}
 
+	// A different ROM's record is not served by title, even in the same region.
 	query := url.Values{}
 	query.Set("romSha1", "pokemon-local-rom")
 	query.Set("slotName", "default")
 	query.Set("filename", "Pokemon Noise Loop (USA).srm")
 	query.Set("system", "gameboy")
+	otherROM := h.request(http.MethodGet, "/save/latest?"+query.Encode(), nil)
+	assertStatus(t, otherROM, http.StatusOK)
+	if body := decodeJSONMap(t, otherROM.Body); mustBool(t, body["exists"], "exists") {
+		t.Fatalf("expected no fallback hit for a different ROM sha1: %s", prettyJSON(body))
+	}
+
+	// A request that names no ROM still finds the save by title.
+	query.Del("romSha1")
 	withContext := h.request(http.MethodGet, "/save/latest?"+query.Encode(), nil)
 	assertStatus(t, withContext, http.StatusOK)
 	withBody := decodeJSONMap(t, withContext.Body)

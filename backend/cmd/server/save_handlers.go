@@ -1738,15 +1738,18 @@ func trackFallbackRequestRegion(regionCode, filename string) string {
 // onto this game's save. A (J) save was served to a USA ROM this way and uploaded
 // back as the USA track's newest version. Records without a ROM sha1 (native
 // ports) and requests without one are found only by track, so they still are.
+// servableByTrackFallback refuses a title-fallback hit that names a different
+// ROM from the request. A title match carries another ROM's bytes, and region
+// does not make that safe: a USA request was served the USA (Rev 1) record and
+// a device wrote it over its own save as an ordinary update. So a fallback hit
+// is served only when either side has no ROM sha1 or both name the same ROM; a
+// renamed or redumped ROM of the same release then gets nothing by title.
 func servableByTrackFallback(record saveRecord, requestROMSHA1 string) (saveRecord, bool) {
 	recordROM := strings.TrimSpace(record.ROMSHA1)
 	if requestROMSHA1 == "" || recordROM == "" || strings.EqualFold(recordROM, requestROMSHA1) {
 		return record, true
 	}
-	if canonicalRegion(record.Summary.RegionCode, record.Summary.Game.RegionCode) == regionUnknown {
-		return saveRecord{}, false
-	}
-	return record, true
+	return saveRecord{}, false
 }
 
 func (a *app) deleteSaveRecordsByIDs(ids []string) (int, bool, error) {
