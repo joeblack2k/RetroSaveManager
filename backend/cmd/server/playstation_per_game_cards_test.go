@@ -139,6 +139,33 @@ func TestPS1PerGameCardLeavesTheLineItVacated(t *testing.T) {
 	}
 }
 
+// A portable save belongs to its slot, not to the profile that uploaded it.
+// The MiSTer uploading the card RetroArch already sent is the same save on the
+// same card; reading the other profile's line as a card move made the import
+// rebuild projections that were already current, build none, and answer 422.
+func TestPS1SameCardFromAnotherProfileIsNotACardMove(t *testing.T) {
+	h := newContractHarness(t)
+	upload := func(deviceType, runtimeProfile, fingerprint string) error {
+		t.Helper()
+		input := saveCreateInput{
+			Filename: "Tekken 3 (USA).srm",
+			Payload:  makeTestPS1Card(t, "SLUS_004.02", "Tekken 3 Save"),
+			Game:     game{Name: "PlayStation Save", System: supportedSystemFromSlug("psx")},
+			Format:   "srm",
+			SlotName: "Game: Tekken 3 (USA)",
+		}
+		preview := h.app.normalizeSaveInputDetailed(input)
+		_, _, err := h.app.createPlayStationProjectionSave(input, preview, deviceType, runtimeProfile, fingerprint)
+		return err
+	}
+	if err := upload("retroarch", "psx/retroarch", "deck-psx"); err != nil {
+		t.Fatalf("retroarch upload: %v", err)
+	}
+	if err := upload("mister", "psx/mister", "mister-psx"); err != nil {
+		t.Fatalf("the MiSTer uploading the card RetroArch already sent was refused: %v", err)
+	}
+}
+
 // Lines spread by the pre-fix sync path keep serving a save they no longer
 // own, and a device restoring one of them writes the save onto that game's
 // card. The one-shot cleanup retires those lines and leaves nothing pointing
