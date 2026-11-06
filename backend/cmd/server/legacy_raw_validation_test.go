@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
 	"net/http"
+	"os"
 	"testing"
 )
 
@@ -223,5 +227,65 @@ func TestRawSystemsAcceptTheirMeasuredSaves(t *testing.T) {
 				t.Fatalf("%s does not accept size %d, the measured size of %q", tc.slug, tc.size, tc.file)
 			}
 		})
+	}
+}
+
+// A blank card from each system #56 added is refused at upload. Neo Geo CD's NeoCD core keeps an
+// unformatted backup RAM as 8 KiB of zeros until a game formats it, so that is the blank shape.
+func TestNormalizeSaveInputRejectsBlankSavesOfTheAddedSystems(t *testing.T) {
+	cases := []struct {
+		slug, file, reason string
+		size               int
+	}{
+		{"neogeo-cd", "Ryuuko no Ken ~ Art of Fighting (World) (En,Ja,Es).srm", "neo geo cd raw save payload is blank (all 0x00)", 8192},
+		{"ngp", "Metal Slug - 2nd Mission (World).srm", "neo geo pocket raw save payload is blank (all 0x00)", 8192},
+		{"virtualboy", "Wario Land (Japan, USA).srm", "virtual boy raw save payload is blank (all 0x00)", 32768},
+	}
+	for _, tc := range cases {
+		t.Run(tc.slug, func(t *testing.T) {
+			result := (&app{}).normalizeSaveInputDetailed(saveCreateInput{
+				Filename:            tc.file,
+				Payload:             make([]byte, tc.size),
+				Game:                game{Name: tc.file},
+				Format:              "sram",
+				ROMSHA1:             tc.slug + "-rom-sha1",
+				SlotName:            "default",
+				SystemSlug:          tc.slug,
+				TrustedHelperSystem: true,
+			})
+			if !result.Rejected || result.RejectReason != tc.reason {
+				t.Fatalf("expected a blank %s save refused with %q, got rejected=%v %q", tc.slug, tc.reason, result.Rejected, result.RejectReason)
+			}
+		})
+	}
+}
+
+// The card Art of Fighting formats and writes on NeoCD (a Neo Geo CD memory card header, its block table
+// and the game's file) still passes once the system is validated.
+func TestNormalizeSaveInputAcceptsAFormattedNeoGeoCDCard(t *testing.T) {
+	gz, err := os.ReadFile("testdata/neogeocd-aof-formatted.srm.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := gzip.NewReader(bytes.NewReader(gz))
+	if err != nil {
+		t.Fatal(err)
+	}
+	card, err := io.ReadAll(r)
+	if err != nil || len(card) != 8192 {
+		t.Fatalf("card: %d bytes, %v", len(card), err)
+	}
+	result := (&app{}).normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Ryuuko no Ken ~ Art of Fighting (World) (En,Ja,Es).srm",
+		Payload:             card,
+		Game:                game{Name: "Ryuuko no Ken ~ Art of Fighting"},
+		Format:              "sram",
+		ROMSHA1:             "4154d5fd1aa88d10417d969c461cb842d11d0102",
+		SlotName:            "default",
+		SystemSlug:          "neogeo-cd",
+		TrustedHelperSystem: true,
+	})
+	if result.Rejected {
+		t.Fatalf("expected the formatted Art of Fighting card accepted, got %q", result.RejectReason)
 	}
 }

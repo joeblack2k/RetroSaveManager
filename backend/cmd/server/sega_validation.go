@@ -53,7 +53,7 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateNeoGeoSave(input, detection)
 	case "genesis", "master-system", "game-gear", "sega-cd", "sega-32x":
 		return validateStrictSegaRawSave(input, detection, systemSlug)
-	case "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do":
+	case "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "ngp", "virtualboy", "neogeo-cd":
 		return validateLegacyRawSave(input, detection, systemSlug)
 	case nativePortSystemSlug:
 		return validateNativePortSave(input, detection)
