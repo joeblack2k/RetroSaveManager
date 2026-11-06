@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -112,6 +113,35 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 	}
 	signatureAdvisoryDowngraded := false
 	stats := analyzeRawSavePayload(input.Payload, profile.SparseWarningCutoff)
+	// Blankness is checked before the signature: a fresh save -- the file the
+	// emulator creates at first boot, before anything is written -- is a
+	// uniform run of 0x00 or 0xFF and carries no signature either. Answering it
+	// with "missing a validated payload signature" sends the reader looking for
+	// a signature problem when the file simply holds no save yet.
+	if profile.RejectBlank && stats.BlankZero {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0x00)", profile.DisplayName),
+		}
+	}
+	if profile.RejectBlank && stats.BlankFF {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
+		}
+	}
+	if profile.RejectBlank && profile.SystemSlug == "pc-engine" && isEmptyPCEngineBRAM(input.Payload) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (formatted backup RAM with no saves)", profile.DisplayName),
+		}
+	}
+	if profile.RejectBlank && profile.SystemSlug == "3do" && isEmptyOperaNVRAM(input.Payload) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (formatted NVRAM with no files)", profile.DisplayName),
+		}
+	}
 	if profile.RequireSignature != nil && !profile.RequireSignature(input.Payload) {
 		// Optional escape hatch: if the profile allows the signature requirement
 		// to be advisory under sufficient trust, and ALL of the trust conditions
@@ -129,19 +159,6 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 			}
 		}
 		signatureAdvisoryDowngraded = true
-	}
-
-	if profile.RejectBlank && stats.BlankZero {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0x00)", profile.DisplayName),
-		}
-	}
-	if profile.RejectBlank && stats.BlankFF {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
-		}
 	}
 
 	evidence := []string{
@@ -259,6 +276,31 @@ func rawSaveKind(systemSlug, ext string) string {
 	default:
 		return "Raw cartridge save media"
 	}
+}
+
+// isEmptyOperaNVRAM reports a 3DO NVRAM that Opera formatted but no game has
+// written to: the "opera formatted" volume label at offset 8, and the first
+// block descriptor (0x98) still the free extent (magic 0x7aa565bd) that spans
+// the whole 32 KiB card (0x7f68 bytes). Any stored file shrinks that extent and
+// adds an entry after it. Every such image is the same bytes whatever game it
+// is named after.
+func isEmptyOperaNVRAM(payload []byte) bool {
+	if len(payload) != 32768 || string(payload[8:23]) != "opera formatted" {
+		return false
+	}
+	return binary.BigEndian.Uint32(payload[0x98:0x9c]) == 0x7aa565bd &&
+		binary.BigEndian.Uint32(payload[0xa4:0xa8]) == 0x7f68
+}
+
+// isEmptyPCEngineBRAM reports a PC Engine backup RAM that is formatted but
+// holds no saves: the "HUBM" header with its next-free pointer (bytes 6-7,
+// little-endian) at 0x8010, the first byte after the 16-byte header. Every
+// such image is the same few bytes whatever game it is named after.
+func isEmptyPCEngineBRAM(payload []byte) bool {
+	if len(payload) < 16 || string(payload[:4]) != "HUBM" {
+		return false
+	}
+	return binary.LittleEndian.Uint16(payload[6:8]) == 0x8010
 }
 
 func analyzeRawSavePayload(payload []byte, sparseCutoff int) rawSaveStats {
