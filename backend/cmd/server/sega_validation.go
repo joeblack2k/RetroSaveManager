@@ -40,6 +40,9 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		}
 	}
 
+	if result, isBundle := validateFolderSave(input, systemSlug); isBundle {
+		return result
+	}
 	switch systemSlug {
 	case "dreamcast":
 		return validateDreamcastSave(input, normalized)
