@@ -222,6 +222,87 @@ func mergeHelperReportedConfigSources(reported []deviceConfigSource, existing []
 	return normalizeDeviceConfigSources(out)
 }
 
+// helperDefaultSystemsByKind reads the helper's capabilities.sourceKinds:
+// each kind's default system list for the helper build that reported it.
+func helperDefaultSystemsByKind(capabilities map[string]any) map[string][]string {
+	out := map[string][]string{}
+	kinds, _ := capabilities["sourceKinds"].([]any)
+	for _, raw := range kinds {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		kind := canonicalOptionalSegment(stringFromAny(entry["kind"]))
+		if kind == "" {
+			continue
+		}
+		var systems []string
+		if list, ok := entry["defaultSystems"].([]any); ok {
+			for _, item := range list {
+				if slug := canonicalOptionalSegment(stringFromAny(item)); slug != "" {
+					systems = append(systems, slug)
+				}
+			}
+		}
+		out[kind] = systems
+	}
+	return out
+}
+
+// refreshBackendSourceSystems adds to a backend-held source the systems its
+// helper newly defaults to, so a system a later helper build supports reaches
+// devices whose source lists the backend already holds. Without it a backend
+// source keeps the list it was first stored with: the helper's report for that
+// id is replaced by the stored copy, so a new system never arrives.
+//
+// Only a default the source has not seen before is added, and only when this
+// device kind may sync it: a known default missing from Systems was removed on
+// purpose and stays out. Nothing is ever removed here.
+func refreshBackendSourceSystems(deviceType string, sources []deviceConfigSource, defaults map[string][]string) []deviceConfigSource {
+	if len(defaults) == 0 {
+		return sources
+	}
+	out := make([]deviceConfigSource, len(sources))
+	copy(out, sources)
+	for index, source := range out {
+		if !isBackendPolicySource(source) {
+			continue
+		}
+		current, ok := defaults[canonicalOptionalSegment(source.Kind)]
+		if !ok {
+			continue
+		}
+		known := stringSet(source.KnownDefaultSystems)
+		have := stringSet(source.Systems)
+		capability, constrained := sourceCapabilitySet(deviceType, source)
+		systems := append([]string(nil), source.Systems...)
+		// A source stored before this field existed has no record of what it
+		// was given, so nothing it lacks can be told apart from a removal: it
+		// records today's defaults and gains only later ones.
+		if len(source.KnownDefaultSystems) > 0 {
+			for _, slug := range current {
+				if _, seen := known[slug]; seen {
+					continue
+				}
+				if _, already := have[slug]; already {
+					continue
+				}
+				if constrained {
+					if _, allowed := capability[slug]; !allowed {
+						continue
+					}
+				}
+				systems = append(systems, slug)
+				have[slug] = struct{}{}
+			}
+		}
+		sort.Strings(systems)
+		out[index].Systems = systems
+		out[index].KnownDefaultSystems = sortedKeys(stringSet(append(append([]string(nil), source.KnownDefaultSystems...), current...)))
+	}
+	return out
+}
+
 func markBackendPolicySources(raw []deviceConfigSource) []deviceConfigSource {
 	out := normalizeDeviceConfigSources(raw)
 	for index := range out {
