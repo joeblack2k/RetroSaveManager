@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -112,6 +113,29 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 	}
 	signatureAdvisoryDowngraded := false
 	stats := analyzeRawSavePayload(input.Payload, profile.SparseWarningCutoff)
+	// Blankness is checked before the signature: a fresh save -- the file the
+	// emulator creates at first boot, before anything is written -- is a
+	// uniform run of 0x00 or 0xFF and carries no signature either. Answering it
+	// with "missing a validated payload signature" sends the reader looking for
+	// a signature problem when the file simply holds no save yet.
+	if profile.RejectBlank && stats.BlankZero {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0x00)", profile.DisplayName),
+		}
+	}
+	if profile.RejectBlank && stats.BlankFF {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
+		}
+	}
+	if profile.RejectBlank && profile.SystemSlug == "pc-engine" && isEmptyPCEngineBRAM(input.Payload) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (formatted backup RAM with no saves)", profile.DisplayName),
+		}
+	}
 	if profile.RequireSignature != nil && !profile.RequireSignature(input.Payload) {
 		// Optional escape hatch: if the profile allows the signature requirement
 		// to be advisory under sufficient trust, and ALL of the trust conditions
@@ -129,19 +153,6 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 			}
 		}
 		signatureAdvisoryDowngraded = true
-	}
-
-	if profile.RejectBlank && stats.BlankZero {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0x00)", profile.DisplayName),
-		}
-	}
-	if profile.RejectBlank && stats.BlankFF {
-		return consoleValidationResult{
-			Rejected:     true,
-			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
-		}
 	}
 
 	evidence := []string{
@@ -259,6 +270,17 @@ func rawSaveKind(systemSlug, ext string) string {
 	default:
 		return "Raw cartridge save media"
 	}
+}
+
+// isEmptyPCEngineBRAM reports a PC Engine backup RAM that is formatted but
+// holds no saves: the "HUBM" header with its next-free pointer (bytes 6-7,
+// little-endian) at 0x8010, the first byte after the 16-byte header. Every
+// such image is the same few bytes whatever game it is named after.
+func isEmptyPCEngineBRAM(payload []byte) bool {
+	if len(payload) < 16 || string(payload[:4]) != "HUBM" {
+		return false
+	}
+	return binary.LittleEndian.Uint16(payload[6:8]) == 0x8010
 }
 
 func analyzeRawSavePayload(payload []byte, sparseCutoff int) rawSaveStats {

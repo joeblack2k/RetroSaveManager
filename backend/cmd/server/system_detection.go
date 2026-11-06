@@ -101,6 +101,7 @@ var systemLabelAliases = map[string]string{
 	"turbografx 16":               "pc-engine",
 	"turbografx-16":               "pc-engine",
 	"tg16":                        "pc-engine",
+	"tgfx16":                      "pc-engine",
 	"game gear":                   "game-gear",
 	"sega cd":                     "sega-cd",
 	"segacd":                      "sega-cd",
