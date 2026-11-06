@@ -256,6 +256,12 @@ func rawSaveKind(systemSlug, ext string) string {
 		return "Atari Jaguar cartridge EEPROM/NVRAM"
 	case "3do":
 		return "3DO NVRAM"
+	case "ngp":
+		return "Neo Geo Pocket flash save"
+	case "virtualboy":
+		return "Virtual Boy cartridge SRAM"
+	case "neogeo-cd":
+		return "Neo Geo CD backup RAM"
 	default:
 		return "Raw cartridge save media"
 	}

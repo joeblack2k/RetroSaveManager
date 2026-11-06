@@ -193,6 +193,70 @@ var legacyRawSaveProfiles = map[string]strictRawSaveValidationProfile{
 		SparseWarningCutoff:  16,
 		Warning:              "3DO support is raw NVRAM validation; no per-game structural decoder is available yet",
 	},
+	"ngp": {
+		SystemSlug:  "ngp",
+		DisplayName: "neo geo pocket",
+		ParserID:    "ngp-raw-flash",
+		AllowedExts: map[string]struct{}{
+			"flash": {},
+			"ngf":   {},
+			"sav":   {},
+			"srm":   {},
+		},
+		AllowedSizes: map[int]struct{}{
+			512:   {},
+			536:   {}, // measured: 512 B save area plus its 24 B header
+			1024:  {},
+			2048:  {},
+			8192:  {},
+			16384: {},
+			32768: {},
+		},
+		RequireROMSHA1:       true,
+		RequireDeclared:      true,
+		RequireHelperOrStore: true,
+		RejectBlank:          true,
+		SparseWarningCutoff:  16,
+		Warning:              "Neo Geo Pocket support is raw flash validation; no per-game structural decoder is available yet",
+	},
+	"virtualboy": {
+		SystemSlug:  "virtualboy",
+		DisplayName: "virtual boy",
+		ParserID:    "virtualboy-raw-sram",
+		AllowedExts: map[string]struct{}{
+			"sav": {},
+			"srm": {},
+		},
+		AllowedSizes: map[int]struct{}{
+			32768: {},
+			65536: {},
+		},
+		RequireROMSHA1:       true,
+		RequireDeclared:      true,
+		RequireHelperOrStore: true,
+		RejectBlank:          true,
+		SparseWarningCutoff:  16,
+		Warning:              "Virtual Boy support is raw SRAM validation; no per-game structural decoder is available yet",
+	},
+	"neogeo-cd": {
+		SystemSlug:  "neogeo-cd",
+		DisplayName: "neo geo cd",
+		ParserID:    "neogeo-cd-raw-bram",
+		AllowedExts: map[string]struct{}{
+			"sav": {},
+			"srm": {},
+		},
+		AllowedSizes: map[int]struct{}{
+			8192:  {},
+			32768: {},
+		},
+		RequireROMSHA1:       true,
+		RequireDeclared:      true,
+		RequireHelperOrStore: true,
+		RejectBlank:          true,
+		SparseWarningCutoff:  16,
+		Warning:              "Neo Geo CD support is raw backup RAM validation; no per-game structural decoder is available yet",
+	},
 }
 
 func validateLegacyRawSave(input saveCreateInput, detection saveSystemDetectionResult, systemSlug string) consoleValidationResult {

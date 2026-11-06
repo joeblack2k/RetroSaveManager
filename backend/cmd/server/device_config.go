@@ -28,6 +28,9 @@ var misterFPGAAllowedSystems = []string{
 	"sg-1000",
 	"snes",
 	"wonderswan",
+	"ngp",
+	"virtualboy",
+	"neogeo-cd",
 }
 
 func normalizeDeviceConfigGlobal(input *deviceConfigGlobal) *deviceConfigGlobal {

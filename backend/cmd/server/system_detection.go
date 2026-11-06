@@ -52,6 +52,9 @@ var supportedSystemsBySlug = map[string]system{
 	"ports":         {ID: 900030, Name: "Ports", Slug: "ports", Manufacturer: "Native Ports"},
 	"snes":          {ID: 26, Name: "Nintendo Super Nintendo Entertainment System", Slug: "snes", Manufacturer: "Nintendo"},
 	"wonderswan":    {ID: 900020, Name: "WonderSwan / WonderSwan Color", Slug: "wonderswan", Manufacturer: "Bandai"},
+	"ngp":           {ID: 900031, Name: "Neo Geo Pocket / Color", Slug: "ngp", Manufacturer: "SNK"},
+	"virtualboy":    {ID: 900032, Name: "Virtual Boy", Slug: "virtualboy", Manufacturer: "Nintendo"},
+	"neogeo-cd":     {ID: 900033, Name: "Neo Geo CD", Slug: "neogeo-cd", Manufacturer: "SNK"},
 	"wii":           {ID: 900015, Name: "Nintendo Wii", Slug: "wii", Manufacturer: "Nintendo"},
 }
 
@@ -162,6 +165,17 @@ var systemLabelAliases = map[string]string{
 	"wii":                         "wii",
 	"nintendo wii":                "wii",
 	"rvl":                         "wii",
+	"ngp":                         "ngp",
+	"neo geo pocket":              "ngp",
+	"neo geo pocket color":        "ngp",
+	"neogeo pocket":               "ngp",
+	"ngpc":                        "ngp",
+	"virtualboy":                  "virtualboy",
+	"virtual boy":                 "virtualboy",
+	"vb":                          "virtualboy",
+	"neogeo-cd":                   "neogeo-cd",
+	"neo geo cd":                  "neogeo-cd",
+	"neogeocd":                    "neogeo-cd",
 }
 
 type saveSystemDetectionInput struct {

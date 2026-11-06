@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
 	"net/http"
+	"os"
 	"testing"
 )
 
@@ -191,4 +195,97 @@ func TestContractSavesMultipartRequiresRuntimeProfileForLegacyProjectionSystem(t
 	}, "file", "Ys Book I & II.brm", buildNonBlankPayload(2048, 0x2a))
 	assertStatus(t, rr, http.StatusBadRequest)
 	assertJSONContentType(t, rr)
+}
+
+func TestRawSystemsAcceptTheirMeasuredSaves(t *testing.T) {
+	// Each row is a file measured on a real device; the extension and size are
+	// what the emulator actually wrote, not what the format allows in theory.
+	cases := []struct {
+		slug string
+		ext  string
+		size int
+		file string
+	}{
+		{slug: "ngp", ext: "flash", size: 536, file: "Baseball Stars - Pocket Sports Series (Japan, Europe) (En,Ja).flash"},
+		{slug: "virtualboy", ext: "srm", size: 65536, file: "3-D Tetris (USA).srm"},
+		{slug: "neogeo-cd", ext: "srm", size: 8192, file: "Choujin Gakuen - Gowcaizer ~ Voltage Fighter - Gowcaizer (World) (En,Ja).srm"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.slug, func(t *testing.T) {
+			if supportedSystemFromSlug(tc.slug) == nil {
+				t.Fatalf("system %q is not in the supported catalog", tc.slug)
+			}
+			profile, ok := legacyRawSaveProfiles[tc.slug]
+			if !ok {
+				t.Fatalf("no raw save validation profile for %q", tc.slug)
+			}
+			if _, ok := profile.AllowedExts[tc.ext]; !ok {
+				t.Fatalf("%s does not accept extension %q (only the measured save %q proves the system reachable)", tc.slug, tc.ext, tc.file)
+			}
+			if _, ok := profile.AllowedSizes[tc.size]; !ok {
+				t.Fatalf("%s does not accept size %d, the measured size of %q", tc.slug, tc.size, tc.file)
+			}
+		})
+	}
+}
+
+// A blank card from each system #56 added is refused at upload. Neo Geo CD's NeoCD core keeps an
+// unformatted backup RAM as 8 KiB of zeros until a game formats it, so that is the blank shape.
+func TestNormalizeSaveInputRejectsBlankSavesOfTheAddedSystems(t *testing.T) {
+	cases := []struct {
+		slug, file, reason string
+		size               int
+	}{
+		{"neogeo-cd", "Ryuuko no Ken ~ Art of Fighting (World) (En,Ja,Es).srm", "neo geo cd raw save payload is blank (all 0x00)", 8192},
+		{"ngp", "Metal Slug - 2nd Mission (World).srm", "neo geo pocket raw save payload is blank (all 0x00)", 8192},
+		{"virtualboy", "Wario Land (Japan, USA).srm", "virtual boy raw save payload is blank (all 0x00)", 32768},
+	}
+	for _, tc := range cases {
+		t.Run(tc.slug, func(t *testing.T) {
+			result := (&app{}).normalizeSaveInputDetailed(saveCreateInput{
+				Filename:            tc.file,
+				Payload:             make([]byte, tc.size),
+				Game:                game{Name: tc.file},
+				Format:              "sram",
+				ROMSHA1:             tc.slug + "-rom-sha1",
+				SlotName:            "default",
+				SystemSlug:          tc.slug,
+				TrustedHelperSystem: true,
+			})
+			if !result.Rejected || result.RejectReason != tc.reason {
+				t.Fatalf("expected a blank %s save refused with %q, got rejected=%v %q", tc.slug, tc.reason, result.Rejected, result.RejectReason)
+			}
+		})
+	}
+}
+
+// The card Art of Fighting formats and writes on NeoCD (a Neo Geo CD memory card header, its block table
+// and the game's file) still passes once the system is validated.
+func TestNormalizeSaveInputAcceptsAFormattedNeoGeoCDCard(t *testing.T) {
+	gz, err := os.ReadFile("testdata/neogeocd-aof-formatted.srm.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := gzip.NewReader(bytes.NewReader(gz))
+	if err != nil {
+		t.Fatal(err)
+	}
+	card, err := io.ReadAll(r)
+	if err != nil || len(card) != 8192 {
+		t.Fatalf("card: %d bytes, %v", len(card), err)
+	}
+	result := (&app{}).normalizeSaveInputDetailed(saveCreateInput{
+		Filename:            "Ryuuko no Ken ~ Art of Fighting (World) (En,Ja,Es).srm",
+		Payload:             card,
+		Game:                game{Name: "Ryuuko no Ken ~ Art of Fighting"},
+		Format:              "sram",
+		ROMSHA1:             "4154d5fd1aa88d10417d969c461cb842d11d0102",
+		SlotName:            "default",
+		SystemSlug:          "neogeo-cd",
+		TrustedHelperSystem: true,
+	})
+	if result.Rejected {
+		t.Fatalf("expected the formatted Art of Fighting card accepted, got %q", result.RejectReason)
+	}
 }

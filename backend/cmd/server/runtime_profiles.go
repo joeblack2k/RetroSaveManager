@@ -130,6 +130,9 @@ var runtimeProfileDefinitions = []runtimeProfileDefinition{
 	{ID: "atari-lynx/ares", SystemSlug: "atari-lynx", Label: "ares", TargetExtension: ".eeprom", Note: "Raw Atari Lynx EEPROM"},
 
 	{ID: "wonderswan/mednafen", SystemSlug: "wonderswan", Label: "Mednafen", TargetExtension: ".sav", Note: "Raw WonderSwan backup memory"},
+	{ID: "ngp/mednafen", SystemSlug: "ngp", Label: "Mednafen", TargetExtension: ".flash", Note: "Raw Neo Geo Pocket flash save"},
+	{ID: "virtualboy/mednafen", SystemSlug: "virtualboy", Label: "Mednafen", TargetExtension: ".srm", Note: "Raw Virtual Boy SRAM"},
+	{ID: "neogeo-cd/retroarch", SystemSlug: "neogeo-cd", Label: "RetroArch", TargetExtension: ".srm", Note: "Raw Neo Geo CD backup RAM"},
 	{ID: "wonderswan/ares", SystemSlug: "wonderswan", Label: "ares", TargetExtension: ".sav", Note: "Raw WonderSwan backup memory"},
 	{ID: "wonderswan/retroarch-beetle-wswan", SystemSlug: "wonderswan", Label: "RetroArch (Beetle WonderSwan)", TargetExtension: ".srm", Note: "Raw WonderSwan backup memory"},
 
@@ -188,7 +191,7 @@ func requestedRuntimeProfileFromForm(formValue func(string) string, systemSlug s
 
 func isProjectionCapableSystem(systemSlug string) bool {
 	switch canonicalSegment(systemSlug, "") {
-	case "psx", "ps2", "n64", "saturn", "snes", "nes", "gameboy", "gba", "nds", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
+	case "psx", "ps2", "n64", "saturn", "snes", "nes", "gameboy", "gba", "nds", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast", "ngp", "virtualboy", "neogeo-cd":
 		return true
 	default:
 		return false
@@ -320,7 +323,7 @@ func normalizeProjectionUpload(input saveCreateInput, requestedProfile string) (
 		return normalizeN64ProjectionUpload(input, profile)
 	case "nds":
 		return normalizeNDSProjectionUpload(input, profile)
-	case "saturn", "snes", "nes", "gameboy", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast":
+	case "saturn", "snes", "nes", "gameboy", "gba", "master-system", "genesis", "game-gear", "sega-cd", "sega-32x", "pc-engine", "atari-lynx", "wonderswan", "sg-1000", "colecovision", "atari-jaguar", "3do", "dreamcast", "ngp", "virtualboy", "neogeo-cd":
 		if strings.HasPrefix(profile, "port/") {
 			manifest, ok := nativePortManifestForRuntimeProfile(profile)
 			if !ok || manifest.OriginSystemSlug != systemSlug {
