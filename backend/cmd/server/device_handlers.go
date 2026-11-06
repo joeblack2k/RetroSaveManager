@@ -311,7 +311,11 @@ func (a *app) storeDeviceConfigSnapshotLocked(base device, snapshot deviceConfig
 	d.ConfigReportedAt = &now
 	d.ConfigGlobal = normalizeDeviceConfigGlobal(snapshot.ConfigGlobal)
 	if snapshot.PreserveBackend {
-		d.ConfigSources = mergeHelperReportedConfigSources(snapshot.Sources, d.ConfigSources)
+		d.ConfigSources = refreshBackendSourceSystems(
+			d.DeviceType,
+			mergeHelperReportedConfigSources(snapshot.Sources, d.ConfigSources),
+			helperDefaultSystemsByKind(snapshot.Capabilities),
+		)
 	} else {
 		d.ConfigSources = normalizeDeviceConfigSources(snapshot.Sources)
 	}
@@ -355,7 +359,11 @@ func (a *app) storeDeviceHeartbeatLocked(base device, req helperHeartbeatRequest
 	d.ConfigReportedAt = &now
 	d.ConfigGlobal = helperHeartbeatConfigGlobal(req)
 	if len(sources) > 0 {
-		d.ConfigSources = mergeHelperReportedConfigSources(sources, d.ConfigSources)
+		d.ConfigSources = refreshBackendSourceSystems(
+			d.DeviceType,
+			mergeHelperReportedConfigSources(sources, d.ConfigSources),
+			helperDefaultSystemsByKind(req.Capabilities),
+		)
 	}
 	d.ConfigCapabilities = cloneConfigCapabilities(req.Capabilities)
 	if hostname := strings.TrimSpace(req.Helper.Hostname); hostname != "" {

@@ -552,6 +552,7 @@ export type DeviceConfigSource = {
   createMissingSystemDirs?: boolean;
   managed?: boolean;
   origin?: string;
+  knownDefaultSystems?: string[];
 };
 
 export type DevicePolicyBlock = {

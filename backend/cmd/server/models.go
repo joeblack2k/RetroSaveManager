@@ -64,6 +64,11 @@ type deviceConfigSource struct {
 	CreateMissingSystemDirs bool     `json:"createMissingSystemDirs"`
 	Managed                 bool     `json:"managed"`
 	Origin                  string   `json:"origin,omitempty"`
+	// KnownDefaultSystems is the helper's default system list for this
+	// source's kind the last time the backend copy was refreshed from it. A
+	// default that appears later is new to this source and is added; one
+	// already known and absent from Systems was taken out on purpose.
+	KnownDefaultSystems []string `json:"knownDefaultSystems,omitempty"`
 }
 
 type deviceServiceState struct {
