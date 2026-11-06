@@ -10,7 +10,7 @@ import (
 
 // Dolphin keeps a Wii title's save in its NAND (title/<hi>/<lo>/data/) and Vita3K
 // a Vita title's under ux0/user/00/savedata/<TITLEID>/. These uploads are the
-// flat zips a helper sends for such a folder, with folderSaveDir naming it.
+// zips a helper sends for such a folder, with folderSaveDir naming it.
 
 func testWiiBanner(title string) []byte {
 	banner := make([]byte, 0xF0A0)
@@ -110,6 +110,39 @@ func TestVitaFolderBundleStoresOneRecordKeyedByTitleID(t *testing.T) {
 	}
 	if got := canonicalListKeyForRecord(record); got != "psvita::folder::pcse00746" {
 		t.Fatalf("expected list key psvita::folder::pcse00746, got %q", got)
+	}
+}
+
+// A Vita save keeps its system files in sce_sys/: the bundle carries them under
+// their relative paths and downloads byte for byte.
+func TestVitaFolderBundleKeepsSubfolderFiles(t *testing.T) {
+	h := newContractHarness(t)
+	bundle := buildTestPSPZip(t, []testPSPZipEntry{
+		{name: "SAVEDATA.BIN", data: bytes.Repeat([]byte("vita"), 2048)},
+		{name: "sce_sys/param.sfo", data: bytes.Repeat([]byte("sfo"), 100)},
+		{name: "sce_sys/sdslot.dat", data: bytes.Repeat([]byte("slot"), 100)},
+	})
+	body := uploadSave(t, h, "/saves", folderBundleFields("psvita", "PCSE00746"), "PCSE00746.vitasave", bundle)
+	saveID := mustString(t, mustObject(t, body["save"], "save")["id"], "save.id")
+	download := h.request(http.MethodGet, "/saves/download?id="+saveID, nil)
+	assertStatus(t, download, http.StatusOK)
+	if !bytes.Equal(download.Body.Bytes(), bundle) {
+		t.Fatalf("expected a byte-identical download (%d bytes), got %d", len(bundle), download.Body.Len())
+	}
+}
+
+// An entry path that could leave the save folder is refused.
+func TestFolderBundleRejectsAnEscapingEntryPath(t *testing.T) {
+	h := newContractHarness(t)
+	for _, name := range []string{"../x.bin", "sce_sys/../../x.bin", "/x.bin", "sce_sys//x.bin", "sce_sys\\x.bin"} {
+		bad := buildTestPSPZip(t, []testPSPZipEntry{
+			{name: "SAVEDATA.BIN", data: bytes.Repeat([]byte("vita"), 64)},
+			{name: name, data: []byte("x")},
+		})
+		rr := h.multipart("/saves", folderBundleFields("psvita", "PCSE00746"), "file", "PCSE00746.vitasave", bad)
+		if rr.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("entry %q: expected 422, got %d", name, rr.Code)
+		}
 	}
 }
 

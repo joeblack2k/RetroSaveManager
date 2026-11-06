@@ -88,8 +88,8 @@ func parseFolderSaveBundle(payload []byte, system string, saveDir string) (folde
 	var banner []byte
 	for _, entry := range reader.File {
 		name := entry.Name
-		if !isSafePSPBundleEntryName(name) {
-			return folderSaveBundle{}, fmt.Errorf("%s folder bundle entry %q must be a flat file name", system, name)
+		if !isSafeFolderBundleEntryPath(name) {
+			return folderSaveBundle{}, fmt.Errorf("%s folder bundle entry %q must be a relative path of plain names", system, name)
 		}
 		if _, dup := seen[name]; dup {
 			return folderSaveBundle{}, fmt.Errorf("%s folder bundle has duplicate entry %q", system, name)
@@ -120,6 +120,21 @@ func parseFolderSaveBundle(payload []byte, system string, saveDir string) (folde
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Name < files[j].Name })
 	return folderSaveBundle{System: system, SaveDir: saveDir, Title: wiiBannerTitle(banner), Files: files}, nil
+}
+
+// isSafeFolderBundleEntryPath accepts a file path inside the save folder, such as
+// sce_sys/param.sfo: "/"-separated, and every part a plain name (no "..", no
+// backslash, colon or NUL, no empty part, so no leading "/" or folder entry).
+func isSafeFolderBundleEntryPath(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, part := range strings.Split(name, "/") {
+		if !isSafePSPBundleEntryName(part) {
+			return false
+		}
+	}
+	return true
 }
 
 // isBlankFolderBundle reports a bundle whose every file is empty or all 0x00:
