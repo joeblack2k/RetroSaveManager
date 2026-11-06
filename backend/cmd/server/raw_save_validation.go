@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -127,6 +128,12 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 		return consoleValidationResult{
 			Rejected:     true,
 			RejectReason: fmt.Sprintf("%s raw save payload is blank (all 0xFF)", profile.DisplayName),
+		}
+	}
+	if profile.RejectBlank && profile.SystemSlug == "pc-engine" && isEmptyPCEngineBRAM(input.Payload) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (formatted backup RAM with no saves)", profile.DisplayName),
 		}
 	}
 	if profile.RequireSignature != nil && !profile.RequireSignature(input.Payload) {
@@ -263,6 +270,17 @@ func rawSaveKind(systemSlug, ext string) string {
 	default:
 		return "Raw cartridge save media"
 	}
+}
+
+// isEmptyPCEngineBRAM reports a PC Engine backup RAM that is formatted but
+// holds no saves: the "HUBM" header with its next-free pointer (bytes 6-7,
+// little-endian) at 0x8010, the first byte after the 16-byte header. Every
+// such image is the same few bytes whatever game it is named after.
+func isEmptyPCEngineBRAM(payload []byte) bool {
+	if len(payload) < 16 || string(payload[:4]) != "HUBM" {
+		return false
+	}
+	return binary.LittleEndian.Uint16(payload[6:8]) == 0x8010
 }
 
 func analyzeRawSavePayload(payload []byte, sparseCutoff int) rawSaveStats {
