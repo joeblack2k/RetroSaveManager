@@ -76,6 +76,8 @@ func TestIsEmptyPCEngineBRAM(t *testing.T) {
 	}{
 		{"formatted, no saves", pcEngineBRAM(0x8010), true},
 		{"one save", pcEngineBRAM(0x80c9), false},
+		// Only the exact 0x8010 pointer means empty: one byte past it is not.
+		{"next-free one past the header", pcEngineBRAM(0x8011), false},
 		{"no HUBM header", buildNonBlankPayload(2048, 0x5a), false},
 		{"too short", []byte("HUBM"), false},
 	}
