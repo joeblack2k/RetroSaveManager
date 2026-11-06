@@ -136,6 +136,12 @@ func validateStrictRawSaveClass(input saveCreateInput, detection saveSystemDetec
 			RejectReason: fmt.Sprintf("%s raw save payload is blank (formatted backup RAM with no saves)", profile.DisplayName),
 		}
 	}
+	if profile.RejectBlank && profile.SystemSlug == "3do" && isEmptyOperaNVRAM(input.Payload) {
+		return consoleValidationResult{
+			Rejected:     true,
+			RejectReason: fmt.Sprintf("%s raw save payload is blank (formatted NVRAM with no files)", profile.DisplayName),
+		}
+	}
 	if profile.RequireSignature != nil && !profile.RequireSignature(input.Payload) {
 		// Optional escape hatch: if the profile allows the signature requirement
 		// to be advisory under sufficient trust, and ALL of the trust conditions
@@ -270,6 +276,20 @@ func rawSaveKind(systemSlug, ext string) string {
 	default:
 		return "Raw cartridge save media"
 	}
+}
+
+// isEmptyOperaNVRAM reports a 3DO NVRAM that Opera formatted but no game has
+// written to: the "opera formatted" volume label at offset 8, and the first
+// block descriptor (0x98) still the free extent (magic 0x7aa565bd) that spans
+// the whole 32 KiB card (0x7f68 bytes). Any stored file shrinks that extent and
+// adds an entry after it. Every such image is the same bytes whatever game it
+// is named after.
+func isEmptyOperaNVRAM(payload []byte) bool {
+	if len(payload) != 32768 || string(payload[8:23]) != "opera formatted" {
+		return false
+	}
+	return binary.BigEndian.Uint32(payload[0x98:0x9c]) == 0x7aa565bd &&
+		binary.BigEndian.Uint32(payload[0xa4:0xa8]) == 0x7f68
 }
 
 // isEmptyPCEngineBRAM reports a PC Engine backup RAM that is formatted but
