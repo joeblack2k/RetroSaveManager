@@ -226,4 +226,3 @@ func writeLatestSaveRecordOnSlot(w http.ResponseWriter, latest saveRecord, shaVa
 	}
 	writeJSON(w, http.StatusOK, body)
 }
-
