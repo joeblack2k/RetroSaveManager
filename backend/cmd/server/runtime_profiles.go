@@ -467,11 +467,13 @@ func dreamcastRuntimeProfileCompatible(summary saveSummary, profile string) bool
 	if summary.Dreamcast != nil {
 		container = strings.ToLower(strings.TrimSpace(summary.Dreamcast.Container))
 	}
+	// parseDreamcastVMUImage labels a whole 128 KiB VMU image "vmu-bin": that is the card every one
+	// of these emulators reads, including RetroArch's shared bios/dc/vmu_save_<slot>.bin.
 	switch profile {
 	case "dreamcast/mister":
-		return container == "" || container == "bin"
+		return container == "" || container == "bin" || container == "vmu-bin"
 	case "dreamcast/flycast", "dreamcast/redream", "dreamcast/retroarch-flycast":
-		return container == "" || container == "bin" || container == "vms" || container == "dci"
+		return container == "" || container == "bin" || container == "vmu-bin" || container == "vms" || container == "dci"
 	default:
 		return false
 	}
