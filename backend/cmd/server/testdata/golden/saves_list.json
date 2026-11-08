@@ -78,7 +78,7 @@
           "nonFFBytes=8192",
           "blank check passed",
           "romSha1 present",
-          "trusted stored system"
+          "trusted helper system"
         ],
         "parserId": "gameboy-raw-sram",
         "parserLevel": "container",
@@ -103,18 +103,18 @@
       "metadata": {
         "rsm": {
           "systemDetection": {
-            "confidence": 89,
+            "confidence": 96,
             "evidence": {
               "declared": true,
               "formatHint": false,
-              "helperTrusted": false,
+              "helperTrusted": true,
               "pathHint": false,
               "payload": false,
-              "storedTrusted": true,
+              "storedTrusted": false,
               "titleHint": false
             },
             "noise": false,
-            "reason": "stored trusted system evidence",
+            "reason": "trusted helper declared system slug",
             "slug": "gameboy",
             "trustedSystem": true
           }
