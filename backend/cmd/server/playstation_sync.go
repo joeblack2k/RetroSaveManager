@@ -386,7 +386,26 @@ func playStationSystemSlugFromRuntimeProfile(runtimeProfile string) string {
 	}
 }
 
+// perGameCardSlotPrefix marks a card that belongs to one game: RetroArch's
+// Beetle PSX (without shared cards) and the MiSTer keep a card per game, named
+// after it. Each such card is its own line, so a card that lacks another game's
+// save is that game's card, not a deletion from a shared one.
+const perGameCardSlotPrefix = "Game: "
+
+// perGameCardName is the game a per-game card slot names, if it is one.
+func perGameCardName(cardSlot string) (string, bool) {
+	cardSlot = strings.TrimSpace(cardSlot)
+	if len(cardSlot) <= len(perGameCardSlotPrefix) || !strings.EqualFold(cardSlot[:len(perGameCardSlotPrefix)], perGameCardSlotPrefix) {
+		return "", false
+	}
+	name := strings.TrimSpace(cardSlot[len(perGameCardSlotPrefix):])
+	return name, name != ""
+}
+
 func deriveExplicitMemoryCardName(slotName, filename string) (string, bool) {
+	if name, ok := perGameCardName(slotName); ok {
+		return perGameCardSlotPrefix + name, true
+	}
 	candidates := []string{slotName, filename}
 	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(candidate)
@@ -423,6 +442,56 @@ func syncLineKey(systemSlug, cardSlot string) string {
 
 func deviceLineKey(runtimeProfile, cardSlot, fingerprint string) string {
 	return projectionLineKey(runtimeProfile, cardSlot) + "::" + strings.ToLower(strings.TrimSpace(fingerprint))
+}
+
+// retireVacatedProjectionLinesLocked empties any line whose latest projection
+// serves a save that has since moved to another line. Leaving the stale
+// projection in place means every device that restores that line gets a card
+// holding another game's save.
+func (s *playStationStore) retireVacatedProjectionLinesLocked(systemSlug string) {
+	for key, line := range s.state.ProjectionLines {
+		if line.SystemSlug != systemSlug || strings.TrimSpace(line.LatestProjectionID) == "" {
+			continue
+		}
+		projection, ok := s.state.Projections[strings.TrimSpace(line.LatestProjectionID)]
+		if !ok {
+			continue
+		}
+		if projectionManifestStillHeld(systemSlug, s.state.LogicalSaves, projection) {
+			continue
+		}
+		delete(s.state.Projections, projection.ID)
+		line.LatestProjectionID = ""
+		line.UpdatedAt = time.Now().UTC()
+		s.state.ProjectionLines[key] = line
+	}
+}
+
+// projectionManifestStillHeld reports whether any save the projection carries
+// is still owned by the line it was built for. A save that moved to another
+// line is no longer held here, and the projection must not keep serving it.
+func projectionManifestStillHeld(systemSlug string, logicals map[string]psLogicalSave, projection psProjection) bool {
+	for _, entry := range projection.Manifest {
+		logical, ok := logicals[entry.LogicalKey]
+		if !ok {
+			continue
+		}
+		if logical.SystemSlug != systemSlug {
+			continue
+		}
+		if psScopeKey(logical.Portable, logical.SyncLineKey, logical.ProjectionLineKey) == entry.ScopeKey {
+			return true
+		}
+	}
+	return false
+}
+
+// projectionLineForLogical is the line a save belongs to now.
+func projectionLineForLogical(logical psLogicalSave) string {
+	if logical.Portable {
+		return logical.SyncLineKey
+	}
+	return logical.ProjectionLineKey
 }
 
 func psScopeKey(portable bool, syncKey, projectionKey string) string {
@@ -553,7 +622,8 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	}
 
 	for i, entry := range entries {
-		logical := state.LogicalSaves[entry.LogicalKey]
+		previous := state.LogicalSaves[entry.LogicalKey]
+		logical := previous
 		logical.Key = entry.LogicalKey
 		logical.SystemSlug = entry.SystemSlug
 		logical.SyncLineKey = entry.SyncLineKey
@@ -563,6 +633,16 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 		logical.RegionCode = entry.RegionCode
 		logical.ProductCode = entry.ProductCode
 		logical.Portable = entry.Portable
+		// A save that moves to another line changes which card serves it.
+		// That is a change even when its bytes are ones the server already
+		// holds, and skipping the rebuild on a byte match is how the line it
+		// left keeps serving it.
+		// The line a save is on is its scope: a portable save's slot, or a
+		// non-portable save's profile line. A portable save uploaded by
+		// another profile on the same slot has not moved.
+		if before := projectionLineForLogical(previous); before != "" && before != projectionLineForLogical(logical) {
+			changed = true
+		}
 		tombstoneKey := psTombstoneKey(entry.ScopeKey, entry.LogicalKey)
 		_, tombstoned := state.Tombstones[tombstoneKey]
 		if latest, ok := logical.latestRevision(); ok && latest.SHA256 == entry.SHA256 && !tombstoned {
@@ -621,6 +701,12 @@ func (s *playStationStore) importMemoryCard(req psImportRequest) (psImportResult
 	if err != nil {
 		return psImportResult{}, err
 	}
+	// A save that moved to another per-game line is still held by the
+	// projections of the line it left, and a device restoring that line
+	// would write it back onto the wrong game's card. The rebuild above only
+	// touches the line this upload arrived on, so sweep the rest once the
+	// save's new owner is recorded.
+	s.retireVacatedProjectionLinesLocked(req.SystemSlug)
 	if len(built) == 0 {
 		return psImportResult{}, fmt.Errorf("no PlayStation projections were generated")
 	}
@@ -1777,6 +1863,67 @@ func (s *playStationStore) attachProjectionSaveRecord(projectionID, saveRecordID
 	projection.SaveRecordID = strings.TrimSpace(saveRecordID)
 	s.state.Projections[projection.ID] = projection
 	return s.persistLocked()
+}
+
+// projectionLineSlot names the card a projection line is keyed on, in the
+// form a helper offers: "Game: <title>" for a per-game line, else "Memory Card 1".
+// It answers "which card does the server hold this save on", which the helper
+// cannot know from its own state after the save is re-homed server-side.
+func projectionLineSlot(projectionLine string) string {
+	key := strings.ToLower(strings.TrimSpace(projectionLine))
+	if idx := strings.Index(key, "::"); idx >= 0 {
+		key = key[idx+2:]
+	}
+	if strings.HasPrefix(key, "game-") {
+		slug := strings.TrimPrefix(key, "game-")
+		if slug != "" {
+			return "Game: " + slug
+		}
+	}
+	return ""
+}
+
+// logicalSaveCardSlot names the card the server holds a logical save on, so a
+// helper can tell that its own state is behind a server-side re-home. It reads
+// the projection the logical save currently lives on, not the line the helper
+// asked about, which is the distinction that matters here.
+func (s *playStationStore) logicalSaveCardSlot(runtimeProfile, cardSlot string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	line, ok := s.state.ProjectionLines[projectionLineKey(runtimeProfile, cardSlot)]
+	if !ok || strings.TrimSpace(line.LatestProjectionID) == "" {
+		return ""
+	}
+	projection, ok := s.state.Projections[line.LatestProjectionID]
+	if !ok {
+		return ""
+	}
+	for _, logical := range s.state.LogicalSaves {
+		if strings.TrimSpace(logical.SystemSlug) != strings.TrimSpace(line.SystemSlug) {
+			continue
+		}
+		if !projectionManifestContainsLogicalKey(projection.Manifest, logical.Key) {
+			continue
+		}
+		if current, found := s.currentProjectionForLogicalLocked(logical); found {
+			return s.projectionLineCardSlotLocked(current.ProjectionLineKey)
+		}
+		return s.projectionLineCardSlotLocked(logical.ProjectionLineKey)
+	}
+	return ""
+}
+
+// projectionLineCardSlotLocked is the card name a projection line was created
+// under, the name a device offers and compares with. The line key holds only a
+// lowercased slug of it ("game-tekken-3-usa"), which no device writes, so it is
+// used only for a line stored without its card name.
+func (s *playStationStore) projectionLineCardSlotLocked(projectionLine string) string {
+	if line, ok := s.state.ProjectionLines[projectionLine]; ok {
+		if name, isGameCard := perGameCardName(line.CardSlot); isGameCard {
+			return perGameCardSlotPrefix + name
+		}
+	}
+	return projectionLineSlot(projectionLine)
 }
 
 func (s *playStationStore) latestProjectionSaveRecord(runtimeProfile, cardSlot string) (string, string, bool) {

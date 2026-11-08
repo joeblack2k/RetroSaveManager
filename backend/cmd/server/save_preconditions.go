@@ -201,9 +201,17 @@ func (a *app) enforceSaveWritePrecondition(w http.ResponseWriter, r *http.Reques
 }
 
 func writeLatestSaveRecord(w http.ResponseWriter, latest saveRecord, shaValue string) {
+	writeLatestSaveRecordOnSlot(w, latest, shaValue, "")
+}
+
+// writeLatestSaveRecordOnSlot also names the card the server holds the logical
+// save on. A helper compares it with the card it is offering: when they differ
+// the save was re-homed server-side, so unchanged bytes still need sending or a
+// download here leaves it served from the old card.
+func writeLatestSaveRecordOnSlot(w http.ResponseWriter, latest saveRecord, shaValue, slot string) {
 	w.Header().Set(conditionalWritesHeader, "supported")
 	w.Header().Set("ETag", saveRecordETag(latest))
-	writeJSON(w, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"success":           true,
 		"exists":            true,
 		"sha256":            shaValue,
@@ -212,5 +220,9 @@ func writeLatestSaveRecord(w http.ResponseWriter, latest saveRecord, shaValue st
 		"revision":          saveRecordRevision(latest),
 		"format":            saveRecordFormat(latest),
 		"conditionalWrites": true,
-	})
+	}
+	if slot != "" {
+		body["cardSlot"] = slot
+	}
+	writeJSON(w, http.StatusOK, body)
 }

@@ -619,6 +619,11 @@ func clonePlayStationLogicalWithRevision(logical psLogicalSave, revision psLogic
 
 func playStationLogicalDownloadFilename(projection psProjection, logical psLogicalSave) string {
 	base := strings.TrimSpace(firstNonEmpty(logical.DisplayTitle, logical.ProductCode, projection.CardSlot, "playstation-save"))
+	// A per-game card is named after its game, and that is the file the
+	// emulator reads; the save's own title names no file.
+	if name, ok := perGameCardName(projection.CardSlot); ok {
+		base = name
+	}
 	switch canonicalSegment(logical.SystemSlug, "") {
 	case "psx":
 		ext := strings.ToLower(filepath.Ext(strings.TrimSpace(projection.Filename)))
