@@ -40,6 +40,9 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		}
 	}
 
+	if result, isBundle := validateFolderSave(input, systemSlug); isBundle {
+		return result
+	}
 	switch systemSlug {
 	case "dreamcast":
 		return validateDreamcastSave(input, normalized)
@@ -57,6 +60,8 @@ func validateConsoleSpecificSave(input saveCreateInput, detection saveSystemDete
 		return validateLegacyRawSave(input, detection, systemSlug)
 	case nativePortSystemSlug:
 		return validateNativePortSave(input, detection)
+	case "psp":
+		return validatePSPSave(input)
 	default:
 		return consoleValidationResult{}
 	}
