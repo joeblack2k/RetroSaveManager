@@ -14,8 +14,9 @@ import (
 )
 
 // Some emulators keep a game's save as a folder of files rather than one file:
-// Dolphin keeps a Wii title's save in its NAND at title/<hi>/<lo>/data/, and
-// Vita3K keeps a Vita title's under ux0/user/00/savedata/<TITLEID>/. A helper
+// Dolphin keeps a Wii title's save in its NAND at title/<hi>/<lo>/data/,
+// Vita3K keeps a Vita title's under ux0/user/00/savedata/<TITLEID>/, and a
+// PortMaster port keeps its save under ports/<port>/conf/. A helper
 // uploads such a folder as one flat zip with folderSaveDir naming the folder,
 // and the server stores that zip as a single record any device can restore,
 // the same way a PPSSPP SAVEDATA folder is stored (psp_savedata.go).
@@ -31,10 +32,12 @@ const (
 )
 
 // The folder each system's bundles are keyed by: a Wii NAND title is its two
-// 8-hex-digit halves (00010001/57435645), a Vita save its title ID (PCSE00746).
+// 8-hex-digit halves (00010001/57435645), a Vita save its title ID (PCSE00746),
+// and a PortMaster port its name (curseofthearrow), one plain folder name.
 var folderSaveDirPatterns = map[string]*regexp.Regexp{
 	"wii":    regexp.MustCompile(`^[0-9a-f]{8}/[0-9a-f]{8}$`),
 	"psvita": regexp.MustCompile(`^[A-Z]{4}[0-9]{5}$`),
+	"ports":  regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`),
 }
 
 type folderSaveFile struct {

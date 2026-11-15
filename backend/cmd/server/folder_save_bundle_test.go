@@ -204,3 +204,44 @@ func TestFolderBundleSurvivesRescan(t *testing.T) {
 		t.Fatalf("expected the folder key to survive a rescan, got %q", got)
 	}
 }
+
+// A PortMaster port keeps its save under ports/<port>/conf/, in the folder its
+// engine writes (conf/love/CurseOfTheArrow/ for a LÖVE game). The helper uploads
+// that conf/ folder as one bundle keyed by the port's name.
+func TestPortMasterConfFolderBundleStoresOneRecordKeyedByPortName(t *testing.T) {
+	h := newContractHarness(t)
+	before := len(h.app.snapshotSaveRecords())
+	bundle := buildTestPSPZip(t, []testPSPZipEntry{
+		{name: "love/CurseOfTheArrow/save.lua", data: []byte("return { level = 7, deaths = 31 }")},
+		{name: "love/CurseOfTheArrow/settings.lua", data: []byte("return { volume = 5 }")},
+	})
+	body := uploadSave(t, h, "/saves", folderBundleFields("ports", "curseofthearrow"), "curseofthearrow.portconf", bundle)
+	saveID := mustString(t, mustObject(t, body["save"], "save")["id"], "save.id")
+	if got := len(h.app.snapshotSaveRecords()) - before; got != 1 {
+		t.Fatalf("expected exactly one new record for a port's conf folder, got %d", got)
+	}
+	record := mustFindRecordByID(t, h, saveID)
+	if record.Summary.SystemSlug != "ports" {
+		t.Fatalf("expected ports system, got %q", record.Summary.SystemSlug)
+	}
+	if got := canonicalListKeyForRecord(record); got != "ports::folder::curseofthearrow" {
+		t.Fatalf("expected list key ports::folder::curseofthearrow, got %q", got)
+	}
+	download := h.request(http.MethodGet, "/saves/download?id="+saveID, nil)
+	assertStatus(t, download, http.StatusOK)
+	if !bytes.Equal(download.Body.Bytes(), bundle) {
+		t.Fatalf("expected a byte-identical download (%d bytes), got %d", len(bundle), download.Body.Len())
+	}
+}
+
+// A port name is one plain lowercase folder name; anything else is refused.
+func TestPortMasterConfFolderBundleRejectsAnInvalidPortName(t *testing.T) {
+	h := newContractHarness(t)
+	bundle := buildTestPSPZip(t, []testPSPZipEntry{{name: "save.dat", data: []byte("progress")}})
+	for _, dir := range []string{"../curseofthearrow", "curse/arrow", "CurseOfTheArrow", ".hidden"} {
+		rr := h.multipart("/saves", folderBundleFields("ports", dir), "file", "x.portconf", bundle)
+		if rr.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("port %q: expected 422, got %d", dir, rr.Code)
+		}
+	}
+}
