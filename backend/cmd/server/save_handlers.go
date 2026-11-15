@@ -257,7 +257,31 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		if !a.enforceSaveWritePrecondition(w, r, helperCtx, formValue, filename) {
 			return
 		}
-		if expandedUploads, isArchive, expandErr := expandMultipartSaveUpload(filename, payload, formValue); isArchive {
+		folderBundle, isFolderBundle, folderErr := folderSaveBundleFromForm(payload, formValue)
+		if isFolderBundle && folderErr != nil {
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   deviceName,
+				Action:       "upload",
+				Game:         syncLogGameLabelFromFilename(filename),
+				ErrorMessage: folderErr.Error(),
+				SystemSlug:   safeMultipartSystemSlug(formValue("system"), nil),
+			})
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: errUnsupportedSaveFormat.Error(), Reason: folderErr.Error(), StatusCode: http.StatusUnprocessableEntity})
+			return
+		}
+		pspBundle, isPSPBundle, pspErr := pspSaveDataBundleFromForm(payload, formValue)
+		if isPSPBundle && pspErr != nil {
+			a.appendSyncLog(syncLogInput{
+				DeviceName:   deviceName,
+				Action:       "upload",
+				Game:         syncLogGameLabelFromFilename(filename),
+				ErrorMessage: pspErr.Error(),
+				SystemSlug:   "psp",
+			})
+			writeJSON(w, http.StatusUnprocessableEntity, apiError{Error: "Unprocessable Entity", Message: errUnsupportedSaveFormat.Error(), Reason: pspErr.Error(), StatusCode: http.StatusUnprocessableEntity})
+			return
+		}
+		if expandedUploads, isArchive, expandErr := expandMultipartSaveUpload(filename, payload, formValue); isArchive && !isPSPBundle && !isFolderBundle {
 			if expandErr != nil {
 				a.appendSyncLog(syncLogInput{
 					DeviceName:   deviceName,
@@ -276,6 +300,14 @@ func (a *app) handleSaves(w http.ResponseWriter, r *http.Request) {
 		metadata, wiiTitleCode := wiiUploadMetadata(nil, filename, formValue)
 		if wiiTitleCode != "" && strings.EqualFold(safeFilename(filename), "data.bin") {
 			gameInfo = wiiGameFromTitleCode(wiiTitleCode)
+		}
+		if isPSPBundle {
+			gameInfo = pspGameFromBundle(pspBundle)
+			metadata = pspUploadMetadata(metadata, pspBundle)
+		}
+		if isFolderBundle {
+			gameInfo = folderSaveGameFromBundle(folderBundle)
+			metadata = folderSaveUploadMetadata(metadata, folderBundle)
 		}
 		declaredSystem := safeMultipartSystemSlug(formValue("system"), gameInfo.System)
 		if declaredSystem == "unknown-system" && wiiTitleCode != "" && strings.EqualFold(safeFilename(filename), "data.bin") {

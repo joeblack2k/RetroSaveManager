@@ -33,6 +33,8 @@ func (a *app) normalizeSaveInputDetailedWithOptions(input saveCreateInput, optio
 	}
 
 	detection := detectSaveSystem(saveSystemDetectionInput{
+		PSPSaveDataBundle:    isPSPSaveDataBundleMetadata(input.Metadata),
+		FolderSaveBundle:     isFolderSaveBundleMetadata(input.Metadata),
 		Filename:             input.Filename,
 		DisplayTitle:         firstNonEmpty(input.DisplayTitle, input.Game.DisplayTitle, input.Game.Name, strings.TrimSuffix(input.Filename, filepath.Ext(input.Filename))),
 		Payload:              input.Payload,
