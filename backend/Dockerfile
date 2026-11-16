@@ -24,8 +24,13 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o
 FROM gcr.io/distroless/static-debian12
 WORKDIR /app
 
-ARG RSM_VERSION=dev
-ARG RSM_COMMIT=
+# The generic build args let any build system stamp this image without
+# knowing the repo's names. RSM_* still overrides them, so a caller that
+# passes RSM_VERSION directly keeps working.
+ARG BUILD_VERSION=dev
+ARG BUILD_REVISION=
+ARG RSM_VERSION=${BUILD_VERSION}
+ARG RSM_COMMIT=${BUILD_REVISION}
 
 COPY --from=backend-build /out/retrosave-api /usr/local/bin/retrosave-api
 COPY --from=backend-build /out/retrosave-healthcheck /usr/local/bin/retrosave-healthcheck
